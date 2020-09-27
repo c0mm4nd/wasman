@@ -13,6 +13,7 @@ import (
 var strMainModuleFile = flag.String("main", "module.wasm", "main module")
 
 var funcName = flag.String("func", "main", "main func")
+var maxToll = flag.Uint64("max-toll", 0, "cap for simple toll station")
 
 var strExternModules = flag.String("extern-files", "", "external modules files")
 
@@ -27,10 +28,9 @@ func main() {
 		panic(err)
 	}
 
-
 	mainMod, err := wasman.NewModule(f, &wasman.ModuleConfig{
 		DisableFloatPoint: false,
-		TollStation:       wasman.NewSimpleTollStation(1),
+		TollStation:       wasman.NewSimpleTollStation(uint64(*maxToll)),
 	})
 	if err != nil {
 		panic(err)
@@ -42,7 +42,7 @@ func main() {
 			continue
 		}
 		li := strings.Split(pair, ":")
-		if len(li)!=2 {
+		if len(li) != 2 {
 			panic("invalid external module: should input with -extern=<name1>:<file1>,<name2>:<file2>")
 		}
 
