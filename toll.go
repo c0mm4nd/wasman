@@ -42,7 +42,7 @@ func (cp *SimpleTollStation) GetToll() uint64 {
 func (cp *SimpleTollStation) AddToll(_ instr.OpCode) error {
 	cost := uint64(1)
 
-	if atomic.LoadUint64(cp.total) > cp.max- cost {
+	if atomic.LoadUint64(cp.total) > cp.max-cost {
 		return ErrCostOverflow
 	}
 
@@ -50,3 +50,10 @@ func (cp *SimpleTollStation) AddToll(_ instr.OpCode) error {
 	return nil
 }
 
+func (ins *Instance) GetToll() uint64 {
+	if ins.ModuleConfig != nil && ins.ModuleConfig.TollStation != nil {
+		return ins.ModuleConfig.TollStation.GetToll()
+	}
+
+	return 0
+}

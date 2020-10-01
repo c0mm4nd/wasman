@@ -11,6 +11,8 @@ import (
 
 // https://www.w3.org/TR/wasm-core-1/#syntax-module
 type Module struct {
+	*ModuleConfig
+
 	// sections
 	TypesSection     []*types.FuncType
 	ImportsSection   []*segments.ImportSegment
@@ -26,8 +28,6 @@ type Module struct {
 
 	// index spaces
 	indexSpace *indexSpace
-
-	TollStation TollStation
 }
 
 // index to the imports
@@ -67,9 +67,7 @@ func NewModule(r io.Reader, config *ModuleConfig) (*Module, error) {
 	}
 
 	if config != nil {
-		if config.TollStation != nil {
-			module.TollStation = config.TollStation
-		}
+		module.ModuleConfig = config
 	}
 
 	return module, nil

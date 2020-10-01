@@ -85,5 +85,5 @@ func main() {
 		fmt.Println("result: ", r[0])
 	}
 
-	fmt.Println("toll: ", ins.TollStation.GetToll())
+	fmt.Println("toll: ", ins.GetToll())
 }
