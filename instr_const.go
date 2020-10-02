@@ -4,23 +4,54 @@ import (
 	"math"
 )
 
-
-func i32Const(ins *Instance) {
+func i32Const(ins *Instance) error {
 	ins.Context.PC++
-	ins.OperandStack.push(uint64(ins.fetchInt32()))
+
+	v, err := ins.fetchInt32()
+	if err != nil {
+		return err
+	}
+
+	ins.OperandStack.push(uint64(v))
+
+	return nil
 }
 
-func i64Const(ins *Instance) {
+func i64Const(ins *Instance) error {
 	ins.Context.PC++
-	ins.OperandStack.push(uint64(ins.fetchInt64()))
+
+	v, err := ins.fetchInt64()
+	if err != nil {
+		return err
+	}
+
+	ins.OperandStack.push(uint64(v))
+
+	return nil
 }
 
-func f32Const(ins *Instance) {
+func f32Const(ins *Instance) error {
 	ins.Context.PC++
-	ins.OperandStack.push(uint64(math.Float32bits(ins.fetchFloat32())))
+
+	v, err := ins.fetchFloat32()
+	if err != nil {
+		return err
+	}
+
+	ins.OperandStack.push(uint64(math.Float32bits(v)))
+
+	return nil
 }
 
-func f64Const(ins *Instance) {
+func f64Const(ins *Instance) error {
 	ins.Context.PC++
-	ins.OperandStack.push(math.Float64bits(ins.fetchFloat64()))
+
+	v, err := ins.fetchFloat64()
+	if err != nil {
+		return err
+	}
+
+	ins.OperandStack.push(math.Float64bits(v))
+
+	return nil
 }

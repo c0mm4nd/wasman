@@ -2,12 +2,19 @@ package wasman
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/c0mm4nd/wasman/instr"
 	"github.com/c0mm4nd/wasman/leb128"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
+)
+
+var (
+	ErrExportedFuncNotFound = errors.New("exported func is not found")
+	ErrFuncIndexOutOfRange  = errors.New("function index out of range")
+	ErrInvalidArgNum        = errors.New("invalid number of arguments")
 )
 
 func (ins *Instance) execExpr(expression *instr.Expr) (v interface{}, err error) {
@@ -48,54 +55,60 @@ func (ins *Instance) execExpr(expression *instr.Expr) (v interface{}, err error)
 	return v, nil
 }
 
-func (ins *Instance) execFunc() {
+func (ins *Instance) execFunc() error {
 	for ; int(ins.Context.PC) < len(ins.Context.Func.Body); ins.Context.PC++ {
 		opByte := ins.Context.Func.Body[ins.Context.PC]
 		switch op := instr.OpCode(opByte); op {
 		case instr.OpCodeReturn:
-			return
+			return nil
 		default:
-			instructions[op](ins)
+			err := instructions[op](ins)
+			if err != nil {
+				return err
+			}
 
 			// Toll
 			if ins.TollStation != nil {
 				err := ins.TollStation.AddToll(op)
 				if err != nil {
-					panic(err) // TODO: avoid panic
+					return err
 				}
 			}
 		}
 	}
+
+	return nil
 }
 
+// TODO: enhance this
 func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []uint64, returnTypes []types.ValueType, err error) {
 	exp, ok := ins.Module.ExportsSection[name]
-	if !ok {
-		return nil, nil, fmt.Errorf("exported func of name %s not found", name)
-	}
-
-	if exp.Desc.Kind != segments.ExportKindFunction {
-		return nil, nil, fmt.Errorf("exported elent of name %s is not functype", name)
+	if !ok || exp.Desc.Kind != segments.ExportKindFunction {
+		return nil, nil, ErrExportedFuncNotFound
 	}
 
 	if int(exp.Desc.Index) >= len(ins.Functions) {
-		return nil, nil, fmt.Errorf("function index out of range")
+		return nil, nil, ErrFuncIndexOutOfRange
 	}
 
 	f := ins.Functions[exp.Desc.Index]
-	if len(f.FuncType().InputTypes) != len(args) {
-		return nil, nil, fmt.Errorf("invalid number of arguments")
+	if len(f.getType().InputTypes) != len(args) {
+		return nil, nil, ErrInvalidArgNum
 	}
 
 	for _, arg := range args {
 		ins.OperandStack.push(arg)
 	}
 
-	f.Call(ins)
+	err = f.call(ins)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	ret := make([]uint64, len(f.FuncType().ReturnTypes))
+	ret := make([]uint64, len(f.getType().ReturnTypes))
 	for i := range ret {
 		ret[len(ret)-1-i] = ins.OperandStack.pop()
 	}
-	return ret, f.FuncType().ReturnTypes, nil
+
+	return ret, f.getType().ReturnTypes, nil
 }

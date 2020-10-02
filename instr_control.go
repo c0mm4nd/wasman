@@ -2,15 +2,35 @@ package wasman
 
 import (
 	"bytes"
+	"errors"
+	"github.com/c0mm4nd/wasman/types"
 
 	"github.com/c0mm4nd/wasman/leb128"
 )
 
-func block(ins *Instance) {
+var (
+	ErrUnreachable              = errors.New("unreachable")
+	ErrBlockNotInitialized      = errors.New("block not initialized")
+	ErrBlockNotFound            = errors.New("block not found")
+	ErrFuncSignMismatch         = errors.New("function signature mismatch")
+	ErrLabelNotFound            = errors.New("label not found")
+	ErrTableIndexOutOfRange     = errors.New("table index out of range")
+	ErrTableEntryNotInitialized = errors.New("table entry not initialized")
+)
+
+func unreachable(_ *Instance) error {
+	return ErrUnreachable
+}
+
+func nop(_ *Instance) error {
+	return nil
+}
+
+func block(ins *Instance) error {
 	ctx := ins.Context
 	block, ok := ctx.Func.Blocks[ctx.PC]
 	if !ok {
-		panic("block not initialized")
+		return ErrBlockNotInitialized
 	}
 
 	ctx.PC += block.BlockTypeBytes
@@ -19,13 +39,15 @@ func block(ins *Instance) {
 		ContinuationPC: block.EndAt,
 		EndPC:          block.EndAt,
 	})
+
+	return nil
 }
 
-func loop(ins *Instance) {
+func loop(ins *Instance) error {
 	ctx := ins.Context
 	block, ok := ctx.Func.Blocks[ctx.PC]
 	if !ok {
-		panic("block not found")
+		return ErrBlockNotFound
 	}
 	ctx.PC += block.BlockTypeBytes
 	ctx.LabelStack.push(&label{
@@ -33,13 +55,15 @@ func loop(ins *Instance) {
 		ContinuationPC: block.StartAt - 1,
 		EndPC:          block.EndAt,
 	})
+
+	return nil
 }
 
-func ifOp(ins *Instance) {
+func ifOp(ins *Instance) error {
 	ctx := ins.Context
 	block, ok := ctx.Func.Blocks[ins.Context.PC]
 	if !ok {
-		panic("block not initialized")
+		return ErrBlockNotInitialized
 	}
 	ctx.PC += block.BlockTypeBytes
 
@@ -53,57 +77,83 @@ func ifOp(ins *Instance) {
 		ContinuationPC: block.EndAt,
 		EndPC:          block.EndAt,
 	})
+
+	return nil
 }
 
-func elseOp(ins *Instance) {
+func elseOp(ins *Instance) error {
 	l := ins.Context.LabelStack.pop()
 	ins.Context.PC = l.EndPC
+
+	return nil
 }
 
-func end(ins *Instance) {
+func end(ins *Instance) error {
 	if ins.Context.LabelStack.SP > -1 {
 		_ = ins.Context.LabelStack.pop()
 	}
+
+	return nil
 }
 
-func br(ins *Instance) {
-	ins.Context.PC++
-	index := ins.fetchUint32()
-	brAt(ins, index)
+func _return(_ *Instance) error {
+	return nil
 }
 
-func brIf(ins *Instance) {
+func br(ins *Instance) error {
 	ins.Context.PC++
-	index := ins.fetchUint32()
-	c := ins.OperandStack.pop()
-	if c != 0 {
-		brAt(ins, index)
+	index, err := ins.fetchUint32()
+	if err != nil {
+		return err
 	}
+
+	return branchAt(ins, index)
 }
 
-func brAt(ins *Instance, index uint32) {
+func branchAt(ins *Instance, index uint32) error {
 	var l *label
 
 	for i := uint32(0); i < index+1; i++ {
 		l = ins.Context.LabelStack.pop()
 	}
 
+	if l == nil {
+		return ErrLabelNotFound
+	}
+
 	ins.Context.PC = l.ContinuationPC
+
+	return nil
 }
 
-func brTable(ins *Instance) {
+func brIf(ins *Instance) error {
+	ins.Context.PC++
+	index, err := ins.fetchUint32()
+	if err != nil {
+		return err
+	}
+
+	c := ins.OperandStack.pop()
+	if c != 0 {
+		return branchAt(ins, index)
+	}
+
+	return nil
+}
+
+func brTable(ins *Instance) error {
 	ins.Context.PC++
 	r := bytes.NewBuffer(ins.Context.Func.Body[ins.Context.PC:])
 	nl, num, err := leb128.DecodeUint32(r)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	lis := make([]uint32, nl)
 	for i := range lis {
 		li, n, err := leb128.DecodeUint32(r)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		num += n
 		lis[i] = li
@@ -111,14 +161,66 @@ func brTable(ins *Instance) {
 
 	ln, n, err := leb128.DecodeUint32(r)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	ins.Context.PC += n + num
 
 	i := ins.OperandStack.pop()
 	if uint32(i) < nl {
-		brAt(ins, lis[i])
+		return branchAt(ins, lis[i])
 	} else {
-		brAt(ins, ln)
+		return branchAt(ins, ln)
 	}
+}
+
+func call(ins *Instance) error {
+	ins.Context.PC++
+	index, err := ins.fetchUint32()
+	if err != nil {
+		return err
+	}
+
+	err = ins.Functions[index].call(ins)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func callIndirect(ins *Instance) error {
+	ins.Context.PC++
+	index, err := ins.fetchUint32()
+	if err != nil {
+		return err
+	}
+
+	expType := ins.Module.TypesSection[index]
+
+	tableIndex := ins.OperandStack.pop()
+	// note: mvp limits the size of table index space to 1
+	if tableIndex >= uint64(len(ins.Module.indexSpace.Tables[0])) {
+		return ErrTableIndexOutOfRange
+	}
+
+	te := ins.Module.indexSpace.Tables[0][tableIndex]
+	if te == nil {
+		return ErrTableEntryNotInitialized
+	}
+
+	f := ins.Functions[*te]
+	ft := f.getType()
+	if !types.HasSameSignature(ft.InputTypes, expType.InputTypes) ||
+		!types.HasSameSignature(ft.ReturnTypes, expType.ReturnTypes) {
+		return ErrFuncSignMismatch
+	}
+
+	err = f.call(ins)
+	if err != nil {
+		return err
+	}
+
+	ins.Context.PC++ // skip 0x00
+
+	return nil
 }

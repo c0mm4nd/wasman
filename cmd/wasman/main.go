@@ -17,7 +17,7 @@ var maxToll = flag.Uint64("max-toll", 0, "cap for simple toll station")
 
 var strExternModules = flag.String("extern-files", "", "external modules files")
 
-var stdout = os.Stdout
+var stdout = os.Stdout // for wasi
 
 func main() {
 	flag.Parse()
@@ -30,7 +30,7 @@ func main() {
 
 	mainMod, err := wasman.NewModule(f, &wasman.ModuleConfig{
 		DisableFloatPoint: false,
-		TollStation:       wasman.NewSimpleTollStation(uint64(*maxToll)),
+		TollStation:       wasman.NewSimpleTollStation(*maxToll),
 	})
 	if err != nil {
 		panic(err)

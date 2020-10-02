@@ -102,10 +102,10 @@ func (ins *Instance) applyFunctionImport(importSeg *segments.ImportSegment, exte
 
 	iSig := ins.TypesSection[*importSeg.Desc.TypeIndexPtr]
 	f := externModule.indexSpace.Functions[exportSeg.Desc.Index]
-	if !types.HasSameSignature(iSig.ReturnTypes, f.FuncType().ReturnTypes) {
-		return fmt.Errorf("return signature mimatch: %#v != %#v", iSig.ReturnTypes, f.FuncType().ReturnTypes)
-	} else if !types.HasSameSignature(iSig.InputTypes, f.FuncType().InputTypes) {
-		return fmt.Errorf("input signature mimatch: %#v != %#v", iSig.InputTypes, f.FuncType().InputTypes)
+	if !types.HasSameSignature(iSig.ReturnTypes, f.getType().ReturnTypes) {
+		return fmt.Errorf("return signature mimatch: %#v != %#v", iSig.ReturnTypes, f.getType().ReturnTypes)
+	} else if !types.HasSameSignature(iSig.InputTypes, f.getType().InputTypes) {
+		return fmt.Errorf("input signature mimatch: %#v != %#v", iSig.InputTypes, f.getType().InputTypes)
 	}
 	ins.indexSpace.Functions = append(ins.indexSpace.Functions, f)
 	return nil

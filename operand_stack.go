@@ -38,6 +38,7 @@ func (s *operandStack) push(val uint64) {
 	} else {
 		s.Stack[s.SP+1] = val
 	}
+
 	s.SP++
 }
 

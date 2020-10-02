@@ -5,6 +5,6 @@ import (
 )
 
 type fn interface {
-	FuncType() *types.FuncType
-	Call(ins *Instance)
+	getType() *types.FuncType
+	call(ins *Instance) error
 }

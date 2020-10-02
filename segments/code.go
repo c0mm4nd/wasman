@@ -5,8 +5,8 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/c0mm4nd/wasman/leb128"
 	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/leb128"
 )
 
 type CodeSegment struct {

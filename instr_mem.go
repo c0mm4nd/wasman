@@ -4,136 +4,242 @@ import (
 	"encoding/binary"
 )
 
-func memoryBase(ins *Instance) uint64 {
+func memoryBase(ins *Instance) (uint64, error) {
 	ins.Context.PC++
-	_ = ins.fetchUint32() // ignore align
+	_, err := ins.fetchUint32() // ignore align
+	if err != nil {
+		return 0, err
+	}
 	ins.Context.PC++
-	return uint64(ins.fetchUint32()) + ins.OperandStack.pop()
+	v, err := ins.fetchUint32()
+	if err != nil {
+		return 0, err
+	}
+
+	return uint64(v) + ins.OperandStack.pop(), nil
 }
 
-func i32Load(ins *Instance) {
-	base := memoryBase(ins)
+func i32Load(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	ins.OperandStack.push(uint64(binary.LittleEndian.Uint32(ins.Memory[base:])))
+
+	return nil
 }
 
-func i64Load(ins *Instance) {
-	base := memoryBase(ins)
+func i64Load(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	ins.OperandStack.push(binary.LittleEndian.Uint64(ins.Memory[base:]))
+
+	return nil
 }
 
-func f32Load(ins *Instance) {
-	i32Load(ins)
+func f32Load(ins *Instance) error {
+	return i32Load(ins)
 }
 
-func f64Load(ins *Instance) {
-	i64Load(ins)
+func f64Load(ins *Instance) error {
+	return i64Load(ins)
 }
 
-func i32Load8s(ins *Instance) {
-	base := memoryBase(ins)
+func i32Load8s(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	ins.OperandStack.push(uint64(ins.Memory[base]))
+
+	return nil
 }
 
-func i32Load8u(ins *Instance) {
-	i32Load8s(ins)
+func i32Load8u(ins *Instance) error {
+	return i32Load8s(ins)
 }
 
-func i32Load16s(ins *Instance) {
-	base := memoryBase(ins)
+func i32Load16s(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	ins.OperandStack.push(uint64(binary.LittleEndian.Uint16(ins.Memory[base:])))
+
+	return nil
 }
 
-func i32Load16u(ins *Instance) {
-	i32Load16s(ins)
+func i32Load16u(ins *Instance) error {
+	return i32Load16s(ins)
 }
 
-func i64Load8s(ins *Instance) {
-	base := memoryBase(ins)
+func i64Load8s(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	ins.OperandStack.push(uint64(ins.Memory[base]))
+
+	return nil
 }
 
-func i64Load8u(ins *Instance) {
-	i64Load8s(ins)
+func i64Load8u(ins *Instance) error {
+	return i64Load8s(ins)
 }
 
-func i64Load16s(ins *Instance) {
-	base := memoryBase(ins)
+func i64Load16s(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	ins.OperandStack.push(uint64(binary.LittleEndian.Uint16(ins.Memory[base:])))
+
+	return nil
 }
 
-func i64Load16u(ins *Instance) {
-	i64Load16s(ins)
+func i64Load16u(ins *Instance) error {
+	return i64Load16s(ins)
 }
 
-func i64Load32s(ins *Instance) {
-	base := memoryBase(ins)
+func i64Load32s(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	ins.OperandStack.push(uint64(binary.LittleEndian.Uint32(ins.Memory[base:])))
+
+	return nil
 }
 
-func i64Load32u(ins *Instance) {
-	i64Load32s(ins)
+func i64Load32u(ins *Instance) error {
+	return i64Load32s(ins)
 }
 
-func i32Store(ins *Instance) {
+func i32Store(ins *Instance) error {
 	val := ins.OperandStack.pop()
-	base := memoryBase(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	binary.LittleEndian.PutUint32(ins.Memory[base:], uint32(val))
+
+	return nil
 }
 
-func i64Store(ins *Instance) {
+func i64Store(ins *Instance) error {
 	val := ins.OperandStack.pop()
-	base := memoryBase(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	binary.LittleEndian.PutUint64(ins.Memory[base:], val)
+
+	return nil
 }
 
-func f32Store(ins *Instance) {
+func f32Store(ins *Instance) error {
 	val := ins.OperandStack.pop()
-	base := memoryBase(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	binary.LittleEndian.PutUint32(ins.Memory[base:], uint32(val))
+
+	return nil
 }
 
-func f64Store(ins *Instance) {
+func f64Store(ins *Instance) error {
 	v := ins.OperandStack.pop()
-	base := memoryBase(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	binary.LittleEndian.PutUint64(ins.Memory[base:], v)
+
+	return nil
 }
 
-func i32Store8(ins *Instance) {
+func i32Store8(ins *Instance) error {
 	v := byte(ins.OperandStack.pop())
-	base := memoryBase(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	ins.Memory[base] = v
+
+	return nil
 }
 
-func i32Store16(ins *Instance) {
+func i32Store16(ins *Instance) error {
 	v := uint16(ins.OperandStack.pop())
-	base := memoryBase(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	binary.LittleEndian.PutUint16(ins.Memory[base:], v)
+
+	return nil
 }
 
-func i64Store8(ins *Instance) {
+func i64Store8(ins *Instance) error {
 	v := byte(ins.OperandStack.pop())
-	base := memoryBase(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	ins.Memory[base] = v
+
+	return nil
 }
 
-func i64Store16(ins *Instance) {
+func i64Store16(ins *Instance) error {
 	v := uint16(ins.OperandStack.pop())
-	base := memoryBase(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	binary.LittleEndian.PutUint16(ins.Memory[base:], v)
+
+	return nil
 }
 
-func i64Store32(ins *Instance) {
+func i64Store32(ins *Instance) error {
 	v := uint32(ins.OperandStack.pop())
-	base := memoryBase(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
 	binary.LittleEndian.PutUint32(ins.Memory[base:], v)
+
+	return nil
 }
 
-func memorySize(ins *Instance) {
+func memorySize(ins *Instance) error {
 	ins.Context.PC++
 	ins.OperandStack.push(uint64(int32(len(ins.Memory) / defaultPageSize)))
+
+	return nil
 }
 
-func memoryGrow(ins *Instance) {
+func memoryGrow(ins *Instance) error {
 	ins.Context.PC++
 	n := uint32(ins.OperandStack.pop())
 
@@ -141,9 +247,12 @@ func memoryGrow(ins *Instance) {
 		uint64(n+uint32(len(ins.Memory)/defaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
 		v := int32(-1)
 		ins.OperandStack.push(uint64(v))
-		return
+
+		return nil
 	}
 
 	ins.OperandStack.push(uint64(len(ins.Memory)) / defaultPageSize)
 	ins.Memory = append(ins.Memory, make([]byte, n*defaultPageSize)...)
+
+	return nil
 }

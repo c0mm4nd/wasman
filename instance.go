@@ -21,7 +21,6 @@ type Instance struct {
 	OperandStack *operandStack
 }
 
-
 func NewInstance(module *Module, externModules map[string]*Module, config *InstanceConfig) (*Instance, error) {
 	ins := &Instance{
 		Module:       module,
@@ -33,7 +32,7 @@ func NewInstance(module *Module, externModules map[string]*Module, config *Insta
 	}
 
 	if config != nil {
-		// parse config
+		// TODO: parse config
 	}
 
 	// initializing memory
@@ -71,55 +70,65 @@ func NewInstance(module *Module, externModules map[string]*Module, config *Insta
 	// exec start functions
 	for _, id := range ins.Module.StartSection {
 		if int(id) >= len(ins.Functions) {
-			return nil, fmt.Errorf("function index out of range")
+			return nil, ErrFuncIndexOutOfRange
 		}
 
-		ins.Functions[id].Call(ins)
+		err := ins.Functions[id].call(ins)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return ins, nil
 }
 
-func (ins *Instance) fetchInt32() int32 {
+func (ins *Instance) fetchInt32() (int32, error) {
 	ret, num, err := leb128.DecodeInt32(bytes.NewBuffer(
 		ins.Context.Func.Body[ins.Context.PC:]))
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
 	ins.Context.PC += num - 1
-	return ret
+
+	return ret, nil
 }
 
-func (ins *Instance) fetchUint32() uint32 {
+func (ins *Instance) fetchUint32() (uint32, error) {
 	ret, num, err := leb128.DecodeUint32(bytes.NewBuffer(
 		ins.Context.Func.Body[ins.Context.PC:]))
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
+
 	ins.Context.PC += num - 1
-	return ret
+
+	return ret, nil
 }
 
-func (ins *Instance) fetchInt64() int64 {
+func (ins *Instance) fetchInt64() (int64, error) {
 	ret, num, err := leb128.DecodeInt64(bytes.NewBuffer(
 		ins.Context.Func.Body[ins.Context.PC:]))
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
+
 	ins.Context.PC += num - 1
-	return ret
+
+	return ret, nil
 }
 
-func (ins *Instance) fetchFloat32() float32 {
+func (ins *Instance) fetchFloat32() (float32, error) {
 	v := math.Float32frombits(binary.LittleEndian.Uint32(
 		ins.Context.Func.Body[ins.Context.PC:]))
 	ins.Context.PC += 3
-	return v
+
+	return v, nil
 }
 
-func (ins *Instance) fetchFloat64() float64 {
+func (ins *Instance) fetchFloat64() (float64, error) {
 	v := math.Float64frombits(binary.LittleEndian.Uint64(
 		ins.Context.Func.Body[ins.Context.PC:]))
 	ins.Context.PC += 7
-	return v
+
+	return v, nil
 }

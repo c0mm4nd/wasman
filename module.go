@@ -2,11 +2,17 @@ package wasman
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
+)
+
+var (
+	ErrInvalidMagicNumber = errors.New("invalid magic number")
+	ErrInvalidVersion     = errors.New("invalid version header")
 )
 
 // https://www.w3.org/TR/wasm-core-1/#syntax-module
@@ -46,18 +52,12 @@ type global struct {
 func NewModule(r io.Reader, config *ModuleConfig) (*Module, error) {
 	// magic number
 	buf := make([]byte, 4)
-	if n, err := io.ReadFull(r, buf); err != nil || n != 4 {
-		return nil, ErrInvalidMagicNumber
-	}
-	for !bytes.Equal(buf, magic) {
+	if n, err := io.ReadFull(r, buf); err != nil || n != 4 || !bytes.Equal(buf, magic) {
 		return nil, ErrInvalidMagicNumber
 	}
 
 	// version
-	if n, err := io.ReadFull(r, buf); err != nil || n != 4 {
-		panic(err)
-	}
-	for !bytes.Equal(buf, version) {
+	if n, err := io.ReadFull(r, buf); err != nil || n != 4 || !bytes.Equal(buf, version) {
 		return nil, ErrInvalidVersion
 	}
 

@@ -1,10 +1,16 @@
 package wasman
 
 import (
+	"errors"
 	"math"
 	"reflect"
 
 	"github.com/c0mm4nd/wasman/types"
+)
+
+var (
+	ErrFuncInvalidInputType  = errors.New("invalid func input type")
+	ErrFuncInvalidReturnType = errors.New("invalid func return type")
 )
 
 type goFunc struct {
@@ -14,11 +20,11 @@ type goFunc struct {
 	function         reflect.Value // should be set at the time of wasm instance creation
 }
 
-func (f *goFunc) FuncType() *types.FuncType {
+func (f *goFunc) getType() *types.FuncType {
 	return f.Signature
 }
 
-func (f *goFunc) Call(ins *Instance) {
+func (f *goFunc) call(ins *Instance) error {
 	tp := f.function.Type()
 	in := make([]reflect.Value, tp.NumIn())
 	for i := len(in) - 1; i >= 0; i-- {
@@ -34,7 +40,7 @@ func (f *goFunc) Call(ins *Instance) {
 		case reflect.Int32, reflect.Int64:
 			val.SetInt(int64(raw))
 		default:
-			panic("invalid input type")
+			return ErrFuncInvalidInputType
 		}
 		in[i] = val
 	}
@@ -48,7 +54,9 @@ func (f *goFunc) Call(ins *Instance) {
 		case reflect.Int32, reflect.Int64:
 			ins.OperandStack.push(uint64(ret.Int()))
 		default:
-			panic("invalid return type")
+			return ErrFuncInvalidReturnType
 		}
 	}
+
+	return nil
 }
