@@ -12,7 +12,7 @@ func i32Const(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(uint64(v))
+	ins.OperandStack.Push(uint64(v))
 
 	return nil
 }
@@ -25,7 +25,7 @@ func i64Const(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(uint64(v))
+	ins.OperandStack.Push(uint64(v))
 
 	return nil
 }
@@ -38,7 +38,7 @@ func f32Const(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(uint64(math.Float32bits(v)))
+	ins.OperandStack.Push(uint64(math.Float32bits(v)))
 
 	return nil
 }
@@ -51,7 +51,7 @@ func f64Const(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(math.Float64bits(v))
+	ins.OperandStack.Push(math.Float64bits(v))
 
 	return nil
 }

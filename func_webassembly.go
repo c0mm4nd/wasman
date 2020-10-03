@@ -1,6 +1,7 @@
 package wasman
 
 import (
+	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
 )
 
@@ -27,14 +28,14 @@ func (f *wasmFunc) call(ins *Instance) error {
 	al := len(f.Signature.InputTypes)
 	locals := make([]uint64, f.NumLocal+uint32(al))
 	for i := 0; i < al; i++ {
-		locals[al-1-i] = ins.OperandStack.pop()
+		locals[al-1-i] = ins.OperandStack.Pop()
 	}
 
 	prev := ins.Context
 	ins.Context = &wasmContext{
 		Func:       f,
 		Locals:     locals,
-		LabelStack: newLabelStack(),
+		LabelStack: stacks.NewLabelStack(),
 	}
 
 	err := ins.execFunc()

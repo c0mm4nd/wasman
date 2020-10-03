@@ -2,15 +2,18 @@ package wasman
 
 import (
 	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/stacks"
 )
 
+// wasmContext is the context data of one instance
 type wasmContext struct {
 	PC         uint64
 	Func       *wasmFunc
 	Locals     []uint64
-	LabelStack *labelStack
+	LabelStack *stacks.LabelStack
 }
 
+// instructions are basic wasm instructions
 var instructions = [256]func(ins *Instance) error{
 	instr.OpCodeUnreachable:       unreachable,
 	instr.OpCodeNop:               nop,
@@ -22,7 +25,7 @@ var instructions = [256]func(ins *Instance) error{
 	instr.OpCodeBr:                br,
 	instr.OpCodeBrIf:              brIf,
 	instr.OpCodeBrTable:           brTable,
-	instr.OpCodeReturn:            _return,
+	instr.OpCodeReturn:            nop,
 	instr.OpCodeCall:              call,
 	instr.OpCodeCallIndirect:      callIndirect,
 	instr.OpCodeDrop:              drop,

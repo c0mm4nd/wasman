@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/c0mm4nd/wasman/stacks"
 	"math"
 
 	"github.com/c0mm4nd/wasman/leb128"
@@ -18,13 +19,13 @@ type Instance struct {
 	Memory    []byte
 	Globals   []uint64
 
-	OperandStack *operandStack
+	*stacks.OperandStack
 }
 
 func NewInstance(module *Module, externModules map[string]*Module, config *InstanceConfig) (*Instance, error) {
 	ins := &Instance{
 		Module:       module,
-		OperandStack: newOperandStack(),
+		OperandStack: stacks.NewOperandStack(),
 	}
 
 	if err := ins.buildIndexSpaces(externModules); err != nil {
@@ -44,7 +45,7 @@ func NewInstance(module *Module, externModules map[string]*Module, config *Insta
 	// initializing functions
 	ins.Functions = make([]fn, len(ins.Module.indexSpace.Functions))
 	for i, f := range ins.Module.indexSpace.Functions {
-		if wasmFn, ok := f.(*goFunc); ok {
+		if wasmFn, ok := f.(*hostFunc); ok {
 			wasmFn.function = wasmFn.ClosureGenerator(ins)
 			ins.Functions[i] = wasmFn
 		} else {

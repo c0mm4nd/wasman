@@ -7,7 +7,7 @@ func getLocal(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(ins.Context.Locals[id])
+	ins.OperandStack.Push(ins.Context.Locals[id])
 
 	return nil
 }
@@ -19,7 +19,7 @@ func setLocal(ins *Instance) error {
 		return err
 	}
 
-	v := ins.OperandStack.pop()
+	v := ins.OperandStack.Pop()
 	ins.Context.Locals[id] = v
 
 	return nil
@@ -32,7 +32,7 @@ func teeLocal(ins *Instance) error {
 		return err
 	}
 
-	v := ins.OperandStack.peek()
+	v := ins.OperandStack.Peek()
 	ins.Context.Locals[id] = v
 
 	return nil
@@ -45,7 +45,7 @@ func getGlobal(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(ins.Globals[id])
+	ins.OperandStack.Push(ins.Globals[id])
 
 	return nil
 }
@@ -57,7 +57,7 @@ func setGlobal(ins *Instance) error {
 		return err
 	}
 
-	ins.Globals[id] = ins.OperandStack.pop()
+	ins.Globals[id] = ins.OperandStack.Pop()
 
 	return nil
 }

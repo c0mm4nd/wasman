@@ -97,7 +97,7 @@ func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []ui
 	}
 
 	for _, arg := range args {
-		ins.OperandStack.push(arg)
+		ins.OperandStack.Push(arg)
 	}
 
 	err = f.call(ins)
@@ -107,7 +107,7 @@ func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []ui
 
 	ret := make([]uint64, len(f.getType().ReturnTypes))
 	for i := range ret {
-		ret[len(ret)-1-i] = ins.OperandStack.pop()
+		ret[len(ret)-1-i] = ins.OperandStack.Pop()
 	}
 
 	return ret, f.getType().ReturnTypes, nil

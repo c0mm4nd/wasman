@@ -16,7 +16,7 @@ func memoryBase(ins *Instance) (uint64, error) {
 		return 0, err
 	}
 
-	return uint64(v) + ins.OperandStack.pop(), nil
+	return uint64(v) + ins.OperandStack.Pop(), nil
 }
 
 func i32Load(ins *Instance) error {
@@ -25,7 +25,7 @@ func i32Load(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(uint64(binary.LittleEndian.Uint32(ins.Memory[base:])))
+	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint32(ins.Memory[base:])))
 
 	return nil
 }
@@ -36,7 +36,7 @@ func i64Load(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(binary.LittleEndian.Uint64(ins.Memory[base:]))
+	ins.OperandStack.Push(binary.LittleEndian.Uint64(ins.Memory[base:]))
 
 	return nil
 }
@@ -55,7 +55,7 @@ func i32Load8s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(uint64(ins.Memory[base]))
+	ins.OperandStack.Push(uint64(ins.Memory[base]))
 
 	return nil
 }
@@ -70,7 +70,7 @@ func i32Load16s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(uint64(binary.LittleEndian.Uint16(ins.Memory[base:])))
+	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint16(ins.Memory[base:])))
 
 	return nil
 }
@@ -85,7 +85,7 @@ func i64Load8s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(uint64(ins.Memory[base]))
+	ins.OperandStack.Push(uint64(ins.Memory[base]))
 
 	return nil
 }
@@ -100,7 +100,7 @@ func i64Load16s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(uint64(binary.LittleEndian.Uint16(ins.Memory[base:])))
+	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint16(ins.Memory[base:])))
 
 	return nil
 }
@@ -115,7 +115,7 @@ func i64Load32s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.push(uint64(binary.LittleEndian.Uint32(ins.Memory[base:])))
+	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint32(ins.Memory[base:])))
 
 	return nil
 }
@@ -125,7 +125,7 @@ func i64Load32u(ins *Instance) error {
 }
 
 func i32Store(ins *Instance) error {
-	val := ins.OperandStack.pop()
+	val := ins.OperandStack.Pop()
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -137,7 +137,7 @@ func i32Store(ins *Instance) error {
 }
 
 func i64Store(ins *Instance) error {
-	val := ins.OperandStack.pop()
+	val := ins.OperandStack.Pop()
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -149,7 +149,7 @@ func i64Store(ins *Instance) error {
 }
 
 func f32Store(ins *Instance) error {
-	val := ins.OperandStack.pop()
+	val := ins.OperandStack.Pop()
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -161,7 +161,7 @@ func f32Store(ins *Instance) error {
 }
 
 func f64Store(ins *Instance) error {
-	v := ins.OperandStack.pop()
+	v := ins.OperandStack.Pop()
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -173,7 +173,7 @@ func f64Store(ins *Instance) error {
 }
 
 func i32Store8(ins *Instance) error {
-	v := byte(ins.OperandStack.pop())
+	v := byte(ins.OperandStack.Pop())
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -185,7 +185,7 @@ func i32Store8(ins *Instance) error {
 }
 
 func i32Store16(ins *Instance) error {
-	v := uint16(ins.OperandStack.pop())
+	v := uint16(ins.OperandStack.Pop())
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -197,7 +197,7 @@ func i32Store16(ins *Instance) error {
 }
 
 func i64Store8(ins *Instance) error {
-	v := byte(ins.OperandStack.pop())
+	v := byte(ins.OperandStack.Pop())
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -209,7 +209,7 @@ func i64Store8(ins *Instance) error {
 }
 
 func i64Store16(ins *Instance) error {
-	v := uint16(ins.OperandStack.pop())
+	v := uint16(ins.OperandStack.Pop())
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -221,7 +221,7 @@ func i64Store16(ins *Instance) error {
 }
 
 func i64Store32(ins *Instance) error {
-	v := uint32(ins.OperandStack.pop())
+	v := uint32(ins.OperandStack.Pop())
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -234,24 +234,24 @@ func i64Store32(ins *Instance) error {
 
 func memorySize(ins *Instance) error {
 	ins.Context.PC++
-	ins.OperandStack.push(uint64(int32(len(ins.Memory) / defaultPageSize)))
+	ins.OperandStack.Push(uint64(int32(len(ins.Memory) / defaultPageSize)))
 
 	return nil
 }
 
 func memoryGrow(ins *Instance) error {
 	ins.Context.PC++
-	n := uint32(ins.OperandStack.pop())
+	n := uint32(ins.OperandStack.Pop())
 
 	if ins.Module.MemorySection[0].Max != nil &&
 		uint64(n+uint32(len(ins.Memory)/defaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
 		v := int32(-1)
-		ins.OperandStack.push(uint64(v))
+		ins.OperandStack.Push(uint64(v))
 
 		return nil
 	}
 
-	ins.OperandStack.push(uint64(len(ins.Memory)) / defaultPageSize)
+	ins.OperandStack.Push(uint64(len(ins.Memory)) / defaultPageSize)
 	ins.Memory = append(ins.Memory, make([]byte, n*defaultPageSize)...)
 
 	return nil

@@ -13,23 +13,23 @@ var (
 	ErrFuncInvalidReturnType = errors.New("invalid func return type")
 )
 
-type goFunc struct {
+type hostFunc struct {
 	Signature *types.FuncType
 
 	ClosureGenerator func(ins *Instance) reflect.Value
 	function         reflect.Value // should be set at the time of wasm instance creation
 }
 
-func (f *goFunc) getType() *types.FuncType {
+func (f *hostFunc) getType() *types.FuncType {
 	return f.Signature
 }
 
-func (f *goFunc) call(ins *Instance) error {
+func (f *hostFunc) call(ins *Instance) error {
 	tp := f.function.Type()
 	in := make([]reflect.Value, tp.NumIn())
 	for i := len(in) - 1; i >= 0; i-- {
 		val := reflect.New(tp.In(i)).Elem()
-		raw := ins.OperandStack.pop()
+		raw := ins.OperandStack.Pop()
 		kind := tp.In(i).Kind()
 
 		switch kind {
@@ -48,11 +48,11 @@ func (f *goFunc) call(ins *Instance) error {
 	for _, ret := range f.function.Call(in) {
 		switch ret.Kind() {
 		case reflect.Float64, reflect.Float32:
-			ins.OperandStack.push(math.Float64bits(ret.Float()))
+			ins.OperandStack.Push(math.Float64bits(ret.Float()))
 		case reflect.Uint32, reflect.Uint64:
-			ins.OperandStack.push(ret.Uint())
+			ins.OperandStack.Push(ret.Uint())
 		case reflect.Int32, reflect.Int64:
-			ins.OperandStack.push(uint64(ret.Int()))
+			ins.OperandStack.Push(uint64(ret.Int()))
 		default:
 			return ErrFuncInvalidReturnType
 		}

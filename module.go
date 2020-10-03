@@ -15,7 +15,7 @@ var (
 	ErrInvalidVersion     = errors.New("invalid version header")
 )
 
-// https://www.w3.org/TR/wasm-core-1/#syntax-module
+// https://www.w3.org/TR/wasm-core-1/#syntax-module%E2%91%A0
 type Module struct {
 	*ModuleConfig
 

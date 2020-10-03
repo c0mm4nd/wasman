@@ -44,7 +44,7 @@ func (l *Linker) DefineFunction(modName, funcName string, fn func(ins *Instance)
 		return fmt.Errorf("invalid signature: %w", err)
 	}
 
-	mod.indexSpace.Functions = append(mod.indexSpace.Functions, &goFunc{
+	mod.indexSpace.Functions = append(mod.indexSpace.Functions, &hostFunc{
 		ClosureGenerator: fn,
 		Signature:        sig,
 	})

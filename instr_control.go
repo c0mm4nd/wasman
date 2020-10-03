@@ -3,6 +3,7 @@ package wasman
 import (
 	"bytes"
 	"errors"
+	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
 
 	"github.com/c0mm4nd/wasman/leb128"
@@ -34,7 +35,7 @@ func block(ins *Instance) error {
 	}
 
 	ctx.PC += block.BlockTypeBytes
-	ctx.LabelStack.push(&label{
+	ctx.LabelStack.Push(&stacks.Label{
 		Arity:          len(block.BlockType.ReturnTypes),
 		ContinuationPC: block.EndAt,
 		EndPC:          block.EndAt,
@@ -50,7 +51,7 @@ func loop(ins *Instance) error {
 		return ErrBlockNotFound
 	}
 	ctx.PC += block.BlockTypeBytes
-	ctx.LabelStack.push(&label{
+	ctx.LabelStack.Push(&stacks.Label{
 		Arity:          len(block.BlockType.ReturnTypes),
 		ContinuationPC: block.StartAt - 1,
 		EndPC:          block.EndAt,
@@ -67,12 +68,12 @@ func ifOp(ins *Instance) error {
 	}
 	ctx.PC += block.BlockTypeBytes
 
-	if ins.OperandStack.pop() == 0 {
+	if ins.OperandStack.Pop() == 0 {
 		// enter else
 		ins.Context.PC = block.ElseAt
 	}
 
-	ctx.LabelStack.push(&label{
+	ctx.LabelStack.Push(&stacks.Label{
 		Arity:          len(block.BlockType.ReturnTypes),
 		ContinuationPC: block.EndAt,
 		EndPC:          block.EndAt,
@@ -82,21 +83,17 @@ func ifOp(ins *Instance) error {
 }
 
 func elseOp(ins *Instance) error {
-	l := ins.Context.LabelStack.pop()
+	l := ins.Context.LabelStack.Pop()
 	ins.Context.PC = l.EndPC
 
 	return nil
 }
 
 func end(ins *Instance) error {
-	if ins.Context.LabelStack.SP > -1 {
-		_ = ins.Context.LabelStack.pop()
+	if ins.Context.LabelStack.GetPtr() > -1 {
+		_ = ins.Context.LabelStack.Pop()
 	}
 
-	return nil
-}
-
-func _return(_ *Instance) error {
 	return nil
 }
 
@@ -111,10 +108,10 @@ func br(ins *Instance) error {
 }
 
 func branchAt(ins *Instance, index uint32) error {
-	var l *label
+	var l *stacks.Label
 
 	for i := uint32(0); i < index+1; i++ {
-		l = ins.Context.LabelStack.pop()
+		l = ins.Context.LabelStack.Pop()
 	}
 
 	if l == nil {
@@ -133,7 +130,7 @@ func brIf(ins *Instance) error {
 		return err
 	}
 
-	c := ins.OperandStack.pop()
+	c := ins.OperandStack.Pop()
 	if c != 0 {
 		return branchAt(ins, index)
 	}
@@ -165,7 +162,7 @@ func brTable(ins *Instance) error {
 	}
 	ins.Context.PC += n + num
 
-	i := ins.OperandStack.pop()
+	i := ins.OperandStack.Pop()
 	if uint32(i) < nl {
 		return branchAt(ins, lis[i])
 	} else {
@@ -197,7 +194,7 @@ func callIndirect(ins *Instance) error {
 
 	expType := ins.Module.TypesSection[index]
 
-	tableIndex := ins.OperandStack.pop()
+	tableIndex := ins.OperandStack.Pop()
 	// note: mvp limits the size of table index space to 1
 	if tableIndex >= uint64(len(ins.Module.indexSpace.Tables[0])) {
 		return ErrTableIndexOutOfRange
