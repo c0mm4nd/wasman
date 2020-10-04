@@ -1,11 +1,16 @@
 package wasman
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
+)
+
+var (
+	ErrInvalidSign = errors.New("invalid signature")
 )
 
 type Linker struct {
@@ -24,7 +29,8 @@ func (l *Linker) Define(modName string, mod *Module) {
 	l.Modules[modName] = mod
 }
 
-func (l *Linker) DefineFunction(modName, funcName string, fn func(ins *Instance) reflect.Value) error {
+func (l *Linker) DefineFunc(modName, funcName string, fn interface{}) error {
+	val := reflect.ValueOf(fn)
 	mod, exists := l.Modules[modName]
 	if !exists {
 		mod = &Module{indexSpace: new(indexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
@@ -39,14 +45,14 @@ func (l *Linker) DefineFunction(modName, funcName string, fn func(ins *Instance)
 		},
 	}
 
-	sig, err := getSignature(fn(&Instance{}).Type())
+	sig, err := getSignature(val.Type())
 	if err != nil {
-		return fmt.Errorf("invalid signature: %w", err)
+		return ErrInvalidSign
 	}
 
 	mod.indexSpace.Functions = append(mod.indexSpace.Functions, &hostFunc{
-		ClosureGenerator: fn,
-		Signature:        sig,
+		fn:        fn,
+		Signature: sig,
 	})
 
 	return nil

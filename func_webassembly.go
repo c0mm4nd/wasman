@@ -6,16 +6,17 @@ import (
 )
 
 type wasmFunc struct {
-	Signature *types.FuncType
-	NumLocal  uint32
-	Body      []byte
-	Blocks    map[uint64]*funcBlock
+	Signature *types.FuncType       // the shape of func (defined by inputs and outputs)
+	NumLocal  uint32                // index id in local
+	Body      []byte                // body
+	Blocks    map[uint64]*funcBlock // instr blocks inside the func
 }
 
 type funcBlock struct {
-	StartAt        uint64
-	ElseAt         uint64
-	EndAt          uint64
+	StartAt uint64
+	ElseAt  uint64
+	EndAt   uint64
+
 	BlockType      *types.FuncType
 	BlockTypeBytes uint64
 }

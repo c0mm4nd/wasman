@@ -44,14 +44,7 @@ func NewInstance(module *Module, externModules map[string]*Module, config *Insta
 
 	// initializing functions
 	ins.Functions = make([]fn, len(ins.Module.indexSpace.Functions))
-	for i, f := range ins.Module.indexSpace.Functions {
-		if wasmFn, ok := f.(*hostFunc); ok {
-			wasmFn.function = wasmFn.ClosureGenerator(ins)
-			ins.Functions[i] = wasmFn
-		} else {
-			ins.Functions[i] = f
-		}
-	}
+	ins.Functions = ins.Module.indexSpace.Functions
 
 	// initialize global
 	ins.Globals = make([]uint64, len(ins.Module.indexSpace.Globals))
