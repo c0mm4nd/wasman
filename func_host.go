@@ -14,23 +14,22 @@ var (
 )
 
 type hostFunc struct {
-	Signature *types.FuncType // the shape of func (defined by inputs and outputs)
+	signature *types.FuncType // the shape of func (defined by inputs and outputs)
 
-	//// ClosureGenerator is a func defined by other dev which acts as a generator to the function
-	//// (generate when NewInstance's func initializing
-	//ClosureGenerator func(ins *Instance) reflect.Value
-	//
-	//// function is the func from ClosureGenerator, should be set at the time of wasm instance creation
-	//function reflect.Value
-	fn interface{}
+	// closureGenerator is a func defined by other dev which acts as a generator to the function
+	// (generate when NewInstance's func initializing
+	closureGenerator func(ins *Instance) reflect.Value
+
+	// function is the func from closureGenerator, should be set at the time of wasm instance creation
+	function interface{}
 }
 
 func (f *hostFunc) getType() *types.FuncType {
-	return f.Signature
+	return f.signature
 }
 
 func (f *hostFunc) call(ins *Instance) error {
-	fnVal := reflect.ValueOf(f.fn)
+	fnVal := reflect.ValueOf(f.function)
 	ty := fnVal.Type()
 	in := make([]reflect.Value, ty.NumIn())
 

@@ -29,8 +29,7 @@ func (l *Linker) Define(modName string, mod *Module) {
 	l.Modules[modName] = mod
 }
 
-func (l *Linker) DefineFunc(modName, funcName string, fn interface{}) error {
-	val := reflect.ValueOf(fn)
+func (l *Linker) DefineAdvancedFunc(modName, funcName string, fn func(ins *Instance) reflect.Value) error {
 	mod, exists := l.Modules[modName]
 	if !exists {
 		mod = &Module{indexSpace: new(indexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
@@ -45,14 +44,46 @@ func (l *Linker) DefineFunc(modName, funcName string, fn interface{}) error {
 		},
 	}
 
-	sig, err := getSignature(val.Type())
+	sig, err := getSignature(fn(&Instance{}).Type())
 	if err != nil {
 		return ErrInvalidSign
 	}
 
 	mod.indexSpace.Functions = append(mod.indexSpace.Functions, &hostFunc{
-		fn:        fn,
-		Signature: sig,
+		closureGenerator: fn,
+		signature:        sig,
+	})
+
+	return nil
+}
+
+func (l *Linker) DefineFunc(modName, funcName string, f interface{}) error {
+	fn := func(ins *Instance) reflect.Value {
+		return reflect.ValueOf(f)
+	}
+
+	mod, exists := l.Modules[modName]
+	if !exists {
+		mod = &Module{indexSpace: new(indexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
+		l.Modules[modName] = mod
+	}
+
+	mod.ExportsSection[funcName] = &segments.ExportSegment{
+		Name: funcName,
+		Desc: &segments.ExportDesc{
+			Kind:  segments.ExportKindFunction,
+			Index: uint32(len(mod.indexSpace.Functions)),
+		},
+	}
+
+	sig, err := getSignature(fn(&Instance{}).Type())
+	if err != nil {
+		return ErrInvalidSign
+	}
+
+	mod.indexSpace.Functions = append(mod.indexSpace.Functions, &hostFunc{
+		closureGenerator: fn,
+		signature:        sig,
 	})
 
 	return nil
