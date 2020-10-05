@@ -58,22 +58,22 @@ func (ins *Instance) execExpr(expression *instr.Expr) (v interface{}, err error)
 func (ins *Instance) execFunc() error {
 	for ; int(ins.Context.PC) < len(ins.Context.Func.Body); ins.Context.PC++ {
 		opByte := ins.Context.Func.Body[ins.Context.PC]
-		switch op := instr.OpCode(opByte); op {
-		case instr.OpCodeReturn:
-			return nil
-		default:
-			err := instructions[op](ins)
+		op := instr.OpCode(opByte)
+		err := instructions[op](ins)
+		if err != nil {
+			return err
+		}
+
+		// Toll
+		if ins.TollStation != nil {
+			err := ins.TollStation.AddToll(op)
 			if err != nil {
 				return err
 			}
+		}
 
-			// Toll
-			if ins.TollStation != nil {
-				err := ins.TollStation.AddToll(op)
-				if err != nil {
-					return err
-				}
-			}
+		if op == instr.OpCodeReturn {
+			return nil
 		}
 	}
 
@@ -96,8 +96,8 @@ func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []ui
 		return nil, nil, ErrInvalidArgNum
 	}
 
-	for _, arg := range args {
-		ins.OperandStack.Push(arg)
+	for i := range args {
+		ins.OperandStack.Push(args[i])
 	}
 
 	err = f.call(ins)

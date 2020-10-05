@@ -41,6 +41,7 @@ func main() {
 		if pair == "" {
 			continue
 		}
+
 		li := strings.Split(pair, ":")
 		if len(li) != 2 {
 			panic("invalid external module: should input with -extern=<name1>:<file1>,<name2>:<file2>")
@@ -76,12 +77,13 @@ func main() {
 		args = append(args, arg)
 	}
 
-	r, _, err := ins.CallExportedFunc(*funcName, args...)
+	r, ty, err := ins.CallExportedFunc(*funcName, args...)
 	if err != nil {
 		panic(err)
 	}
 
 	if r != nil {
+		fmt.Printf("type: %v\n", ty[0])
 		fmt.Println("result: ", r[0])
 	}
 

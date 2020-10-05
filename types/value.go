@@ -16,6 +16,21 @@ const (
 	ValueTypeF64 ValueType = 0x7c
 )
 
+func (v ValueType) String() string {
+	switch v {
+	case ValueTypeI32:
+		return "i32"
+	case ValueTypeI64:
+		return "i64"
+	case ValueTypeF32:
+		return "f32"
+	case ValueTypeF64:
+		return "f64"
+	default:
+		return "unknown value type"
+	}
+}
+
 func ReadValueTypes(r io.Reader, num uint32) ([]ValueType, error) {
 	ret := make([]ValueType, num)
 	buf := make([]byte, num)

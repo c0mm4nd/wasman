@@ -2,10 +2,8 @@ package wasman
 
 import (
 	"errors"
-	"math"
-	"sync/atomic"
-
 	"github.com/c0mm4nd/wasman/instr"
+	"math"
 )
 
 type TollStation interface {
@@ -19,7 +17,7 @@ var (
 
 type SimpleTollStation struct {
 	max   uint64
-	total *uint64
+	total uint64
 }
 
 func NewSimpleTollStation(max uint64) *SimpleTollStation {
@@ -31,22 +29,22 @@ func NewSimpleTollStation(max uint64) *SimpleTollStation {
 
 	return &SimpleTollStation{
 		max:   max,
-		total: &totalCost,
+		total: totalCost,
 	}
 }
 
 func (cp *SimpleTollStation) GetToll() uint64 {
-	return atomic.LoadUint64(cp.total)
+	return cp.total
 }
 
 func (cp *SimpleTollStation) AddToll(_ instr.OpCode) error {
 	cost := uint64(1)
 
-	if atomic.LoadUint64(cp.total) > cp.max-cost {
+	if cp.total > cp.max-cost {
 		return ErrCostOverflow
 	}
 
-	atomic.AddUint64(cp.total, cost)
+	cp.total+= cost
 	return nil
 }
 
