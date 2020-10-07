@@ -152,7 +152,7 @@ func TestModule_applyFunctionImport(t *testing.T) {
 		is := &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}}
 		em := &Module{indexSpace: &indexSpace{Functions: []fn{
 			&wasmFunc{
-				Signature: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}},
+				signature: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}},
 		}}}
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{}}
 		ins := &Instance{Module: m}
@@ -181,20 +181,20 @@ func TestModule_applyFunctionImport(t *testing.T) {
 			{
 				module:          Module{TypesSection: []*types.FuncType{{InputTypes: []types.ValueType{types.ValueTypeF64}}}},
 				importSegment:   &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}},
-				exportedModule:  &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{Signature: &types.FuncType{}}}}},
+				exportedModule:  &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{signature: &types.FuncType{}}}}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
 			{
 				module:          Module{TypesSection: []*types.FuncType{{ReturnTypes: []types.ValueType{types.ValueTypeF64}}}},
 				importSegment:   &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}},
-				exportedModule:  &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{Signature: &types.FuncType{}}}}},
+				exportedModule:  &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{signature: &types.FuncType{}}}}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
 			{
 				module:        Module{TypesSection: []*types.FuncType{{}}},
 				importSegment: &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}},
 				exportedModule: &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{
-					Signature: &types.FuncType{InputTypes: []types.ValueType{types.ValueTypeF64}}}},
+					signature: &types.FuncType{InputTypes: []types.ValueType{types.ValueTypeF64}}}},
 				}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
@@ -202,7 +202,7 @@ func TestModule_applyFunctionImport(t *testing.T) {
 				module:        Module{TypesSection: []*types.FuncType{{}}},
 				importSegment: &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}},
 				exportedModule: &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{
-					Signature: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}}},
+					signature: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}}},
 				}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
@@ -338,8 +338,8 @@ func TestModule_buildFunctionIndexSpace(t *testing.T) {
 		ins := &Instance{Module: m}
 		assert.NoError(t, ins.buildFunctionIndexSpace())
 		f := m.indexSpace.Functions[0].(*wasmFunc)
-		assert.Equal(t, types.ValueTypeF32, f.Signature.ReturnTypes[0])
-		assert.Equal(t, byte(0x01), f.Body[0])
+		assert.Equal(t, types.ValueTypeF32, f.signature.ReturnTypes[0])
+		assert.Equal(t, byte(0x01), f.body[0])
 	})
 }
 

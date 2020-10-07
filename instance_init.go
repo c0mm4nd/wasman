@@ -168,12 +168,12 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 		}
 
 		f := &wasmFunc{
-			Signature: ins.TypesSection[typeIndex],
-			Body:      ins.CodesSection[codeIndex].Body,
+			signature: ins.TypesSection[typeIndex],
+			body:      ins.CodesSection[codeIndex].Body,
 			NumLocal:  ins.CodesSection[codeIndex].NumLocals,
 		}
 
-		brs, err := ins.parseBlocks(f.Body)
+		brs, err := ins.parseBlocks(f.body)
 		if err != nil {
 			return fmt.Errorf("parse blocks: %w", err)
 		}

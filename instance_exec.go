@@ -57,8 +57,8 @@ func (ins *Instance) execExpr(expression *instr.Expr) (v interface{}, err error)
 }
 
 func (ins *Instance) execFunc() error {
-	for ; int(ins.Context.PC) < len(ins.Context.Func.Body); ins.Context.PC++ {
-		opByte := ins.Context.Func.Body[ins.Context.PC]
+	for ; int(ins.Context.PC) < len(ins.Context.Func.body); ins.Context.PC++ {
+		opByte := ins.Context.Func.body[ins.Context.PC]
 		op := instr.OpCode(opByte)
 		err := instructions[op](ins)
 		if err != nil {
@@ -66,7 +66,9 @@ func (ins *Instance) execFunc() error {
 		}
 
 		// Toll
-		if ins.TollStation != nil {
+		if ins.Module != nil &&
+			ins.Module.ModuleConfig != nil &&
+			ins.Module.ModuleConfig.TollStation != nil {
 			price := ins.TollStation.GetOpPrice(op)
 			err := ins.TollStation.AddToll(price)
 			if err != nil {

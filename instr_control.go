@@ -92,7 +92,7 @@ func elseOp(ins *Instance) error {
 }
 
 func end(ins *Instance) error {
-	if ins.Context.LabelStack.GetPtr() > -1 {
+	if ins.Context.LabelStack.Ptr > -1 {
 		_ = ins.Context.LabelStack.Pop()
 	}
 
@@ -142,7 +142,7 @@ func brIf(ins *Instance) error {
 
 func brTable(ins *Instance) error {
 	ins.Context.PC++
-	r := bytes.NewBuffer(ins.Context.Func.Body[ins.Context.PC:])
+	r := bytes.NewBuffer(ins.Context.Func.body[ins.Context.PC:])
 	nl, num, err := leb128.DecodeUint32(r)
 	if err != nil {
 		return err

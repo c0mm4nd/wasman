@@ -1,45 +1,45 @@
 package stacks
 
 const (
-	initialOperandStackHeight = 1024
+	InitialOperandStackHeight = 1024
 )
 
 // https://www.w3.org/TR/wasm-core-1/#stack
 type OperandStack struct {
-	operands []uint64
-	ptr      int
+	Operands []uint64
+	Ptr      int // current pointer on stack
 }
 
 func NewOperandStack() *OperandStack {
 	return &OperandStack{
-		operands: make([]uint64, initialOperandStackHeight),
-		ptr:      -1,
+		Operands: make([]uint64, InitialOperandStackHeight),
+		Ptr:      -1,
 	}
 }
 
 func (s *OperandStack) Pop() uint64 {
-	ret := s.operands[s.ptr]
-	s.ptr--
+	ret := s.Operands[s.Ptr]
+	s.Ptr--
 	return ret
 }
 
 func (s *OperandStack) Drop() {
-	s.ptr--
+	s.Ptr--
 }
 
 func (s *OperandStack) Peek() uint64 {
-	return s.operands[s.ptr]
+	return s.Operands[s.Ptr]
 }
 
 func (s *OperandStack) Push(val uint64) {
-	if s.ptr+1 == len(s.operands) {
+	if s.Ptr+1 == len(s.Operands) {
 		// grow stack
-		s.operands = append(s.operands, val)
+		s.Operands = append(s.Operands, val)
 	} else {
-		s.operands[s.ptr+1] = val
+		s.Operands[s.Ptr+1] = val
 	}
 
-	s.ptr++
+	s.Ptr++
 }
 
 func (s *OperandStack) PushBool(b bool) {

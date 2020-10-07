@@ -6,9 +6,9 @@ import (
 )
 
 type wasmFunc struct {
-	Signature *types.FuncType       // the shape of func (defined by inputs and outputs)
+	signature *types.FuncType       // the shape of func (defined by inputs and outputs)
 	NumLocal  uint32                // index id in local
-	Body      []byte                // body
+	body      []byte                // body
 	Blocks    map[uint64]*funcBlock // instr blocks inside the func
 }
 
@@ -22,11 +22,11 @@ type funcBlock struct {
 }
 
 func (f *wasmFunc) getType() *types.FuncType {
-	return f.Signature
+	return f.signature
 }
 
 func (f *wasmFunc) call(ins *Instance) error {
-	al := len(f.Signature.InputTypes)
+	al := len(f.signature.InputTypes)
 	locals := make([]uint64, f.NumLocal+uint32(al))
 	for i := 0; i < al; i++ {
 		locals[al-1-i] = ins.OperandStack.Pop()

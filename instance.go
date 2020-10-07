@@ -83,7 +83,7 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 
 func (ins *Instance) fetchInt32() (int32, error) {
 	ret, num, err := leb128.DecodeInt32(bytes.NewBuffer(
-		ins.Context.Func.Body[ins.Context.PC:]))
+		ins.Context.Func.body[ins.Context.PC:]))
 	if err != nil {
 		return 0, err
 	}
@@ -94,7 +94,7 @@ func (ins *Instance) fetchInt32() (int32, error) {
 
 func (ins *Instance) fetchUint32() (uint32, error) {
 	ret, num, err := leb128.DecodeUint32(bytes.NewBuffer(
-		ins.Context.Func.Body[ins.Context.PC:]))
+		ins.Context.Func.body[ins.Context.PC:]))
 	if err != nil {
 		return 0, err
 	}
@@ -106,7 +106,7 @@ func (ins *Instance) fetchUint32() (uint32, error) {
 
 func (ins *Instance) fetchInt64() (int64, error) {
 	ret, num, err := leb128.DecodeInt64(bytes.NewBuffer(
-		ins.Context.Func.Body[ins.Context.PC:]))
+		ins.Context.Func.body[ins.Context.PC:]))
 	if err != nil {
 		return 0, err
 	}
@@ -118,7 +118,7 @@ func (ins *Instance) fetchInt64() (int64, error) {
 
 func (ins *Instance) fetchFloat32() (float32, error) {
 	v := math.Float32frombits(binary.LittleEndian.Uint32(
-		ins.Context.Func.Body[ins.Context.PC:]))
+		ins.Context.Func.body[ins.Context.PC:]))
 	ins.Context.PC += 3
 
 	return v, nil
@@ -126,7 +126,7 @@ func (ins *Instance) fetchFloat32() (float32, error) {
 
 func (ins *Instance) fetchFloat64() (float64, error) {
 	v := math.Float64frombits(binary.LittleEndian.Uint64(
-		ins.Context.Func.Body[ins.Context.PC:]))
+		ins.Context.Func.body[ins.Context.PC:]))
 	ins.Context.PC += 7
 
 	return v, nil
