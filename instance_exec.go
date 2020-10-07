@@ -37,7 +37,7 @@ func (ins *Instance) execExpr(expression *instr.Expr) (v interface{}, err error)
 			return nil, fmt.Errorf("read f34: %w", err)
 		}
 	case instr.OpCodeF64Const:
-		v, err = instr.ReadFloat32(r)
+		v, err = instr.ReadFloat64(r)
 		if err != nil {
 			return nil, fmt.Errorf("read f64: %w", err)
 		}

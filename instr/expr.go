@@ -34,7 +34,7 @@ func ReadExpr(r io.Reader) (*Expr, error) {
 	case OpCodeF32Const:
 		_, err = ReadFloat32(teeR)
 	case OpCodeF64Const:
-		_, err = readFloat64(teeR)
+		_, err = ReadFloat64(teeR)
 	case OpCodeGlobalGet:
 		_, _, err = leb128.DecodeUint32(teeR)
 	default:
@@ -73,7 +73,7 @@ func ReadFloat32(r io.Reader) (float32, error) {
 }
 
 // IEEE 754
-func readFloat64(r io.Reader) (float64, error) {
+func ReadFloat64(r io.Reader) (float64, error) {
 	buf := make([]byte, 8)
 
 	_, err := io.ReadFull(r, buf)

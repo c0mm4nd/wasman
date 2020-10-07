@@ -1,11 +1,14 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
 	"github.com/c0mm4nd/wasman/leb128"
 )
+
+var ErrInvalidByte = errors.New("invalid byte")
 
 type ValueType byte
 
