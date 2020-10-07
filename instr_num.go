@@ -16,13 +16,17 @@ func i32eqz(ins *Instance) error {
 }
 
 func i32eq(ins *Instance) error {
-	ins.OperandStack.PushBool(ins.OperandStack.Pop() == ins.OperandStack.Pop())
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.PushBool(v1 == v2)
 
 	return nil
 }
 
 func i32ne(ins *Instance) error {
-	ins.OperandStack.PushBool(ins.OperandStack.Pop() != ins.OperandStack.Pop())
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.PushBool(v1 != v2)
 
 	return nil
 }
@@ -98,13 +102,17 @@ func i64eqz(ins *Instance) error {
 }
 
 func i64eq(ins *Instance) error {
-	ins.OperandStack.PushBool(ins.OperandStack.Pop() == ins.OperandStack.Pop())
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.PushBool(v1 == v2)
 
 	return nil
 }
 
 func i64ne(ins *Instance) error {
-	ins.OperandStack.PushBool(ins.OperandStack.Pop() != ins.OperandStack.Pop())
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.PushBool(v1 != v2)
 
 	return nil
 }
@@ -343,19 +351,25 @@ func i32remu(ins *Instance) error {
 }
 
 func i32and(ins *Instance) error {
-	ins.OperandStack.Push(uint64(uint32(ins.OperandStack.Pop()) & uint32(ins.OperandStack.Pop())))
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.Push(uint64(uint32(v1) & uint32(v2)))
 
 	return nil
 }
 
 func i32or(ins *Instance) error {
-	ins.OperandStack.Push(uint64(uint32(ins.OperandStack.Pop()) | uint32(ins.OperandStack.Pop())))
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.Push(uint64(uint32(v1) | uint32(v2)))
 
 	return nil
 }
 
 func i32xor(ins *Instance) error {
-	ins.OperandStack.Push(uint64(uint32(ins.OperandStack.Pop()) ^ uint32(ins.OperandStack.Pop())))
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.Push(uint64(uint32(v1) ^ uint32(v2)))
 
 	return nil
 }
@@ -475,19 +489,25 @@ func i64remu(ins *Instance) error {
 }
 
 func i64and(ins *Instance) error {
-	ins.OperandStack.Push(ins.OperandStack.Pop() & ins.OperandStack.Pop())
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.Push(v1 & v2)
 
 	return nil
 }
 
 func i64or(ins *Instance) error {
-	ins.OperandStack.Push(ins.OperandStack.Pop() | ins.OperandStack.Pop())
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.Push(v1 | v2)
 
 	return nil
 }
 
 func i64xor(ins *Instance) error {
-	ins.OperandStack.Push(ins.OperandStack.Pop() ^ ins.OperandStack.Pop())
+	v1 := ins.OperandStack.Pop()
+	v2 := ins.OperandStack.Pop()
+	ins.OperandStack.Push(v1 ^ v2)
 
 	return nil
 }
