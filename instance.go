@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/c0mm4nd/wasman/stacks"
 	"math"
+
+	"github.com/c0mm4nd/wasman/stacks"
 
 	"github.com/c0mm4nd/wasman/leb128"
 )
@@ -22,7 +23,8 @@ type Instance struct {
 	*stacks.OperandStack
 }
 
-func NewInstance(module *Module, externModules map[string]*Module, config *InstanceConfig) (*Instance, error) {
+// NewInstance will instantiate the module with extern modules
+func NewInstance(module *Module, externModules map[string]*Module) (*Instance, error) {
 	ins := &Instance{
 		Module:       module,
 		OperandStack: stacks.NewOperandStack(),
@@ -30,10 +32,6 @@ func NewInstance(module *Module, externModules map[string]*Module, config *Insta
 
 	if err := ins.buildIndexSpaces(externModules); err != nil {
 		return nil, fmt.Errorf("build index space: %w", err)
-	}
-
-	if config != nil {
-		// TODO: parse config
 	}
 
 	// initializing memory
@@ -46,7 +44,7 @@ func NewInstance(module *Module, externModules map[string]*Module, config *Insta
 	ins.Functions = make([]fn, len(ins.Module.indexSpace.Functions))
 	for i, f := range ins.Module.indexSpace.Functions {
 		if wasmFn, ok := f.(*hostFunc); ok {
-			wasmFn.function = wasmFn.closureGenerator(ins)
+			wasmFn.function = wasmFn.generator(ins)
 			ins.Functions[i] = wasmFn
 		} else {
 			ins.Functions[i] = f

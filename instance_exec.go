@@ -11,6 +11,7 @@ import (
 	"github.com/c0mm4nd/wasman/types"
 )
 
+// errors on exec func
 var (
 	ErrExportedFuncNotFound = errors.New("exported func is not found")
 	ErrFuncIndexOutOfRange  = errors.New("function index out of range")
@@ -66,7 +67,8 @@ func (ins *Instance) execFunc() error {
 
 		// Toll
 		if ins.TollStation != nil {
-			err := ins.TollStation.AddToll(op)
+			price := ins.TollStation.GetOpPrice(op)
+			err := ins.TollStation.AddToll(price)
 			if err != nil {
 				return err
 			}
@@ -80,6 +82,7 @@ func (ins *Instance) execFunc() error {
 	return nil
 }
 
+// CallExportedFunc will call the func `name` with the args
 // TODO: enhance this
 func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []uint64, returnTypes []types.ValueType, err error) {
 	exp, ok := ins.Module.ExportsSection[name]

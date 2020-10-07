@@ -10,12 +10,13 @@ import (
 	"github.com/c0mm4nd/wasman/types"
 )
 
+// errors on parsing module
 var (
 	ErrInvalidMagicNumber = errors.New("invalid magic number")
 	ErrInvalidVersion     = errors.New("invalid version header")
 )
 
-// https://www.w3.org/TR/wasm-core-1/#syntax-module%E2%91%A0
+// Module is a standard wasm module implement according to wasm v1, https://www.w3.org/TR/wasm-core-1/#syntax-module%E2%91%A0
 type Module struct {
 	*ModuleConfig
 
@@ -49,6 +50,7 @@ type global struct {
 	Val  interface{}
 }
 
+// NewModule reads bytes from the io.Reader and read all sections, finally return a wasman.Module entity if no error
 func NewModule(r io.Reader, config *ModuleConfig) (*Module, error) {
 	// magic number
 	buf := make([]byte, 4)

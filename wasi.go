@@ -1,5 +1,5 @@
 package wasman
 
-// TODO
+// WASIConfig : TODO
 type WASIConfig struct {
 }

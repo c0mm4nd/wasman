@@ -1,26 +1,20 @@
 package wasman
 
 import (
-	"errors"
 	"math"
 	"reflect"
 
 	"github.com/c0mm4nd/wasman/types"
 )
 
-var (
-	ErrFuncInvalidInputType  = errors.New("invalid func input type")
-	ErrFuncInvalidReturnType = errors.New("invalid func return type")
-)
-
 type hostFunc struct {
 	signature *types.FuncType // the shape of func (defined by inputs and outputs)
 
-	// closureGenerator is a func defined by other dev which acts as a generator to the function
+	// generator is a func defined by other dev which acts as a generator to the function
 	// (generate when NewInstance's func initializing
-	closureGenerator func(ins *Instance) reflect.Value
+	generator func(ins *Instance) interface{}
 
-	// function is the func from closureGenerator, should be set at the time of wasm instance creation
+	// function is the generated func from generator, should be set at the time of wasm instance creation
 	function interface{}
 }
 

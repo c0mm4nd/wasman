@@ -9,27 +9,49 @@ import (
 	"github.com/c0mm4nd/wasman/types"
 )
 
+// errors on linking modules
 var (
 	ErrInvalidSign = errors.New("invalid signature")
 )
 
+// Linker is a helper to instantiate new modules
 type Linker struct {
-	Modules map[string]*Module
+	Modules map[string]*Module // the built-in modules which acts as externs when instantiating coming main module
 }
 
+// NewLinker creates a new Linker
 func NewLinker() *Linker {
 	return &Linker{map[string]*Module{}}
 }
 
+// NewLinkerWithModuleMap creates a new Linker with the built-in modules
 func NewLinkerWithModuleMap(in map[string]*Module) *Linker {
 	return &Linker{in}
 }
 
+// Define put the module on its namespace
 func (l *Linker) Define(modName string, mod *Module) {
 	l.Modules[modName] = mod
 }
 
-func (l *Linker) DefineAdvancedFunc(modName, funcName string, fn func(ins *Instance) reflect.Value) error {
+// FuncGenerator is a advanced host func comparing to normal go host func
+// Dev will be able to handle the pre/post-call process of the func
+// e.g. when we wanna add toll after calling the host func f
+//	func ExampleFuncGenerator_addToll() {
+//		var f = func() {fmt.Println("wasm")}
+//
+//		var fg = wasman.FuncGenerator(func(ins *wasman.Instance) interface{} {
+//			return func() {
+//				f()
+//				ins.AddGas(11)
+//			}
+//		})
+//		// Then use wasman.DefineFuncGenerator
+//	}
+type FuncGenerator = func(ins *Instance) interface{}
+
+// DefineFuncGenerator will define a FuncGenerator on linker
+func (l *Linker) DefineFuncGenerator(modName, funcName string, funcGenerator FuncGenerator) error {
 	mod, exists := l.Modules[modName]
 	if !exists {
 		mod = &Module{indexSpace: new(indexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
@@ -44,22 +66,23 @@ func (l *Linker) DefineAdvancedFunc(modName, funcName string, fn func(ins *Insta
 		},
 	}
 
-	sig, err := getSignature(fn(&Instance{}).Type())
+	sig, err := getSignature(reflect.ValueOf(funcGenerator(&Instance{})).Type())
 	if err != nil {
 		return ErrInvalidSign
 	}
 
 	mod.indexSpace.Functions = append(mod.indexSpace.Functions, &hostFunc{
-		closureGenerator: fn,
-		signature:        sig,
+		generator: funcGenerator,
+		signature: sig,
 	})
 
 	return nil
 }
 
+// DefineFunc puts a go style func into linker's modules
 func (l *Linker) DefineFunc(modName, funcName string, f interface{}) error {
-	fn := func(ins *Instance) reflect.Value {
-		return reflect.ValueOf(f)
+	fn := func(ins *Instance) interface{} {
+		return f
 	}
 
 	mod, exists := l.Modules[modName]
@@ -76,21 +99,22 @@ func (l *Linker) DefineFunc(modName, funcName string, f interface{}) error {
 		},
 	}
 
-	sig, err := getSignature(fn(&Instance{}).Type())
+	sig, err := getSignature(reflect.ValueOf(f).Type())
 	if err != nil {
 		return ErrInvalidSign
 	}
 
 	mod.indexSpace.Functions = append(mod.indexSpace.Functions, &hostFunc{
-		closureGenerator: fn,
-		signature:        sig,
+		generator: fn,
+		signature: sig,
 	})
 
 	return nil
 }
 
-func (l *Linker) Instantiate(mainModule *Module, config *InstanceConfig) (*Instance, error) {
-	return NewInstance(mainModule, l.Modules, config)
+// Instantiate will instantiate a Module into an runnable Instance
+func (l *Linker) Instantiate(mainModule *Module) (*Instance, error) {
+	return NewInstance(mainModule, l.Modules)
 }
 
 func getSignature(p reflect.Type) (*types.FuncType, error) {

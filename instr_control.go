@@ -3,12 +3,14 @@ package wasman
 import (
 	"bytes"
 	"errors"
+
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
 
 	"github.com/c0mm4nd/wasman/leb128"
 )
 
+// errors on control instr
 var (
 	ErrUnreachable              = errors.New("unreachable")
 	ErrBlockNotInitialized      = errors.New("block not initialized")
@@ -165,9 +167,9 @@ func brTable(ins *Instance) error {
 	i := ins.OperandStack.Pop()
 	if uint32(i) < nl {
 		return branchAt(ins, lis[i])
-	} else {
-		return branchAt(ins, ln)
 	}
+
+	return branchAt(ins, ln)
 }
 
 func call(ins *Instance) error {

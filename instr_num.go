@@ -6,6 +6,7 @@ import (
 	"math/bits"
 )
 
+// ErrUndefined is a panic error
 var ErrUndefined = errors.New("undefined")
 
 func i32eqz(ins *Instance) error {

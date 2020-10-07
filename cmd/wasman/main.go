@@ -58,7 +58,7 @@ func main() {
 	}
 
 	l := wasman.NewLinkerWithModuleMap(externMods)
-	ins, err := l.Instantiate(mainMod, nil)
+	ins, err := l.Instantiate(mainMod)
 	if err != nil {
 		panic(err)
 	}
@@ -84,8 +84,8 @@ func main() {
 
 	if r != nil {
 		fmt.Printf("type: %v\n", ty[0])
-		fmt.Println("result: ", r[0])
+		fmt.Printf("result: %v\n", r[0])
 	}
 
-	fmt.Println("toll: ", ins.GetToll())
+	fmt.Printf("toll: %v\n", ins.GetToll())
 }
