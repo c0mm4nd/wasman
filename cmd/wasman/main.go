@@ -13,7 +13,7 @@ import (
 var strMainModuleFile = flag.String("main", "module.wasm", "main module")
 
 var funcName = flag.String("func", "main", "main func")
-var maxToll = flag.Uint64("max-toll", 0, "cap for simple toll station")
+var maxToll = flag.Uint64("max-toll", 0, "the maximum toll in simple toll station")
 
 var strExternModules = flag.String("extern-files", "", "external modules files")
 
@@ -53,6 +53,9 @@ func main() {
 		}
 
 		mod, err := wasman.NewModule(f, nil)
+		if err != nil {
+			panic(err)
+		}
 
 		externMods[li[0]] = mod
 	}
