@@ -7,6 +7,8 @@ Another wasm interpreter engine for gophers.
 
 ## Usage
 
+### Executable
+
 ```bash
 $ ./wasman -h
 Usage of ./wasman:
@@ -20,15 +22,15 @@ Usage of ./wasman:
         the maximum toll in simple toll station
 ```
 
-Example:
-
-module.wasm from https://github.com/C0MM4ND/minimum-wasm-rs/releases/latest
+Example: [module.wasm](https://github.com/C0MM4ND/minimum-wasm-rs/releases/latest)
 
 ```bash
 $ ./wasman -main module.wasm -func fib 20 # calc the fibonacci number
-type: i32
-result: 6765
-toll: 315822
+{
+  type: i32
+  result: 6765
+  toll: 315822
+}
 ```
 
 If we limit the max toll, it will panic when overflow.
@@ -42,8 +44,6 @@ main.main()
         /home/ubuntu/Desktop/wasman/cmd/wasman/main.go:85 +0x87d
 ```
 
-## go app embedding
+### Go Embedding
 
-Follow `./cmd/wasman/main.go`
-
-Read [DOC](https://pkg.go.dev/github.com/c0mm4nd/wasman)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/c0mm4nd/wasman)](https://pkg.go.dev/github.com/c0mm4nd/wasman)

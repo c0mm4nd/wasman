@@ -137,17 +137,36 @@ func getSignature(p reflect.Type) (*types.FuncType, error) {
 	return &types.FuncType{InputTypes: in, ReturnTypes: out}, nil
 }
 
+const is64Bit = uint64(^uintptr(0)) == ^uint64(0)
+
+// getTypeOf converts the go type into wasm val type
 func getTypeOf(kind reflect.Kind) (types.ValueType, error) {
-	switch kind {
-	case reflect.Float64:
-		return types.ValueTypeF64, nil
-	case reflect.Float32:
-		return types.ValueTypeF32, nil
-	case reflect.Int32, reflect.Uint32:
-		return types.ValueTypeI32, nil
-	case reflect.Int64, reflect.Uint64:
-		return types.ValueTypeI64, nil
-	default:
-		return 0x00, fmt.Errorf("invalid type: %s", kind.String())
+	if is64Bit {
+		switch kind {
+		case reflect.Float64:
+			return types.ValueTypeF64, nil
+		case reflect.Float32:
+			return types.ValueTypeF32, nil
+		case reflect.Int32, reflect.Uint32:
+			return types.ValueTypeI32, nil
+		case reflect.Int64, reflect.Uint64, reflect.Uintptr, reflect.UnsafePointer, reflect.Ptr:
+			return types.ValueTypeI64, nil
+		default:
+			return 0x00, fmt.Errorf("invalid type: %s", kind.String())
+		}
+	} else {
+		switch kind {
+		case reflect.Float64:
+			return types.ValueTypeF64, nil
+		case reflect.Float32:
+			return types.ValueTypeF32, nil
+		case reflect.Int32, reflect.Uint32, reflect.Uintptr, reflect.UnsafePointer, reflect.Ptr:
+			return types.ValueTypeI32, nil
+		case reflect.Int64, reflect.Uint64:
+			return types.ValueTypeI64, nil
+		default:
+			return 0x00, fmt.Errorf("invalid type: %s", kind.String())
+		}
 	}
+
 }

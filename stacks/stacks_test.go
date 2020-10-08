@@ -26,6 +26,14 @@ func TestVirtualMachineOperandStack(t *testing.T) {
 	}
 
 	assert.True(t, len(s.Operands) > stacks.InitialOperandStackHeight)
+
+	// for coverage OperandStack.Drop()
+	// verify the length is not shortened
+	for i := 0; i < len(s.Operands); i++ {
+		s.Drop()
+	}
+
+	assert.True(t, len(s.Operands) > stacks.InitialOperandStackHeight)
 }
 
 func TestVirtualMachineLabelStack(t *testing.T) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -85,10 +86,22 @@ func main() {
 		panic(err)
 	}
 
-	if r != nil {
-		fmt.Printf("type: %v\n", ty[0])
-		fmt.Printf("result: %v\n", r[0])
+	result := struct {
+		Type   string      `json:"type"`
+		Result interface{} `json:"result"`
+		Toll   uint64      `json:"toll"`
+	}{
+		"",
+		nil,
+		ins.GetToll(),
 	}
 
-	fmt.Printf("toll: %v\n", ins.GetToll())
+	if r != nil {
+		result.Type = ty[0].String()
+		result.Result = r[0]
+	}
+
+	out, _ := json.MarshalIndent(result, "", "  ")
+
+	fmt.Printf(string(out))
 }
