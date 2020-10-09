@@ -2,6 +2,7 @@
 
 [![](https://godoc.org/github.com/c0mm4nd/wasman?status.svg)](http://godoc.org/github.com/c0mm4nd/wasman)
 [![Go Report Card](https://goreportcard.com/badge/github.com/c0mm4nd/wasman)](https://goreportcard.com/report/github.com/c0mm4nd/wasman)
+![CI](https://github.com/c0mm4nd/wasman/workflows/CI/badge.svg)
 
 Another wasm interpreter engine for gophers.
 
