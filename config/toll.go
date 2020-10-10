@@ -1,4 +1,4 @@
-package wasman
+package config
 
 import (
 	"errors"
@@ -56,24 +56,5 @@ func (ts *SimpleTollStation) AddToll(toll uint64) error {
 	}
 
 	ts.total += toll
-	return nil
-}
-
-// GetToll is a helper func for module instance to get the total count of toll
-func (ins *Instance) GetToll() uint64 {
-	if ins.ModuleConfig != nil && ins.ModuleConfig.TollStation != nil {
-		return ins.ModuleConfig.TollStation.GetToll()
-	}
-
-	return 0
-}
-
-// ManuallyAddToll is a helper func for module instance to forcibly add toll
-func (ins *Instance) ManuallyAddToll(toll uint64) error {
-	if ins.ModuleConfig != nil && ins.ModuleConfig.TollStation != nil {
-		return ins.ModuleConfig.TollStation.AddToll(toll)
-	}
-
-	// no error when no TollStation
 	return nil
 }

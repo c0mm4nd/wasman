@@ -1,4 +1,4 @@
-package wasman
+package wasm
 
 import (
 	"github.com/c0mm4nd/wasman/stacks"

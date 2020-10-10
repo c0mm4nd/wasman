@@ -1,4 +1,4 @@
-package wasman
+package wasm
 
 import (
 	"math"

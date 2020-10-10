@@ -1,4 +1,4 @@
-package wasman
+package wasm
 
 import (
 	"bytes"
@@ -198,11 +198,11 @@ func callIndirect(ins *Instance) error {
 
 	tableIndex := ins.OperandStack.Pop()
 	// note: mvp limits the size of table index space to 1
-	if tableIndex >= uint64(len(ins.Module.indexSpace.Tables[0])) {
+	if tableIndex >= uint64(len(ins.Module.IndexSpace.Tables[0])) {
 		return ErrTableIndexOutOfRange
 	}
 
-	te := ins.Module.indexSpace.Tables[0][tableIndex]
+	te := ins.Module.IndexSpace.Tables[0][tableIndex]
 	if te == nil {
 		return ErrTableEntryNotInitialized
 	}

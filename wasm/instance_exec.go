@@ -1,4 +1,4 @@
-package wasman
+package wasm
 
 import (
 	"bytes"
@@ -46,10 +46,10 @@ func (ins *Instance) execExpr(expression *instr.Expr) (v interface{}, err error)
 		if err != nil {
 			return nil, fmt.Errorf("read index of global: %w", err)
 		}
-		if uint32(len(ins.indexSpace.Globals)) <= id {
+		if uint32(len(ins.IndexSpace.Globals)) <= id {
 			return nil, fmt.Errorf("global index out of range")
 		}
-		v = ins.indexSpace.Globals[id].Val
+		v = ins.IndexSpace.Globals[id].Val
 	default:
 		return nil, fmt.Errorf("invalid opt code: %#x", expression.OpCode)
 	}

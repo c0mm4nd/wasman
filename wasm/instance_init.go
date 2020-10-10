@@ -1,8 +1,9 @@
-package wasman
+package wasm
 
 import (
 	"bytes"
 	"fmt"
+	"github.com/c0mm4nd/wasman/config"
 	"io"
 
 	"github.com/c0mm4nd/wasman/instr"
@@ -13,7 +14,7 @@ import (
 
 // buildIndexSpaces build index spaces of the module with the given external modules
 func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
-	ins.indexSpace = &indexSpace{}
+	ins.IndexSpace = &IndexSpace{}
 
 	// resolve imports
 	if err := ins.resolveImports(externModules); err != nil {
@@ -22,17 +23,17 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 
 	// fill in the gap between the definition and imported ones in index spaces
 	// note: MVP restricts the size of memory index spaces to 1
-	if diff := len(ins.TablesSection) - len(ins.indexSpace.Tables); diff > 0 {
+	if diff := len(ins.TablesSection) - len(ins.IndexSpace.Tables); diff > 0 {
 		for i := 0; i < diff; i++ {
-			ins.indexSpace.Tables = append(ins.indexSpace.Tables, []*uint32{})
+			ins.IndexSpace.Tables = append(ins.IndexSpace.Tables, []*uint32{})
 		}
 	}
 
 	// fill in the gap between the definition and imported ones in index spaces
 	// note: MVP restricts the size of memory index spaces to 1
-	if diff := len(ins.MemorySection) - len(ins.indexSpace.Memories); diff > 0 {
+	if diff := len(ins.MemorySection) - len(ins.IndexSpace.Memories); diff > 0 {
 		for i := 0; i < diff; i++ {
-			ins.indexSpace.Memories = append(ins.indexSpace.Memories, []byte{})
+			ins.IndexSpace.Memories = append(ins.IndexSpace.Memories, []byte{})
 		}
 	}
 
@@ -92,7 +93,7 @@ func (ins *Instance) resolveImports(externModules map[string]*Module) error {
 }
 
 func (ins *Instance) applyFunctionImport(importSeg *segments.ImportSegment, externModule *Module, exportSeg *segments.ExportSegment) error {
-	if exportSeg.Desc.Index >= uint32(len(externModule.indexSpace.Functions)) {
+	if exportSeg.Desc.Index >= uint32(len(externModule.IndexSpace.Functions)) {
 		return fmt.Errorf("exported index out of range")
 	}
 
@@ -101,47 +102,47 @@ func (ins *Instance) applyFunctionImport(importSeg *segments.ImportSegment, exte
 	}
 
 	iSig := ins.TypesSection[*importSeg.Desc.TypeIndexPtr]
-	f := externModule.indexSpace.Functions[exportSeg.Desc.Index]
+	f := externModule.IndexSpace.Functions[exportSeg.Desc.Index]
 	if !types.HasSameSignature(iSig.ReturnTypes, f.getType().ReturnTypes) {
 		return fmt.Errorf("return signature mimatch: %#v != %#v", iSig.ReturnTypes, f.getType().ReturnTypes)
 	} else if !types.HasSameSignature(iSig.InputTypes, f.getType().InputTypes) {
 		return fmt.Errorf("input signature mimatch: %#v != %#v", iSig.InputTypes, f.getType().InputTypes)
 	}
-	ins.indexSpace.Functions = append(ins.indexSpace.Functions, f)
+	ins.IndexSpace.Functions = append(ins.IndexSpace.Functions, f)
 	return nil
 }
 
 func (ins *Instance) applyTableImport(externModule *Module, exportSeg *segments.ExportSegment) error {
-	if exportSeg.Desc.Index >= uint32(len(externModule.indexSpace.Tables)) {
+	if exportSeg.Desc.Index >= uint32(len(externModule.IndexSpace.Tables)) {
 		return fmt.Errorf("exported index out of range")
 	}
 
 	// note: MVP restricts the size of table index spaces to 1
-	ins.indexSpace.Tables = append(ins.indexSpace.Tables, externModule.indexSpace.Tables[exportSeg.Desc.Index])
+	ins.IndexSpace.Tables = append(ins.IndexSpace.Tables, externModule.IndexSpace.Tables[exportSeg.Desc.Index])
 	return nil
 }
 
 func (ins *Instance) applyMemoryImport(externModule *Module, exportSegment *segments.ExportSegment) error {
-	if exportSegment.Desc.Index >= uint32(len(externModule.indexSpace.Memories)) {
+	if exportSegment.Desc.Index >= uint32(len(externModule.IndexSpace.Memories)) {
 		return fmt.Errorf("exported index out of range")
 	}
 
 	// note: MVP restricts the size of memory index spaces to 1
-	ins.indexSpace.Memories = append(ins.indexSpace.Memories, externModule.indexSpace.Memories[exportSegment.Desc.Index])
+	ins.IndexSpace.Memories = append(ins.IndexSpace.Memories, externModule.IndexSpace.Memories[exportSegment.Desc.Index])
 	return nil
 }
 
 func (ins *Instance) applyGlobalImport(externModule *Module, exportSegment *segments.ExportSegment) error {
-	if exportSegment.Desc.Index >= uint32(len(externModule.indexSpace.Globals)) {
+	if exportSegment.Desc.Index >= uint32(len(externModule.IndexSpace.Globals)) {
 		return fmt.Errorf("exported index out of range")
 	}
 
-	gb := externModule.indexSpace.Globals[exportSegment.Desc.Index]
+	gb := externModule.IndexSpace.Globals[exportSegment.Desc.Index]
 	if gb.Type.Mutable {
 		return fmt.Errorf("cannot import mutable global")
 	}
 
-	ins.indexSpace.Globals = append(externModule.indexSpace.Globals, gb)
+	ins.IndexSpace.Globals = append(externModule.IndexSpace.Globals, gb)
 	return nil
 }
 
@@ -151,7 +152,7 @@ func (ins *Instance) buildGlobalIndexSpace() error {
 		if err != nil {
 			return fmt.Errorf("execution failed: %w", err)
 		}
-		ins.indexSpace.Globals = append(ins.indexSpace.Globals, &global{
+		ins.IndexSpace.Globals = append(ins.IndexSpace.Globals, &global{
 			Type: gs.Type,
 			Val:  v,
 		})
@@ -179,7 +180,7 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 		}
 
 		f.Blocks = brs
-		ins.indexSpace.Functions = append(ins.indexSpace.Functions, f)
+		ins.IndexSpace.Functions = append(ins.IndexSpace.Functions, f)
 	}
 
 	return nil
@@ -188,7 +189,7 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 func (ins *Instance) buildMemoryIndexSpace() error {
 	for _, d := range ins.Module.DataSection {
 		// note: MVP restricts the size of memory index spaces to 1
-		if d.MemoryIndex >= uint32(len(ins.indexSpace.Memories)) {
+		if d.MemoryIndex >= uint32(len(ins.IndexSpace.Memories)) {
 			return fmt.Errorf("index out of range of index space")
 		} else if d.MemoryIndex >= uint32(len(ins.MemorySection)) {
 			return fmt.Errorf("index out of range of memory section")
@@ -205,16 +206,16 @@ func (ins *Instance) buildMemoryIndexSpace() error {
 		}
 
 		size := int(offset) + len(d.Init)
-		if ins.MemorySection[d.MemoryIndex].Max != nil && uint32(size) > *(ins.MemorySection[d.MemoryIndex].Max)*defaultPageSize {
+		if ins.MemorySection[d.MemoryIndex].Max != nil && uint32(size) > *(ins.MemorySection[d.MemoryIndex].Max)*config.DefaultPageSize {
 			return fmt.Errorf("memory size out of limit %d * 64Ki", int(*(ins.MemorySection[d.MemoryIndex].Max)))
 		}
 
-		memory := ins.indexSpace.Memories[d.MemoryIndex]
+		memory := ins.IndexSpace.Memories[d.MemoryIndex]
 		if size > len(memory) {
 			next := make([]byte, size)
 			copy(next, memory)
 			copy(next[offset:], d.Init)
-			ins.indexSpace.Memories[d.MemoryIndex] = next
+			ins.IndexSpace.Memories[d.MemoryIndex] = next
 		} else {
 			copy(memory[offset:], d.Init)
 		}
@@ -225,7 +226,7 @@ func (ins *Instance) buildMemoryIndexSpace() error {
 func (ins *Instance) buildTableIndexSpace() error {
 	for _, elem := range ins.ElementsSection {
 		// note: MVP restricts the size of memory index spaces to 1
-		if elem.TableIndex >= uint32(len(ins.indexSpace.Tables)) {
+		if elem.TableIndex >= uint32(len(ins.IndexSpace.Tables)) {
 			return fmt.Errorf("index out of range of index space")
 		} else if elem.TableIndex >= uint32(len(ins.TablesSection)) {
 			// this is just in case since we could assume len(SecTables) == len(indexSpace.Table)
@@ -249,14 +250,14 @@ func (ins *Instance) buildTableIndexSpace() error {
 			return fmt.Errorf("table size out of limit of %d", int(*(ins.TablesSection[elem.TableIndex].Limits.Max)))
 		}
 
-		table := ins.indexSpace.Tables[elem.TableIndex]
+		table := ins.IndexSpace.Tables[elem.TableIndex]
 		if size > len(table) {
 			next := make([]*uint32, size)
 			copy(next, table)
 			for i, b := range elem.Init {
 				next[i+offset] = &b
 			}
-			ins.indexSpace.Tables[elem.TableIndex] = next
+			ins.IndexSpace.Tables[elem.TableIndex] = next
 		} else {
 			for i, b := range elem.Init {
 				table[i+offset] = &b

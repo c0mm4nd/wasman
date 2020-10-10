@@ -1,4 +1,4 @@
-package wasman
+package wasm
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ func TestInstance_executeConstExpression(t *testing.T) {
 			{OpCode: 0xa},
 			{OpCode: instr.OpCodeGlobalGet, Data: []byte{0x2}},
 		} {
-			m := &Module{indexSpace: new(indexSpace)}
+			m := &Module{IndexSpace: new(IndexSpace)}
 			ins := &Instance{Module: m}
 			_, err := ins.execExpr(expr)
 			assert.Error(t, err)
@@ -113,7 +113,7 @@ func TestModule_resolveImports(t *testing.T) {
 			ImportsSection: []*segments.ImportSegment{
 				{Module: "a", Name: "b", Desc: &segments.ImportDesc{Kind: 0x03}},
 			},
-			indexSpace: new(indexSpace),
+			IndexSpace: new(IndexSpace),
 		}
 		ems := map[string]*Module{
 			"a": {
@@ -123,7 +123,7 @@ func TestModule_resolveImports(t *testing.T) {
 						Desc: &segments.ExportDesc{Kind: 0x03},
 					},
 				},
-				indexSpace: &indexSpace{
+				IndexSpace: &IndexSpace{
 					Globals: []*global{{
 						Type: &types.GlobalType{},
 						Val:  1,
@@ -135,7 +135,7 @@ func TestModule_resolveImports(t *testing.T) {
 		ins := &Instance{Module: m}
 		err := ins.resolveImports(ems)
 		require.NoError(t, err)
-		assert.Equal(t, 1, m.indexSpace.Globals[0].Val)
+		assert.Equal(t, 1, m.IndexSpace.Globals[0].Val)
 	})
 }
 
@@ -147,10 +147,10 @@ func TestModule_applyFunctionImport(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		m := &Module{
 			TypesSection: []*types.FuncType{{ReturnTypes: []types.ValueType{types.ValueTypeF64}}},
-			indexSpace:   new(indexSpace),
+			IndexSpace:   new(IndexSpace),
 		}
 		is := &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}}
-		em := &Module{indexSpace: &indexSpace{Functions: []fn{
+		em := &Module{IndexSpace: &IndexSpace{Functions: []fn{
 			&wasmFunc{
 				signature: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}},
 		}}}
@@ -158,7 +158,7 @@ func TestModule_applyFunctionImport(t *testing.T) {
 		ins := &Instance{Module: m}
 		err := ins.applyFunctionImport(is, em, es)
 		require.NoError(t, err)
-		assert.Equal(t, em.indexSpace.Functions[0], m.indexSpace.Functions[0])
+		assert.Equal(t, em.IndexSpace.Functions[0], m.IndexSpace.Functions[0])
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -169,31 +169,31 @@ func TestModule_applyFunctionImport(t *testing.T) {
 			exportedSegment *segments.ExportSegment
 		}{
 			{
-				module:          Module{indexSpace: new(indexSpace)},
-				exportedModule:  &Module{indexSpace: new(indexSpace)},
+				module:          Module{IndexSpace: new(IndexSpace)},
+				exportedModule:  &Module{IndexSpace: new(IndexSpace)},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{Index: 10}},
 			},
 			{
-				module:          Module{indexSpace: new(indexSpace)},
-				exportedModule:  &Module{indexSpace: new(indexSpace)},
+				module:          Module{IndexSpace: new(IndexSpace)},
+				exportedModule:  &Module{IndexSpace: new(IndexSpace)},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
 			{
 				module:          Module{TypesSection: []*types.FuncType{{InputTypes: []types.ValueType{types.ValueTypeF64}}}},
 				importSegment:   &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}},
-				exportedModule:  &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{signature: &types.FuncType{}}}}},
+				exportedModule:  &Module{IndexSpace: &IndexSpace{Functions: []fn{&wasmFunc{signature: &types.FuncType{}}}}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
 			{
 				module:          Module{TypesSection: []*types.FuncType{{ReturnTypes: []types.ValueType{types.ValueTypeF64}}}},
 				importSegment:   &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}},
-				exportedModule:  &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{signature: &types.FuncType{}}}}},
+				exportedModule:  &Module{IndexSpace: &IndexSpace{Functions: []fn{&wasmFunc{signature: &types.FuncType{}}}}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
 			{
 				module:        Module{TypesSection: []*types.FuncType{{}}},
 				importSegment: &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}},
-				exportedModule: &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{
+				exportedModule: &Module{IndexSpace: &IndexSpace{Functions: []fn{&wasmFunc{
 					signature: &types.FuncType{InputTypes: []types.ValueType{types.ValueTypeF64}}}},
 				}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
@@ -201,7 +201,7 @@ func TestModule_applyFunctionImport(t *testing.T) {
 			{
 				module:        Module{TypesSection: []*types.FuncType{{}}},
 				importSegment: &segments.ImportSegment{Desc: &segments.ImportDesc{TypeIndexPtr: uint32Ptr(0)}},
-				exportedModule: &Module{indexSpace: &indexSpace{Functions: []fn{&wasmFunc{
+				exportedModule: &Module{IndexSpace: &IndexSpace{Functions: []fn{&wasmFunc{
 					signature: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}}},
 				}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
@@ -215,7 +215,7 @@ func TestModule_applyFunctionImport(t *testing.T) {
 func TestModule_applyTableImport(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{Index: 10}}
-		em := &Module{indexSpace: new(indexSpace)}
+		em := &Module{IndexSpace: new(IndexSpace)}
 		err := (&Instance{Module: &Module{}}).applyTableImport(em, es)
 		assert.Error(t, err)
 	})
@@ -225,21 +225,21 @@ func TestModule_applyTableImport(t *testing.T) {
 
 		var exp uint32 = 10
 		em := &Module{
-			indexSpace: &indexSpace{Tables: [][]*uint32{{&exp}}},
+			IndexSpace: &IndexSpace{Tables: [][]*uint32{{&exp}}},
 		}
 
-		m := &Module{indexSpace: new(indexSpace)}
+		m := &Module{IndexSpace: new(IndexSpace)}
 		ins := &Instance{Module: m}
 		err := ins.applyTableImport(em, es)
 		require.NoError(t, err)
-		assert.Equal(t, exp, *ins.Module.indexSpace.Tables[0][0])
+		assert.Equal(t, exp, *ins.Module.IndexSpace.Tables[0][0])
 	})
 }
 
 func TestModule_applyMemoryImport(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{Index: 10}}
-		em := &Module{indexSpace: new(indexSpace)}
+		em := &Module{IndexSpace: new(IndexSpace)}
 		err := (&Instance{Module: &Module{}}).applyMemoryImport(em, es)
 		assert.Error(t, err)
 	})
@@ -247,13 +247,13 @@ func TestModule_applyMemoryImport(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{}}
 		em := &Module{
-			indexSpace: &indexSpace{Memories: [][]byte{{0x01}}},
+			IndexSpace: &IndexSpace{Memories: [][]byte{{0x01}}},
 		}
-		m := &Module{indexSpace: new(indexSpace)}
+		m := &Module{IndexSpace: new(IndexSpace)}
 		ins := &Instance{Module: m}
 		err := ins.applyMemoryImport(em, es)
 		require.NoError(t, err)
-		assert.Equal(t, byte(0x01), ins.Module.indexSpace.Memories[0][0])
+		assert.Equal(t, byte(0x01), ins.Module.IndexSpace.Memories[0][0])
 	})
 }
 
@@ -264,11 +264,11 @@ func TestModule_applyGlobalImport(t *testing.T) {
 			exportedSegment *segments.ExportSegment
 		}{
 			{
-				exportedModule:  &Module{indexSpace: new(indexSpace)},
+				exportedModule:  &Module{IndexSpace: new(IndexSpace)},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{Index: 10}},
 			},
 			{
-				exportedModule: &Module{indexSpace: &indexSpace{Globals: []*global{{Type: &types.GlobalType{
+				exportedModule: &Module{IndexSpace: &IndexSpace{Globals: []*global{{Type: &types.GlobalType{
 					Mutable: true,
 				}}}}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
@@ -279,9 +279,9 @@ func TestModule_applyGlobalImport(t *testing.T) {
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		m := &Module{indexSpace: new(indexSpace)}
+		m := &Module{IndexSpace: new(IndexSpace)}
 		em := &Module{
-			indexSpace: &indexSpace{
+			IndexSpace: &IndexSpace{
 				Globals: []*global{{Type: &types.GlobalType{}, Val: 1}},
 			},
 		}
@@ -290,7 +290,7 @@ func TestModule_applyGlobalImport(t *testing.T) {
 		ins := &Instance{Module: m}
 		err := ins.applyGlobalImport(em, es)
 		require.NoError(t, err)
-		assert.Equal(t, 1, ins.indexSpace.Globals[0].Val)
+		assert.Equal(t, 1, ins.IndexSpace.Globals[0].Val)
 	})
 }
 
@@ -305,11 +305,11 @@ func TestModule_buildGlobalIndexSpace(t *testing.T) {
 				},
 			},
 		},
-		indexSpace: new(indexSpace),
+		IndexSpace: new(IndexSpace),
 	}
 	ins := &Instance{Module: m}
 	require.NoError(t, ins.buildGlobalIndexSpace())
-	assert.Equal(t, &global{Type: nil, Val: int64(1)}, m.indexSpace.Globals[0])
+	assert.Equal(t, &global{Type: nil, Val: int64(1)}, m.IndexSpace.Globals[0])
 }
 
 func TestModule_buildFunctionIndexSpace(t *testing.T) {
@@ -317,12 +317,12 @@ func TestModule_buildFunctionIndexSpace(t *testing.T) {
 		for _, m := range []*Module{
 			{
 				FunctionsSection: []uint32{1000},
-				indexSpace:       new(indexSpace),
+				IndexSpace:       new(IndexSpace),
 			},
 			{
 				FunctionsSection: []uint32{0},
 				TypesSection:     []*types.FuncType{{}},
-				indexSpace:       new(indexSpace)},
+				IndexSpace:       new(IndexSpace)},
 		} {
 			assert.Error(t, (&Instance{Module: m}).buildFunctionIndexSpace())
 		}
@@ -333,11 +333,11 @@ func TestModule_buildFunctionIndexSpace(t *testing.T) {
 			TypesSection:     []*types.FuncType{{ReturnTypes: []types.ValueType{types.ValueTypeF32}}},
 			FunctionsSection: []uint32{0},
 			CodesSection:     []*segments.CodeSegment{{Body: []byte{0x01}}},
-			indexSpace:       new(indexSpace),
+			IndexSpace:       new(IndexSpace),
 		}
 		ins := &Instance{Module: m}
 		assert.NoError(t, ins.buildFunctionIndexSpace())
-		f := m.indexSpace.Functions[0].(*wasmFunc)
+		f := m.IndexSpace.Functions[0].(*wasmFunc)
 		assert.Equal(t, types.ValueTypeF32, f.signature.ReturnTypes[0])
 		assert.Equal(t, byte(0x01), f.body[0])
 	})
@@ -346,15 +346,15 @@ func TestModule_buildFunctionIndexSpace(t *testing.T) {
 func TestModule_buildMemoryIndexSpace(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		for _, m := range []*Module{
-			{DataSection: []*segments.DataSegment{{MemoryIndex: 1}}, indexSpace: new(indexSpace)},
-			{DataSection: []*segments.DataSegment{{MemoryIndex: 0}}, indexSpace: &indexSpace{
+			{DataSection: []*segments.DataSegment{{MemoryIndex: 1}}, IndexSpace: new(IndexSpace)},
+			{DataSection: []*segments.DataSegment{{MemoryIndex: 0}}, IndexSpace: &IndexSpace{
 				Memories: [][]byte{{}},
 			}},
 
 			{
 				DataSection:   []*segments.DataSegment{{OffsetExpression: &instr.Expr{}}},
 				MemorySection: []*types.MemoryType{{}},
-				indexSpace:    &indexSpace{Memories: [][]byte{{}}},
+				IndexSpace:    &IndexSpace{Memories: [][]byte{{}}},
 			},
 			{
 				DataSection: []*segments.DataSegment{
@@ -366,7 +366,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 					},
 				},
 				MemorySection: []*types.MemoryType{{Max: uint32Ptr(0)}},
-				indexSpace:    &indexSpace{Memories: [][]byte{{}}},
+				IndexSpace:    &IndexSpace{Memories: [][]byte{{}}},
 			},
 		} {
 			ins := &Instance{Module: m}
@@ -393,7 +393,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 						},
 					},
 					MemorySection: []*types.MemoryType{{}},
-					indexSpace:    &indexSpace{Memories: [][]byte{{}}},
+					IndexSpace:    &IndexSpace{Memories: [][]byte{{}}},
 				},
 				exp: [][]byte{{0x01, 0x01}},
 			},
@@ -409,7 +409,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 						},
 					},
 					MemorySection: []*types.MemoryType{{}},
-					indexSpace:    &indexSpace{Memories: [][]byte{{0x00, 0x00, 0x00}}},
+					IndexSpace:    &IndexSpace{Memories: [][]byte{{0x00, 0x00, 0x00}}},
 				},
 				exp: [][]byte{{0x01, 0x01, 0x00}},
 			},
@@ -425,7 +425,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 						},
 					},
 					MemorySection: []*types.MemoryType{{}},
-					indexSpace:    &indexSpace{Memories: [][]byte{{0x00, 0x00, 0x00}}},
+					IndexSpace:    &IndexSpace{Memories: [][]byte{{0x00, 0x00, 0x00}}},
 				},
 				exp: [][]byte{{0x00, 0x01, 0x01}},
 			},
@@ -441,7 +441,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 						},
 					},
 					MemorySection: []*types.MemoryType{{}},
-					indexSpace:    &indexSpace{Memories: [][]byte{{0x00, 0x00, 0x00}}},
+					IndexSpace:    &IndexSpace{Memories: [][]byte{{0x00, 0x00, 0x00}}},
 				},
 				exp: [][]byte{{0x00, 0x00, 0x01, 0x01}},
 			},
@@ -457,7 +457,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 						},
 					},
 					MemorySection: []*types.MemoryType{{}},
-					indexSpace:    &indexSpace{Memories: [][]byte{{0x00, 0x00, 0x00, 0x00}}},
+					IndexSpace:    &IndexSpace{Memories: [][]byte{{0x00, 0x00, 0x00, 0x00}}},
 				},
 				exp: [][]byte{{0x00, 0x01, 0x01, 0x00}},
 			},
@@ -474,14 +474,14 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 						},
 					},
 					MemorySection: []*types.MemoryType{{}, {}},
-					indexSpace:    &indexSpace{Memories: [][]byte{{}, {0x00, 0x00, 0x00, 0x00}}},
+					IndexSpace:    &IndexSpace{Memories: [][]byte{{}, {0x00, 0x00, 0x00, 0x00}}},
 				},
 				exp: [][]byte{{}, {0x00, 0x01, 0x01, 0x00}},
 			},
 		} {
 			ins := &Instance{Module: c.m}
 			require.NoError(t, ins.buildMemoryIndexSpace())
-			assert.Equal(t, c.exp, ins.indexSpace.Memories)
+			assert.Equal(t, c.exp, ins.IndexSpace.Memories)
 		}
 	})
 }
@@ -491,16 +491,16 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 		for _, m := range []*Module{
 			{
 				ElementsSection: []*segments.ElemSegment{{TableIndex: 10}},
-				indexSpace:      new(indexSpace),
+				IndexSpace:      new(IndexSpace),
 			},
 			{
 				ElementsSection: []*segments.ElemSegment{{TableIndex: 0}},
-				indexSpace:      &indexSpace{Tables: [][]*uint32{{}}},
+				IndexSpace:      &IndexSpace{Tables: [][]*uint32{{}}},
 			},
 			{
 				ElementsSection: []*segments.ElemSegment{{TableIndex: 0, OffsetExpr: &instr.Expr{}}},
 				TablesSection:   []*types.TableType{{}},
-				indexSpace:      &indexSpace{Tables: [][]*uint32{{}}},
+				IndexSpace:      &IndexSpace{Tables: [][]*uint32{{}}},
 			},
 			{
 				ElementsSection: []*segments.ElemSegment{{
@@ -514,7 +514,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				TablesSection: []*types.TableType{{Limits: &types.Limits{
 					Max: uint32Ptr(1),
 				}}},
-				indexSpace: &indexSpace{Tables: [][]*uint32{{}}},
+				IndexSpace: &IndexSpace{Tables: [][]*uint32{{}}},
 			},
 		} {
 			err := (&Instance{Module: m}).buildTableIndexSpace()
@@ -539,7 +539,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 						Init: []uint32{0x1, 0x1},
 					}},
 					TablesSection: []*types.TableType{{Limits: &types.Limits{}}},
-					indexSpace:    &indexSpace{Tables: [][]*uint32{{}}},
+					IndexSpace:    &IndexSpace{Tables: [][]*uint32{{}}},
 				},
 				exp: [][]*uint32{{uint32Ptr(0x01), uint32Ptr(0x01)}},
 			},
@@ -554,7 +554,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 						Init: []uint32{0x1, 0x1},
 					}},
 					TablesSection: []*types.TableType{{Limits: &types.Limits{}}},
-					indexSpace: &indexSpace{
+					IndexSpace: &IndexSpace{
 						Tables: [][]*uint32{{uint32Ptr(0x0), uint32Ptr(0x0)}},
 					},
 				},
@@ -571,7 +571,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 						Init: []uint32{0x1, 0x1},
 					}},
 					TablesSection: []*types.TableType{{Limits: &types.Limits{}}},
-					indexSpace: &indexSpace{
+					IndexSpace: &IndexSpace{
 						Tables: [][]*uint32{{nil, uint32Ptr(0x0), uint32Ptr(0x0)}},
 					},
 				},
@@ -588,7 +588,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 						Init: []uint32{0x1},
 					}},
 					TablesSection: []*types.TableType{{Limits: &types.Limits{}}},
-					indexSpace: &indexSpace{
+					IndexSpace: &IndexSpace{
 						Tables: [][]*uint32{{nil, nil, nil}},
 					},
 				},
@@ -597,8 +597,8 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 		} {
 			ins := &Instance{Module: c.m}
 			require.NoError(t, ins.buildTableIndexSpace())
-			require.Len(t, ins.Module.indexSpace.Tables, len(c.exp))
-			for i, actualTable := range ins.Module.indexSpace.Tables {
+			require.Len(t, ins.Module.IndexSpace.Tables, len(c.exp))
+			for i, actualTable := range ins.Module.IndexSpace.Tables {
 				expTable := c.exp[i]
 				require.Len(t, actualTable, len(expTable))
 				for i, exp := range expTable {

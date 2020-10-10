@@ -1,4 +1,4 @@
-package wasman
+package wasm
 
 func getLocal(ins *Instance) error {
 	ins.Context.PC++

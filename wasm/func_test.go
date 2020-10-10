@@ -1,4 +1,4 @@
-package wasman
+package wasm
 
 import (
 	"github.com/c0mm4nd/wasman/instr"
@@ -15,9 +15,9 @@ func TestHostFunction_Call(t *testing.T) {
 		cnt += in
 		return 1, 2, 3, 4
 	}
-	hf := &hostFunc{
+	hf := &HostFunc{
 		function: f,
-		signature: &types.FuncType{
+		Signature: &types.FuncType{
 			InputTypes:  []types.ValueType{types.ValueTypeI64},
 			ReturnTypes: []types.ValueType{types.ValueTypeI32, types.ValueTypeI64, types.ValueTypeF32, types.ValueTypeF64},
 		},

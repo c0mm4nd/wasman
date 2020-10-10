@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/c0mm4nd/wasman/config"
 	"os"
 	"strconv"
 	"strings"
@@ -29,9 +30,9 @@ func main() {
 		panic(err)
 	}
 
-	mainMod, err := wasman.NewModule(f, &wasman.ModuleConfig{
+	mainMod, err := wasman.NewModule(f, &config.ModuleConfig{
 		DisableFloatPoint: false,
-		TollStation:       wasman.NewSimpleTollStation(*maxToll),
+		TollStation:       config.NewSimpleTollStation(*maxToll),
 	})
 	if err != nil {
 		panic(err)
@@ -86,6 +87,11 @@ func main() {
 		panic(err)
 	}
 
+	toll := uint64(0)
+	if ins.ModuleConfig != nil && ins.ModuleConfig.TollStation != nil {
+		toll = ins.ModuleConfig.TollStation.GetToll()
+	}
+
 	result := struct {
 		Type   string      `json:"type"`
 		Result interface{} `json:"result"`
@@ -93,7 +99,7 @@ func main() {
 	}{
 		"",
 		nil,
-		ins.GetToll(),
+		toll,
 	}
 
 	if r != nil {

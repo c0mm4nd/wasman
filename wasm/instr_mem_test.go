@@ -1,6 +1,7 @@
-package wasman
+package wasm
 
 import (
+	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/instr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
@@ -397,7 +398,7 @@ func Test_i64store32(t *testing.T) {
 func Test_memorySize(t *testing.T) {
 	vm := &Instance{
 		Context:      &wasmContext{},
-		Memory:       make([]byte, defaultPageSize*2),
+		Memory:       make([]byte, config.DefaultPageSize*2),
 		OperandStack: stacks.NewOperandStack(),
 	}
 
@@ -409,7 +410,7 @@ func Test_memoryGrow(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := &Instance{
 			Context:      &wasmContext{},
-			Memory:       make([]byte, defaultPageSize*2),
+			Memory:       make([]byte, config.DefaultPageSize*2),
 			OperandStack: stacks.NewOperandStack(),
 			Module: &Module{
 				MemorySection: []*types.MemoryType{{}},
@@ -419,13 +420,13 @@ func Test_memoryGrow(t *testing.T) {
 		vm.OperandStack.Push(5)
 		assert.NoError(t, memoryGrow(vm))
 		assert.Equal(t, uint64(0x2), vm.OperandStack.Pop())
-		assert.Equal(t, 7, len(vm.Memory)/defaultPageSize)
+		assert.Equal(t, 7, len(vm.Memory)/config.DefaultPageSize)
 	})
 
 	t.Run("oom", func(t *testing.T) {
 		vm := &Instance{
 			Context:      &wasmContext{},
-			Memory:       make([]byte, defaultPageSize*2),
+			Memory:       make([]byte, config.DefaultPageSize*2),
 			OperandStack: stacks.NewOperandStack(),
 			Module: &Module{
 				MemorySection: []*types.MemoryType{{Max: uint32Ptr(0)}},

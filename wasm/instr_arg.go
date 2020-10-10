@@ -1,4 +1,4 @@
-package wasman
+package wasm
 
 func drop(ins *Instance) error {
 	ins.OperandStack.Drop()

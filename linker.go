@@ -3,6 +3,7 @@ package wasman
 import (
 	"errors"
 	"fmt"
+	"github.com/c0mm4nd/wasman/wasm"
 	"reflect"
 
 	"github.com/c0mm4nd/wasman/segments"
@@ -16,21 +17,21 @@ var (
 
 // Linker is a helper to instantiate new modules
 type Linker struct {
-	Modules map[string]*Module // the built-in modules which acts as externs when instantiating coming main module
+	Modules map[string]*wasm.Module // the built-in modules which acts as externs when instantiating coming main module
 }
 
 // NewLinker creates a new Linker
 func NewLinker() *Linker {
-	return &Linker{map[string]*Module{}}
+	return &Linker{map[string]*wasm.Module{}}
 }
 
 // NewLinkerWithModuleMap creates a new Linker with the built-in modules
-func NewLinkerWithModuleMap(in map[string]*Module) *Linker {
+func NewLinkerWithModuleMap(in map[string]*wasm.Module) *Linker {
 	return &Linker{in}
 }
 
 // Define put the module on its namespace
-func (l *Linker) Define(modName string, mod *Module) {
+func (l *Linker) Define(modName string, mod *wasm.Module) {
 	l.Modules[modName] = mod
 }
 
@@ -48,13 +49,13 @@ func (l *Linker) Define(modName string, mod *Module) {
 //		})
 //		// Then use wasman.DefineFuncGenerator
 //	}
-type FuncGenerator = func(ins *Instance) interface{}
+type FuncGenerator = func(ins *wasm.Instance) interface{}
 
 // DefineFuncGenerator will define a FuncGenerator on linker
 func (l *Linker) DefineFuncGenerator(modName, funcName string, funcGenerator FuncGenerator) error {
 	mod, exists := l.Modules[modName]
 	if !exists {
-		mod = &Module{indexSpace: new(indexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
+		mod = &wasm.Module{IndexSpace: new(wasm.IndexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
 		l.Modules[modName] = mod
 	}
 
@@ -62,18 +63,18 @@ func (l *Linker) DefineFuncGenerator(modName, funcName string, funcGenerator Fun
 		Name: funcName,
 		Desc: &segments.ExportDesc{
 			Kind:  segments.ExportKindFunction,
-			Index: uint32(len(mod.indexSpace.Functions)),
+			Index: uint32(len(mod.IndexSpace.Functions)),
 		},
 	}
 
-	sig, err := getSignature(reflect.ValueOf(funcGenerator(&Instance{})).Type())
+	sig, err := getSignature(reflect.ValueOf(funcGenerator(&wasm.Instance{})).Type())
 	if err != nil {
 		return ErrInvalidSign
 	}
 
-	mod.indexSpace.Functions = append(mod.indexSpace.Functions, &hostFunc{
-		generator: funcGenerator,
-		signature: sig,
+	mod.IndexSpace.Functions = append(mod.IndexSpace.Functions, &wasm.HostFunc{
+		Generator: funcGenerator,
+		Signature: sig,
 	})
 
 	return nil
@@ -81,13 +82,13 @@ func (l *Linker) DefineFuncGenerator(modName, funcName string, funcGenerator Fun
 
 // DefineFunc puts a go style func into linker's modules
 func (l *Linker) DefineFunc(modName, funcName string, f interface{}) error {
-	fn := func(ins *Instance) interface{} {
+	fn := func(ins *wasm.Instance) interface{} {
 		return f
 	}
 
 	mod, exists := l.Modules[modName]
 	if !exists {
-		mod = &Module{indexSpace: new(indexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
+		mod = &wasm.Module{IndexSpace: new(wasm.IndexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
 		l.Modules[modName] = mod
 	}
 
@@ -95,7 +96,7 @@ func (l *Linker) DefineFunc(modName, funcName string, f interface{}) error {
 		Name: funcName,
 		Desc: &segments.ExportDesc{
 			Kind:  segments.ExportKindFunction,
-			Index: uint32(len(mod.indexSpace.Functions)),
+			Index: uint32(len(mod.IndexSpace.Functions)),
 		},
 	}
 
@@ -104,17 +105,22 @@ func (l *Linker) DefineFunc(modName, funcName string, f interface{}) error {
 		return ErrInvalidSign
 	}
 
-	mod.indexSpace.Functions = append(mod.indexSpace.Functions, &hostFunc{
-		generator: fn,
-		signature: sig,
+	mod.IndexSpace.Functions = append(mod.IndexSpace.Functions, &wasm.HostFunc{
+		Generator: fn,
+		Signature: sig,
 	})
 
 	return nil
 }
 
+func (l *Linker) DefineGlobal(modName, globalName string, global interface{}) error {
+	// TODO
+	return nil
+}
+
 // Instantiate will instantiate a Module into an runnable Instance
-func (l *Linker) Instantiate(mainModule *Module) (*Instance, error) {
-	return NewInstance(mainModule, l.Modules)
+func (l *Linker) Instantiate(mainModule *wasm.Module) (*wasm.Instance, error) {
+	return wasm.NewInstance(mainModule, l.Modules)
 }
 
 func getSignature(p reflect.Type) (*types.FuncType, error) {

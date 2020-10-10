@@ -1,7 +1,8 @@
-package wasman
+package wasm
 
 import (
 	"encoding/binary"
+	"github.com/c0mm4nd/wasman/config"
 )
 
 func memoryBase(ins *Instance) (uint64, error) {
@@ -234,7 +235,7 @@ func i64Store32(ins *Instance) error {
 
 func memorySize(ins *Instance) error {
 	ins.Context.PC++
-	ins.OperandStack.Push(uint64(int32(len(ins.Memory) / defaultPageSize)))
+	ins.OperandStack.Push(uint64(int32(len(ins.Memory) / config.DefaultPageSize)))
 
 	return nil
 }
@@ -244,15 +245,15 @@ func memoryGrow(ins *Instance) error {
 	n := uint32(ins.OperandStack.Pop())
 
 	if ins.Module.MemorySection[0].Max != nil &&
-		uint64(n+uint32(len(ins.Memory)/defaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
+		uint64(n+uint32(len(ins.Memory)/config.DefaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
 		v := int32(-1)
 		ins.OperandStack.Push(uint64(v))
 
 		return nil
 	}
 
-	ins.OperandStack.Push(uint64(len(ins.Memory)) / defaultPageSize)
-	ins.Memory = append(ins.Memory, make([]byte, n*defaultPageSize)...)
+	ins.OperandStack.Push(uint64(len(ins.Memory)) / config.DefaultPageSize)
+	ins.Memory = append(ins.Memory, make([]byte, n*config.DefaultPageSize)...)
 
 	return nil
 }

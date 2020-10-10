@@ -1,4 +1,4 @@
-package wasman
+package wasm
 
 import (
 	"math"
@@ -7,22 +7,22 @@ import (
 	"github.com/c0mm4nd/wasman/types"
 )
 
-type hostFunc struct {
-	signature *types.FuncType // the shape of func (defined by inputs and outputs)
+type HostFunc struct {
+	Signature *types.FuncType // the shape of func (defined by inputs and outputs)
 
-	// generator is a func defined by other dev which acts as a generator to the function
+	// Generator is a func defined by other dev which acts as a Generator to the function
 	// (generate when NewInstance's func initializing
-	generator func(ins *Instance) interface{}
+	Generator func(ins *Instance) interface{}
 
-	// function is the generated func from generator, should be set at the time of wasm instance creation
+	// function is the generated func from Generator, should be set at the time of wasm instance creation
 	function interface{}
 }
 
-func (f *hostFunc) getType() *types.FuncType {
-	return f.signature
+func (f *HostFunc) getType() *types.FuncType {
+	return f.Signature
 }
 
-func (f *hostFunc) call(ins *Instance) error {
+func (f *HostFunc) call(ins *Instance) error {
 	fnVal := reflect.ValueOf(f.function)
 	ty := fnVal.Type()
 	in := make([]reflect.Value, ty.NumIn())
