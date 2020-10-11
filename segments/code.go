@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 
 	"github.com/c0mm4nd/wasman/expr"
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
 type CodeSegment struct {
@@ -15,7 +15,7 @@ type CodeSegment struct {
 }
 
 func ReadCodeSegment(r io.Reader) (*CodeSegment, error) {
-	ss, _, err := leb128.DecodeUint32(r)
+	ss, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("get the size of code segment: %w", err)
 	}
@@ -23,7 +23,7 @@ func ReadCodeSegment(r io.Reader) (*CodeSegment, error) {
 	r = io.LimitReader(r, int64(ss))
 
 	// parse locals
-	ls, _, err := leb128.DecodeUint32(r)
+	ls, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("get the size locals: %w", err)
 	}
@@ -31,7 +31,7 @@ func ReadCodeSegment(r io.Reader) (*CodeSegment, error) {
 	var numLocals uint32
 	b := make([]byte, 1)
 	for i := uint32(0); i < ls; i++ {
-		n, _, err := leb128.DecodeUint32(r)
+		n, _, err := leb128decode.DecodeUint32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read n of locals: %w", err)
 		}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/types"
 )
 
@@ -31,7 +31,7 @@ func ReadExportDesc(r io.Reader) (*ExportDesc, error) {
 		return nil, fmt.Errorf("%w: invalid byte for exportdesc: %#x", types.ErrInvalidByte, kind)
 	}
 
-	id, _, err := leb128.DecodeUint32(r)
+	id, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("read funcidx: %w", err)
 	}

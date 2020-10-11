@@ -1,8 +1,8 @@
-package leb128_test
+package leb128decode_test
 
 import (
 	"bytes"
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,10 +20,10 @@ func TestDecodeUint32(t *testing.T) {
 		{bytes: []byte{0x80, 0x80, 0x80, 0x4f}, exp: 165675008},
 		{bytes: []byte{0x89, 0x80, 0x80, 0x80, 0x01}, exp: 268435465},
 	} {
-		actual, num, err := leb128.DecodeUint32(bytes.NewReader(c.bytes))
+		actual, l, err := leb128decode.DecodeUint32(bytes.NewReader(c.bytes))
 		require.NoError(t, err)
 		assert.Equal(t, c.exp, actual)
-		assert.Equal(t, uint64(len(c.bytes)), num)
+		assert.Equal(t, uint64(len(c.bytes)), l)
 	}
 }
 
@@ -38,10 +38,10 @@ func TestDecodeUint64(t *testing.T) {
 		{bytes: []byte{0x80, 0x80, 0x80, 0x4f}, exp: 165675008},
 		{bytes: []byte{0x89, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01}, exp: 9223372036854775817},
 	} {
-		actual, num, err := leb128.DecodeUint64(bytes.NewReader(c.bytes))
+		actual, l, err := leb128decode.DecodeUint64(bytes.NewReader(c.bytes))
 		require.NoError(t, err)
 		assert.Equal(t, c.exp, actual)
-		assert.Equal(t, uint64(len(c.bytes)), num)
+		assert.Equal(t, uint64(len(c.bytes)), l)
 	}
 }
 
@@ -58,10 +58,10 @@ func TestDecodeInt32(t *testing.T) {
 		{bytes: []byte{0x81, 0x7f}, exp: -127},
 		{bytes: []byte{0xFF, 0x7e}, exp: -129},
 	} {
-		actual, num, err := leb128.DecodeInt32(bytes.NewReader(c.bytes))
+		actual, l, err := leb128decode.DecodeInt32(bytes.NewReader(c.bytes))
 		require.NoError(t, err)
 		assert.Equal(t, c.exp, actual)
-		assert.Equal(t, uint64(len(c.bytes)), num)
+		assert.Equal(t, uint64(len(c.bytes)), l)
 	}
 }
 
@@ -83,10 +83,10 @@ func TestDecodeInt33AsInt64(t *testing.T) {
 		{bytes: []byte{0x81, 0x7f}, exp: -127},
 		{bytes: []byte{0xFF, 0x7e}, exp: -129},
 	} {
-		actual, num, err := leb128.DecodeInt33AsInt64(bytes.NewReader(c.bytes))
+		actual, l, err := leb128decode.DecodeInt33AsInt64(bytes.NewReader(c.bytes))
 		require.NoError(t, err)
 		assert.Equal(t, c.exp, actual)
-		assert.Equal(t, uint64(len(c.bytes)), num)
+		assert.Equal(t, uint64(len(c.bytes)), l)
 	}
 }
 
@@ -105,9 +105,9 @@ func TestDecodeInt64(t *testing.T) {
 		{bytes: []byte{0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7f},
 			exp: -9223372036854775808},
 	} {
-		actual, num, err := leb128.DecodeInt64(bytes.NewReader(c.bytes))
+		actual, l, err := leb128decode.DecodeInt64(bytes.NewReader(c.bytes))
 		require.NoError(t, err)
 		assert.Equal(t, c.exp, actual)
-		assert.Equal(t, uint64(len(c.bytes)), num)
+		assert.Equal(t, uint64(len(c.bytes)), l)
 	}
 }

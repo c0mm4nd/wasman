@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"github.com/c0mm4nd/wasman/expr"
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
 )
@@ -270,7 +270,7 @@ func (ins *Instance) buildTableIndexSpace() error {
 type blockType = types.FuncType
 
 func (ins *Instance) readBlockType(r io.Reader) (*blockType, uint64, error) {
-	raw, num, err := leb128.DecodeInt33AsInt64(r)
+	raw, l, err := leb128decode.DecodeInt33AsInt64(r)
 	if err != nil {
 		return nil, 0, fmt.Errorf("decode int33: %w", err)
 	}
@@ -293,7 +293,7 @@ func (ins *Instance) readBlockType(r io.Reader) (*blockType, uint64, error) {
 		}
 		ret = ins.TypesSection[raw]
 	}
-	return ret, num, nil
+	return ret, l, nil
 }
 
 func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
@@ -304,33 +304,33 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 		if 0x28 <= rawOc && rawOc <= 0x3e { // memory load,store
 			pc++
 			// align
-			_, num, err := leb128.DecodeUint32(bytes.NewBuffer(body[pc:]))
+			_, l, err := leb128decode.DecodeUint32(bytes.NewBuffer(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read memory align: %w", err)
 			}
-			pc += num
+			pc += l
 			// offset
-			_, num, err = leb128.DecodeUint32(bytes.NewBuffer(body[pc:]))
+			_, l, err = leb128decode.DecodeUint32(bytes.NewBuffer(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read memory offset: %w", err)
 			}
-			pc += num - 1
+			pc += l - 1
 			continue
 		} else if 0x41 <= rawOc && rawOc <= 0x44 { // const instructions
 			pc++
 			switch expr.OpCode(rawOc) {
 			case expr.OpCodeI32Const:
-				_, num, err := leb128.DecodeInt32(bytes.NewBuffer(body[pc:]))
+				_, l, err := leb128decode.DecodeInt32(bytes.NewBuffer(body[pc:]))
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
-				pc += num - 1
+				pc += l - 1
 			case expr.OpCodeI64Const:
-				_, num, err := leb128.DecodeInt64(bytes.NewBuffer(body[pc:]))
+				_, l, err := leb128decode.DecodeInt64(bytes.NewBuffer(body[pc:]))
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
-				pc += num - 1
+				pc += l - 1
 			case expr.OpCodeF32Const:
 				pc += 3
 			case expr.OpCodeF64Const:
@@ -342,11 +342,11 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 			(0x0c <= rawOc && rawOc <= 0x0d) || // br,br_if instructions
 			(0x10 <= rawOc && rawOc <= 0x11) { // call,call_indirect
 			pc++
-			_, num, err := leb128.DecodeUint32(bytes.NewBuffer(body[pc:]))
+			_, l, err := leb128decode.DecodeUint32(bytes.NewBuffer(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read immediate: %w", err)
 			}
-			pc += num - 1
+			pc += l - 1
 			if rawOc == 0x11 { // if call_indirect
 				pc++
 			}
@@ -354,39 +354,39 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 		} else if rawOc == 0x0e { // br_table
 			pc++
 			r := bytes.NewBuffer(body[pc:])
-			nl, num, err := leb128.DecodeUint32(r)
+			nl, num, err := leb128decode.DecodeUint32(r)
 			if err != nil {
 				return nil, fmt.Errorf("read immediate: %w", err)
 			}
 
 			for i := uint32(0); i < nl; i++ {
-				_, n, err := leb128.DecodeUint32(r)
+				_, n, err := leb128decode.DecodeUint32(r)
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
 				num += n
 			}
 
-			_, n, err := leb128.DecodeUint32(r)
+			_, l, err := leb128decode.DecodeUint32(r)
 			if err != nil {
 				return nil, fmt.Errorf("read immediate: %w", err)
 			}
-			pc += n + num - 1
+			pc += l + num - 1
 			continue
 		}
 
 		switch expr.OpCode(rawOc) {
 		case expr.OpCodeBlock, expr.OpCodeIf, expr.OpCodeLoop:
-			bt, num, err := ins.readBlockType(bytes.NewBuffer(body[pc+1:]))
+			bt, l, err := ins.readBlockType(bytes.NewBuffer(body[pc+1:]))
 			if err != nil {
 				return nil, fmt.Errorf("read block: %w", err)
 			}
 			stack = append(stack, &funcBlock{
 				StartAt:        pc,
 				BlockType:      bt,
-				BlockTypeBytes: num,
+				BlockTypeBytes: l,
 			})
-			pc += num
+			pc += l
 		case expr.OpCodeElse:
 			stack[len(stack)-1].ElseAt = pc
 		case expr.OpCodeEnd:

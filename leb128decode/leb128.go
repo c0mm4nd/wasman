@@ -1,11 +1,12 @@
-package leb128
+package leb128decode
 
 import (
 	"fmt"
 	"io"
 )
 
-func DecodeUint32(r io.Reader) (ret uint32, num uint64, err error) {
+// DecodeUint32 will decode a uint32 from io.Reader, returning it as the ret with the bytes length l which it read.
+func DecodeUint32(r io.Reader) (ret uint32, l uint64, err error) {
 	const (
 		uint32Mask  uint32 = 1 << 7
 		uint32Mask2        = ^uint32Mask
@@ -16,7 +17,7 @@ func DecodeUint32(r io.Reader) (ret uint32, num uint64, err error) {
 		if err != nil {
 			return 0, 0, fmt.Errorf("readByte failed: %w", err)
 		}
-		num++
+		l++
 		ret |= (b & uint32Mask2) << shift
 		if b&uint32Mask == 0 {
 			break
@@ -25,7 +26,8 @@ func DecodeUint32(r io.Reader) (ret uint32, num uint64, err error) {
 	return
 }
 
-func DecodeUint64(r io.Reader) (ret uint64, num uint64, err error) {
+// DecodeUint64 will decode a uint64 from io.Reader, returning it as the ret with the bytes length l which it read.
+func DecodeUint64(r io.Reader) (ret uint64, l uint64, err error) {
 	const (
 		uint64Mask  uint64 = 1 << 7
 		uint64Mask2        = ^uint64Mask
@@ -35,7 +37,7 @@ func DecodeUint64(r io.Reader) (ret uint64, num uint64, err error) {
 		if err != nil {
 			return 0, 0, fmt.Errorf("readByte failed: %w", err)
 		}
-		num++
+		l++
 		ret |= (b & uint64Mask2) << shift
 		if b&uint64Mask == 0 {
 			break
@@ -44,7 +46,8 @@ func DecodeUint64(r io.Reader) (ret uint64, num uint64, err error) {
 	return
 }
 
-func DecodeInt32(r io.Reader) (ret int32, num uint64, err error) {
+// DecodeInt32 will decode a int32 from io.Reader, returning it as the ret with the bytes length l which it read.
+func DecodeInt32(r io.Reader) (ret int32, l uint64, err error) {
 	const (
 		int32Mask  int32 = 1 << 7
 		int32Mask2       = ^int32Mask
@@ -58,7 +61,7 @@ func DecodeInt32(r io.Reader) (ret int32, num uint64, err error) {
 		if err != nil {
 			return 0, 0, fmt.Errorf("readByte failed: %w", err)
 		}
-		num++
+		l++
 		ret |= (b & int32Mask2) << shift
 		shift += 7
 		if b&int32Mask == 0 {
@@ -72,7 +75,8 @@ func DecodeInt32(r io.Reader) (ret int32, num uint64, err error) {
 	return
 }
 
-func DecodeInt33AsInt64(r io.Reader) (ret int64, num uint64, err error) {
+// DecodeInt33AsInt64 will decode a int33 from io.Reader, returning it as the int64 ret with the bytes length l which it read.
+func DecodeInt33AsInt64(r io.Reader) (ret int64, l uint64, err error) {
 	const (
 		int33Mask  int64 = 1 << 7
 		int33Mask2       = ^int33Mask
@@ -85,7 +89,7 @@ func DecodeInt33AsInt64(r io.Reader) (ret int64, num uint64, err error) {
 	var b int64
 	for shift < 35 {
 		b, err = readByteAsInt64(r)
-		num++
+		l++
 		if err != nil {
 			return 0, 0, fmt.Errorf("readByte failed: %w", err)
 		}
@@ -106,10 +110,11 @@ func DecodeInt33AsInt64(r io.Reader) (ret int64, num uint64, err error) {
 	if ret&int33Mask5 > 0 {
 		ret = ret - int33Mask6
 	}
-	return ret, num, nil
+	return ret, l, nil
 }
 
-func DecodeInt64(r io.Reader) (ret int64, num uint64, err error) {
+// DecodeInt64 will decode a int64 from io.Reader, returning it as the ret with the bytes length l which it read.
+func DecodeInt64(r io.Reader) (ret int64, l uint64, err error) {
 	const (
 		int64Mask  int64 = 1 << 7
 		int64Mask2       = ^int64Mask
@@ -123,7 +128,7 @@ func DecodeInt64(r io.Reader) (ret int64, num uint64, err error) {
 		if err != nil {
 			return 0, 0, fmt.Errorf("readByte failed: %w", err)
 		}
-		num++
+		l++
 		ret |= (b & int64Mask2) << shift
 		shift += 7
 		if b&int64Mask == 0 {

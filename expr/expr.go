@@ -3,7 +3,7 @@ package expr
 import (
 	"bytes"
 	"fmt"
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/c0mm4nd/wasman/utils"
 	"io"
@@ -28,15 +28,15 @@ func ReadExpression(r io.Reader) (*Expression, error) {
 	op := OpCode(b[0])
 	switch op {
 	case OpCodeI32Const:
-		_, _, err = leb128.DecodeInt32(teeR)
+		_, _, err = leb128decode.DecodeInt32(teeR)
 	case OpCodeI64Const:
-		_, _, err = leb128.DecodeInt64(teeR)
+		_, _, err = leb128decode.DecodeInt64(teeR)
 	case OpCodeF32Const:
 		_, err = utils.ReadFloat32(teeR)
 	case OpCodeF64Const:
 		_, err = utils.ReadFloat64(teeR)
 	case OpCodeGlobalGet:
-		_, _, err = leb128.DecodeUint32(teeR)
+		_, _, err = leb128decode.DecodeUint32(teeR)
 	default:
 		return nil, fmt.Errorf("%w for opcodes.OpCode: %#x", types.ErrInvalidByte, b[0])
 	}

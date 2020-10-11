@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/c0mm4nd/wasman/expr"
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
 type DataSegment struct {
@@ -15,7 +15,7 @@ type DataSegment struct {
 }
 
 func ReadDataSegment(r io.Reader) (*DataSegment, error) {
-	d, _, err := leb128.DecodeUint32(r)
+	d, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("read memory index: %w", err)
 	}
@@ -33,7 +33,7 @@ func ReadDataSegment(r io.Reader) (*DataSegment, error) {
 		return nil, fmt.Errorf("offset expression must have i32.const opcodes.OpCode but go %#x", expression.OpCode)
 	}
 
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("get the size of vector: %w", err)
 	}

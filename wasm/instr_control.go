@@ -7,7 +7,7 @@ import (
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
 
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
 // errors on control instr
@@ -143,14 +143,14 @@ func brIf(ins *Instance) error {
 func brTable(ins *Instance) error {
 	ins.Context.PC++
 	r := bytes.NewBuffer(ins.Context.Func.body[ins.Context.PC:])
-	nl, num, err := leb128.DecodeUint32(r)
+	nl, num, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return err
 	}
 
 	lis := make([]uint32, nl)
 	for i := range lis {
-		li, n, err := leb128.DecodeUint32(r)
+		li, n, err := leb128decode.DecodeUint32(r)
 		if err != nil {
 			return err
 		}
@@ -158,7 +158,7 @@ func brTable(ins *Instance) error {
 		lis[i] = li
 	}
 
-	ln, n, err := leb128.DecodeUint32(r)
+	ln, n, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return err
 	}

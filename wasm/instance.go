@@ -9,7 +9,7 @@ import (
 
 	"github.com/c0mm4nd/wasman/stacks"
 
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
 // Instance is an instantiated module
@@ -83,7 +83,7 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 }
 
 func (ins *Instance) fetchInt32() (int32, error) {
-	ret, num, err := leb128.DecodeInt32(bytes.NewBuffer(
+	ret, num, err := leb128decode.DecodeInt32(bytes.NewBuffer(
 		ins.Context.Func.body[ins.Context.PC:]))
 	if err != nil {
 		return 0, err
@@ -94,7 +94,7 @@ func (ins *Instance) fetchInt32() (int32, error) {
 }
 
 func (ins *Instance) fetchUint32() (uint32, error) {
-	ret, num, err := leb128.DecodeUint32(bytes.NewBuffer(
+	ret, num, err := leb128decode.DecodeUint32(bytes.NewBuffer(
 		ins.Context.Func.body[ins.Context.PC:]))
 	if err != nil {
 		return 0, err
@@ -106,7 +106,7 @@ func (ins *Instance) fetchUint32() (uint32, error) {
 }
 
 func (ins *Instance) fetchInt64() (int64, error) {
-	ret, num, err := leb128.DecodeInt64(bytes.NewBuffer(
+	ret, num, err := leb128decode.DecodeInt64(bytes.NewBuffer(
 		ins.Context.Func.body[ins.Context.PC:]))
 	if err != nil {
 		return 0, err

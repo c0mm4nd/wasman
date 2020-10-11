@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
 var ErrInvalidByte = errors.New("invalid byte")
@@ -54,7 +54,7 @@ func ReadValueTypes(r io.Reader, num uint32) ([]ValueType, error) {
 }
 
 func ReadNameValue(r io.Reader) (string, error) {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return "", fmt.Errorf("read size of name: %w", err)
 	}

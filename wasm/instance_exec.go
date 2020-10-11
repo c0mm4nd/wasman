@@ -7,7 +7,7 @@ import (
 	"github.com/c0mm4nd/wasman/utils"
 
 	"github.com/c0mm4nd/wasman/expr"
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
 )
@@ -23,12 +23,12 @@ func (ins *Instance) execExpr(expression *expr.Expression) (v interface{}, err e
 	r := bytes.NewBuffer(expression.Data)
 	switch expression.OpCode {
 	case expr.OpCodeI32Const:
-		v, _, err = leb128.DecodeInt32(r)
+		v, _, err = leb128decode.DecodeInt32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read int32: %w", err)
 		}
 	case expr.OpCodeI64Const:
-		v, _, err = leb128.DecodeInt64(r)
+		v, _, err = leb128decode.DecodeInt64(r)
 		if err != nil {
 			return nil, fmt.Errorf("read int64: %w", err)
 		}
@@ -43,7 +43,7 @@ func (ins *Instance) execExpr(expression *expr.Expression) (v interface{}, err e
 			return nil, fmt.Errorf("read f64: %w", err)
 		}
 	case expr.OpCodeGlobalGet:
-		id, _, err := leb128.DecodeUint32(r)
+		id, _, err := leb128decode.DecodeUint32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read index of global: %w", err)
 		}

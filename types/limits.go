@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
 // https://www.w3.org/TR/wasm-core-1/#syntax-limits
@@ -23,16 +23,16 @@ func ReadLimits(r io.Reader) (*Limits, error) {
 	ret := &Limits{}
 	switch b[0] {
 	case 0x00:
-		ret.Min, _, err = leb128.DecodeUint32(r)
+		ret.Min, _, err = leb128decode.DecodeUint32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read min of limit: %w", err)
 		}
 	case 0x01:
-		ret.Min, _, err = leb128.DecodeUint32(r)
+		ret.Min, _, err = leb128decode.DecodeUint32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read min of limit: %w", err)
 		}
-		m, _, err := leb128.DecodeUint32(r)
+		m, _, err := leb128decode.DecodeUint32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read min of limit: %w", err)
 		}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
 type FuncType struct {
@@ -22,7 +22,7 @@ func ReadFuncType(r io.Reader) (*FuncType, error) {
 		return nil, fmt.Errorf("%w: %#x != 0x60", ErrInvalidByte, b[0])
 	}
 
-	s, _, err := leb128.DecodeUint32(r)
+	s, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("get the size of input value types: %w", err)
 	}
@@ -32,7 +32,7 @@ func ReadFuncType(r io.Reader) (*FuncType, error) {
 		return nil, fmt.Errorf("read value types of inputs: %w", err)
 	}
 
-	s, _, err = leb128.DecodeUint32(r)
+	s, _, err = leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("get the size of output value types: %w", err)
 	}

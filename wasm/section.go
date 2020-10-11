@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
 )
@@ -43,7 +43,7 @@ func (m *Module) readSection(r io.Reader) error {
 		return fmt.Errorf("read section id: %w", err)
 	}
 
-	ss, _, err := leb128.DecodeUint32(r)
+	ss, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of section for id=%d: %w", sectionID(b[0]), err)
 	}
@@ -86,7 +86,7 @@ func (m *Module) readSection(r io.Reader) error {
 }
 
 func (m *Module) readSectionTypes(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
@@ -103,7 +103,7 @@ func (m *Module) readSectionTypes(r io.Reader) error {
 }
 
 func (m *Module) readSectionImports(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
@@ -120,14 +120,14 @@ func (m *Module) readSectionImports(r io.Reader) error {
 }
 
 func (m *Module) readSectionFunctions(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
 
 	m.FunctionsSection = make([]uint32, vs)
 	for i := range m.FunctionsSection {
-		m.FunctionsSection[i], _, err = leb128.DecodeUint32(r)
+		m.FunctionsSection[i], _, err = leb128decode.DecodeUint32(r)
 		if err != nil {
 			return fmt.Errorf("get typeidx: %w", err)
 		}
@@ -137,7 +137,7 @@ func (m *Module) readSectionFunctions(r io.Reader) error {
 }
 
 func (m *Module) readSectionTables(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
@@ -154,7 +154,7 @@ func (m *Module) readSectionTables(r io.Reader) error {
 }
 
 func (m *Module) readSectionMemories(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
@@ -171,7 +171,7 @@ func (m *Module) readSectionMemories(r io.Reader) error {
 }
 
 func (m *Module) readSectionGlobals(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
@@ -188,7 +188,7 @@ func (m *Module) readSectionGlobals(r io.Reader) error {
 }
 
 func (m *Module) readSectionExports(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
@@ -207,14 +207,14 @@ func (m *Module) readSectionExports(r io.Reader) error {
 }
 
 func (m *Module) readSectionStart(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
 
 	m.StartSection = make([]uint32, vs)
 	for i := range m.StartSection {
-		m.StartSection[i], _, err = leb128.DecodeUint32(r)
+		m.StartSection[i], _, err = leb128decode.DecodeUint32(r)
 		if err != nil {
 			return fmt.Errorf("read function index: %w", err)
 		}
@@ -224,7 +224,7 @@ func (m *Module) readSectionStart(r io.Reader) error {
 }
 
 func (m *Module) readSectionElement(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
@@ -241,7 +241,7 @@ func (m *Module) readSectionElement(r io.Reader) error {
 }
 
 func (m *Module) readSectionCodes(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
@@ -258,7 +258,7 @@ func (m *Module) readSectionCodes(r io.Reader) error {
 }
 
 func (m *Module) readSectionData(r io.Reader) error {
-	vs, _, err := leb128.DecodeUint32(r)
+	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/c0mm4nd/wasman/leb128"
+	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/types"
 )
 
@@ -25,7 +25,7 @@ func ReadImportDesc(r io.Reader) (*ImportDesc, error) {
 
 	switch b[0] {
 	case 0x00:
-		tID, _, err := leb128.DecodeUint32(r)
+		tID, _, err := leb128decode.DecodeUint32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read typeindex: %w", err)
 		}
