@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128"
 )
 
 type DataSegment struct {
 	MemoryIndex      uint32 // supposed to be zero
-	OffsetExpression *instr.Expr
+	OffsetExpression *expr.Expression
 	Init             []byte
 }
 
@@ -24,12 +24,12 @@ func ReadDataSegment(r io.Reader) (*DataSegment, error) {
 		return nil, fmt.Errorf("invalid memory index: %d", d)
 	}
 
-	expression, err := instr.ReadExpr(r)
+	expression, err := expr.ReadExpression(r)
 	if err != nil {
 		return nil, fmt.Errorf("read offset expression: %w", err)
 	}
 
-	if expression.OpCode != instr.OpCodeI32Const {
+	if expression.OpCode != expr.OpCodeI32Const {
 		return nil, fmt.Errorf("offset expression must have i32.const opcodes.OpCode but go %#x", expression.OpCode)
 	}
 

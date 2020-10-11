@@ -1,22 +1,22 @@
-package instr
+package expr
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
-	"io"
-	"math"
-
 	"github.com/c0mm4nd/wasman/leb128"
 	"github.com/c0mm4nd/wasman/types"
+	"github.com/c0mm4nd/wasman/utils"
+	"io"
 )
 
-type Expr struct {
+// Expression is sequences of instructions terminated by an end marker.
+type Expression struct {
 	OpCode OpCode
 	Data   []byte
 }
 
-func ReadExpr(r io.Reader) (*Expr, error) {
+// ReadExpression will read an expr.Expression from the io.Reader
+func ReadExpression(r io.Reader) (*Expression, error) {
 	b := make([]byte, 1)
 	_, err := io.ReadFull(r, b)
 	if err != nil {
@@ -32,9 +32,9 @@ func ReadExpr(r io.Reader) (*Expr, error) {
 	case OpCodeI64Const:
 		_, _, err = leb128.DecodeInt64(teeR)
 	case OpCodeF32Const:
-		_, err = ReadFloat32(teeR)
+		_, err = utils.ReadFloat32(teeR)
 	case OpCodeF64Const:
-		_, err = ReadFloat64(teeR)
+		_, err = utils.ReadFloat64(teeR)
 	case OpCodeGlobalGet:
 		_, _, err = leb128.DecodeUint32(teeR)
 	default:
@@ -53,34 +53,8 @@ func ReadExpr(r io.Reader) (*Expr, error) {
 		return nil, fmt.Errorf("constant expression has not terminated")
 	}
 
-	return &Expr{
+	return &Expression{
 		OpCode: op,
 		Data:   buf.Bytes(),
 	}, nil
-}
-
-// IEEE 754
-func ReadFloat32(r io.Reader) (float32, error) {
-	buf := make([]byte, 4)
-
-	_, err := io.ReadFull(r, buf)
-	if err != nil {
-		return 0, err
-	}
-
-	raw := binary.LittleEndian.Uint32(buf)
-	return math.Float32frombits(raw), nil
-}
-
-// IEEE 754
-func ReadFloat64(r io.Reader) (float64, error) {
-	buf := make([]byte, 8)
-
-	_, err := io.ReadFull(r, buf)
-	if err != nil {
-		return 0, err
-	}
-
-	raw := binary.LittleEndian.Uint64(buf)
-	return math.Float64frombits(raw), nil
 }

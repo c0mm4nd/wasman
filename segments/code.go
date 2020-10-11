@@ -5,7 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128"
 )
 
@@ -48,7 +48,7 @@ func ReadCodeSegment(r io.Reader) (*CodeSegment, error) {
 		return nil, fmt.Errorf("read body: %w", err)
 	}
 
-	if body[len(body)-1] != byte(instr.OpCodeEnd) {
+	if body[len(body)-1] != byte(expr.OpCodeEnd) {
 		return nil, fmt.Errorf("expr not end with opcodes.OpCodeEnd")
 	}
 

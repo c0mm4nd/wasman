@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math"
 
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 )
 
 var (
@@ -14,7 +14,7 @@ var (
 
 // TollStation is an interface which acts as a toll counter on the cost of one module
 type TollStation interface {
-	GetOpPrice(instr.OpCode) uint64
+	GetOpPrice(expr.OpCode) uint64
 	GetToll() uint64
 	AddToll(uint64) error
 }
@@ -40,7 +40,7 @@ func NewSimpleTollStation(max uint64) *SimpleTollStation {
 }
 
 // GetOpPrice will get the price of one opcode
-func (ts *SimpleTollStation) GetOpPrice(_ instr.OpCode) uint64 {
+func (ts *SimpleTollStation) GetOpPrice(_ expr.OpCode) uint64 {
 	return 1
 }
 

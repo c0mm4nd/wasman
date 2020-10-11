@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128"
 )
 
 type ElemSegment struct {
 	TableIndex uint32
-	OffsetExpr *instr.Expr
+	OffsetExpr *expr.Expression
 	Init       []uint32
 }
 
@@ -20,12 +20,12 @@ func ReadElemSegment(r io.Reader) (*ElemSegment, error) {
 		return nil, fmt.Errorf("get table index: %w", err)
 	}
 
-	expression, err := instr.ReadExpr(r)
+	expression, err := expr.ReadExpression(r)
 	if err != nil {
 		return nil, fmt.Errorf("read expr for offset: %w", err)
 	}
 
-	if expression.OpCode != instr.OpCodeI32Const {
+	if expression.OpCode != expr.OpCodeI32Const {
 		return nil, fmt.Errorf("offset expression must be i32.const but go %#x", expression.OpCode)
 	}
 

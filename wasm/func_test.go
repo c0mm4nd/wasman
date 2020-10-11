@@ -1,7 +1,7 @@
 package wasm
 
 import (
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +41,7 @@ func TestNativeFunction_Call(t *testing.T) {
 	n := &wasmFunc{
 		signature: &types.FuncType{},
 		body: []byte{
-			byte(instr.OpCodeI64Const), 0x05, byte(instr.OpCodeReturn),
+			byte(expr.OpCodeI64Const), 0x05, byte(expr.OpCodeReturn),
 		},
 	}
 	vm := &Instance{
@@ -60,9 +60,9 @@ func TestVirtualMachine_execNativeFunction(t *testing.T) {
 	n := &wasmFunc{
 		signature: &types.FuncType{},
 		body: []byte{
-			byte(instr.OpCodeI64Const), 0x05,
-			byte(instr.OpCodeI64Const), 0x01,
-			byte(instr.OpCodeReturn),
+			byte(expr.OpCodeI64Const), 0x05,
+			byte(expr.OpCodeI64Const), 0x01,
+			byte(expr.OpCodeReturn),
 		},
 	}
 	vm := &Instance{

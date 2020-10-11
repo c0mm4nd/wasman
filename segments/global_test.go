@@ -2,7 +2,7 @@ package segments_test
 
 import (
 	"bytes"
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/stretchr/testify/assert"
@@ -13,8 +13,8 @@ import (
 func TestReadGlobalSegment(t *testing.T) {
 	exp := &segments.GlobalSegment{
 		Type: &types.GlobalType{Value: types.ValueTypeI64, Mutable: false},
-		Init: &instr.Expr{
-			OpCode: instr.OpCodeI64Const,
+		Init: &expr.Expression{
+			OpCode: expr.OpCodeI64Const,
 			Data:   []byte{0x01},
 		},
 	}

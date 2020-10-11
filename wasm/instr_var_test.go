@@ -1,7 +1,7 @@
 package wasm
 
 import (
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -11,7 +11,7 @@ func Test_getLocal(t *testing.T) {
 	exp := uint64(100)
 	ctx := &wasmContext{
 		Func: &wasmFunc{
-			body: []byte{byte(instr.OpCodeLocalGet), 0x05},
+			body: []byte{byte(expr.OpCodeLocalGet), 0x05},
 		},
 		Locals: []uint64{0, 0, 0, 0, 0, exp},
 	}
@@ -25,7 +25,7 @@ func Test_getLocal(t *testing.T) {
 func Test_setLocal(t *testing.T) {
 	ctx := &wasmContext{
 		Func: &wasmFunc{
-			body: []byte{byte(instr.OpCodeLocalSet), 0x05},
+			body: []byte{byte(expr.OpCodeLocalSet), 0x05},
 		},
 		Locals: make([]uint64, 100),
 	}
@@ -43,7 +43,7 @@ func Test_setLocal(t *testing.T) {
 func Test_teeLocal(t *testing.T) {
 	ctx := &wasmContext{
 		Func: &wasmFunc{
-			body: []byte{byte(instr.OpCodeLocalTee), 0x05},
+			body: []byte{byte(expr.OpCodeLocalTee), 0x05},
 		},
 		Locals: make([]uint64, 100),
 	}
@@ -61,7 +61,7 @@ func Test_teeLocal(t *testing.T) {
 func Test_getGlobal(t *testing.T) {
 	ctx := &wasmContext{
 		Func: &wasmFunc{
-			body: []byte{byte(instr.OpCodeGlobalGet), 0x05},
+			body: []byte{byte(expr.OpCodeGlobalGet), 0x05},
 		},
 	}
 
@@ -81,7 +81,7 @@ func Test_getGlobal(t *testing.T) {
 func Test_setGlobal(t *testing.T) {
 	ctx := &wasmContext{
 		Func: &wasmFunc{
-			body: []byte{byte(instr.OpCodeGlobalSet), 0x05},
+			body: []byte{byte(expr.OpCodeGlobalSet), 0x05},
 		},
 	}
 

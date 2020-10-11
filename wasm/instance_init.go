@@ -6,7 +6,7 @@ import (
 	"github.com/c0mm4nd/wasman/config"
 	"io"
 
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
@@ -318,22 +318,22 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 			continue
 		} else if 0x41 <= rawOc && rawOc <= 0x44 { // const instructions
 			pc++
-			switch instr.OpCode(rawOc) {
-			case instr.OpCodeI32Const:
+			switch expr.OpCode(rawOc) {
+			case expr.OpCodeI32Const:
 				_, num, err := leb128.DecodeInt32(bytes.NewBuffer(body[pc:]))
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
 				pc += num - 1
-			case instr.OpCodeI64Const:
+			case expr.OpCodeI64Const:
 				_, num, err := leb128.DecodeInt64(bytes.NewBuffer(body[pc:]))
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
 				pc += num - 1
-			case instr.OpCodeF32Const:
+			case expr.OpCodeF32Const:
 				pc += 3
-			case instr.OpCodeF64Const:
+			case expr.OpCodeF64Const:
 				pc += 7
 			}
 			continue
@@ -375,8 +375,8 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 			continue
 		}
 
-		switch instr.OpCode(rawOc) {
-		case instr.OpCodeBlock, instr.OpCodeIf, instr.OpCodeLoop:
+		switch expr.OpCode(rawOc) {
+		case expr.OpCodeBlock, expr.OpCodeIf, expr.OpCodeLoop:
 			bt, num, err := ins.readBlockType(bytes.NewBuffer(body[pc+1:]))
 			if err != nil {
 				return nil, fmt.Errorf("read block: %w", err)
@@ -387,9 +387,9 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 				BlockTypeBytes: num,
 			})
 			pc += num
-		case instr.OpCodeElse:
+		case expr.OpCodeElse:
 			stack[len(stack)-1].ElseAt = pc
-		case instr.OpCodeEnd:
+		case expr.OpCodeEnd:
 			bl := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			bl.EndAt = pc

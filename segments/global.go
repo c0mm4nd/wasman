@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/types"
 )
 
 type GlobalSegment struct {
 	Type *types.GlobalType
-	Init *instr.Expr
+	Init *expr.Expression
 }
 
 func ReadGlobalSegment(r io.Reader) (*GlobalSegment, error) {
@@ -19,7 +19,7 @@ func ReadGlobalSegment(r io.Reader) (*GlobalSegment, error) {
 		return nil, fmt.Errorf("read global type: %w", err)
 	}
 
-	init, err := instr.ReadExpr(r)
+	init, err := expr.ReadExpression(r)
 	if err != nil {
 		return nil, fmt.Errorf("get init expression: %w", err)
 	}

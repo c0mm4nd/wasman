@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/c0mm4nd/wasman/utils"
 
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
@@ -18,30 +19,30 @@ var (
 	ErrInvalidArgNum        = errors.New("invalid number of arguments")
 )
 
-func (ins *Instance) execExpr(expression *instr.Expr) (v interface{}, err error) {
+func (ins *Instance) execExpr(expression *expr.Expression) (v interface{}, err error) {
 	r := bytes.NewBuffer(expression.Data)
 	switch expression.OpCode {
-	case instr.OpCodeI32Const:
+	case expr.OpCodeI32Const:
 		v, _, err = leb128.DecodeInt32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read int32: %w", err)
 		}
-	case instr.OpCodeI64Const:
+	case expr.OpCodeI64Const:
 		v, _, err = leb128.DecodeInt64(r)
 		if err != nil {
 			return nil, fmt.Errorf("read int64: %w", err)
 		}
-	case instr.OpCodeF32Const:
-		v, err = instr.ReadFloat32(r)
+	case expr.OpCodeF32Const:
+		v, err = utils.ReadFloat32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read f34: %w", err)
 		}
-	case instr.OpCodeF64Const:
-		v, err = instr.ReadFloat64(r)
+	case expr.OpCodeF64Const:
+		v, err = utils.ReadFloat64(r)
 		if err != nil {
 			return nil, fmt.Errorf("read f64: %w", err)
 		}
-	case instr.OpCodeGlobalGet:
+	case expr.OpCodeGlobalGet:
 		id, _, err := leb128.DecodeUint32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read index of global: %w", err)
@@ -59,7 +60,7 @@ func (ins *Instance) execExpr(expression *instr.Expr) (v interface{}, err error)
 func (ins *Instance) execFunc() error {
 	for ; int(ins.Context.PC) < len(ins.Context.Func.body); ins.Context.PC++ {
 		opByte := ins.Context.Func.body[ins.Context.PC]
-		op := instr.OpCode(opByte)
+		op := expr.OpCode(opByte)
 		err := instructions[op](ins)
 		if err != nil {
 			return err
@@ -76,7 +77,7 @@ func (ins *Instance) execFunc() error {
 			}
 		}
 
-		if op == instr.OpCodeReturn {
+		if op == expr.OpCodeReturn {
 			return nil
 		}
 	}

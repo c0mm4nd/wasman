@@ -1,4 +1,4 @@
-package instr
+package expr
 
 type OpCode byte
 

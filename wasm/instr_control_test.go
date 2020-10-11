@@ -1,7 +1,7 @@
 package wasm
 
 import (
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/stretchr/testify/assert"
@@ -193,7 +193,7 @@ func Test_call(t *testing.T) {
 	ins := &Instance{
 		Context: &wasmContext{
 			Func: &wasmFunc{
-				body: []byte{byte(instr.OpCodeCall), 0x01},
+				body: []byte{byte(expr.OpCodeCall), 0x01},
 			},
 		},
 		Functions: []fn{nil, df},
@@ -208,7 +208,7 @@ func Test_callIndirect(t *testing.T) {
 	ins := &Instance{
 		Context: &wasmContext{
 			Func: &wasmFunc{
-				body: []byte{byte(instr.OpCodeCall), 0x01, 0x00},
+				body: []byte{byte(expr.OpCodeCall), 0x01, 0x00},
 			},
 		},
 		Functions: []fn{nil, df},

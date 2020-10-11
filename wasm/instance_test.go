@@ -2,7 +2,7 @@ package wasm
 
 import (
 	"bytes"
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/stretchr/testify/assert"
@@ -13,9 +13,9 @@ import (
 
 func TestInstance_executeConstExpression(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
-		for _, expr := range []*instr.Expr{
+		for _, expr := range []*expr.Expression{
 			{OpCode: 0xa},
-			{OpCode: instr.OpCodeGlobalGet, Data: []byte{0x2}},
+			{OpCode: expr.OpCodeGlobalGet, Data: []byte{0x2}},
 		} {
 			m := &Module{IndexSpace: new(IndexSpace)}
 			ins := &Instance{Module: m}
@@ -28,33 +28,33 @@ func TestInstance_executeConstExpression(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		for _, c := range []struct {
 			ins  Instance
-			expr *instr.Expr
+			expr *expr.Expression
 			val  interface{}
 		}{
 			{
-				expr: &instr.Expr{
-					OpCode: instr.OpCodeI64Const,
+				expr: &expr.Expression{
+					OpCode: expr.OpCodeI64Const,
 					Data:   []byte{0x5},
 				},
 				val: int64(5),
 			},
 			{
-				expr: &instr.Expr{
-					OpCode: instr.OpCodeI32Const,
+				expr: &expr.Expression{
+					OpCode: expr.OpCodeI32Const,
 					Data:   []byte{0x5},
 				},
 				val: int32(5),
 			},
 			{
-				expr: &instr.Expr{
-					OpCode: instr.OpCodeF32Const,
+				expr: &expr.Expression{
+					OpCode: expr.OpCodeF32Const,
 					Data:   []byte{0x40, 0xe1, 0x47, 0x40},
 				},
 				val: float32(3.1231232),
 			},
 			{
-				expr: &instr.Expr{
-					OpCode: instr.OpCodeF64Const,
+				expr: &expr.Expression{
+					OpCode: expr.OpCodeF64Const,
 					Data:   []byte{0x5e, 0xc4, 0xd8, 0xf9, 0x27, 0xfc, 0x08, 0x40},
 				},
 				val: 3.1231231231,
@@ -299,8 +299,8 @@ func TestModule_buildGlobalIndexSpace(t *testing.T) {
 		GlobalsSection: []*segments.GlobalSegment{
 			{
 				Type: nil,
-				Init: &instr.Expr{
-					OpCode: instr.OpCodeI64Const,
+				Init: &expr.Expression{
+					OpCode: expr.OpCodeI64Const,
 					Data:   []byte{0x01},
 				},
 			},
@@ -352,15 +352,15 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 			}},
 
 			{
-				DataSection:   []*segments.DataSegment{{OffsetExpression: &instr.Expr{}}},
+				DataSection:   []*segments.DataSegment{{OffsetExpression: &expr.Expression{}}},
 				MemorySection: []*types.MemoryType{{}},
 				IndexSpace:    &IndexSpace{Memories: [][]byte{{}}},
 			},
 			{
 				DataSection: []*segments.DataSegment{
 					{
-						OffsetExpression: &instr.Expr{
-							OpCode: instr.OpCodeI32Const, Data: []byte{0x01},
+						OffsetExpression: &expr.Expression{
+							OpCode: expr.OpCodeI32Const, Data: []byte{0x01},
 						},
 						Init: []byte{0x01, 0x02},
 					},
@@ -385,8 +385,8 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 				m: &Module{
 					DataSection: []*segments.DataSegment{
 						{
-							OffsetExpression: &instr.Expr{
-								OpCode: instr.OpCodeI32Const,
+							OffsetExpression: &expr.Expression{
+								OpCode: expr.OpCodeI32Const,
 								Data:   []byte{0x00},
 							},
 							Init: []byte{0x01, 0x01},
@@ -401,8 +401,8 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 				m: &Module{
 					DataSection: []*segments.DataSegment{
 						{
-							OffsetExpression: &instr.Expr{
-								OpCode: instr.OpCodeI32Const,
+							OffsetExpression: &expr.Expression{
+								OpCode: expr.OpCodeI32Const,
 								Data:   []byte{0x00},
 							},
 							Init: []byte{0x01, 0x01},
@@ -417,8 +417,8 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 				m: &Module{
 					DataSection: []*segments.DataSegment{
 						{
-							OffsetExpression: &instr.Expr{
-								OpCode: instr.OpCodeI32Const,
+							OffsetExpression: &expr.Expression{
+								OpCode: expr.OpCodeI32Const,
 								Data:   []byte{0x01},
 							},
 							Init: []byte{0x01, 0x01},
@@ -433,8 +433,8 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 				m: &Module{
 					DataSection: []*segments.DataSegment{
 						{
-							OffsetExpression: &instr.Expr{
-								OpCode: instr.OpCodeI32Const,
+							OffsetExpression: &expr.Expression{
+								OpCode: expr.OpCodeI32Const,
 								Data:   []byte{0x02},
 							},
 							Init: []byte{0x01, 0x01},
@@ -449,8 +449,8 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 				m: &Module{
 					DataSection: []*segments.DataSegment{
 						{
-							OffsetExpression: &instr.Expr{
-								OpCode: instr.OpCodeI32Const,
+							OffsetExpression: &expr.Expression{
+								OpCode: expr.OpCodeI32Const,
 								Data:   []byte{0x01},
 							},
 							Init: []byte{0x01, 0x01},
@@ -465,8 +465,8 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 				m: &Module{
 					DataSection: []*segments.DataSegment{
 						{
-							OffsetExpression: &instr.Expr{
-								OpCode: instr.OpCodeI32Const,
+							OffsetExpression: &expr.Expression{
+								OpCode: expr.OpCodeI32Const,
 								Data:   []byte{0x01},
 							},
 							Init:        []byte{0x01, 0x01},
@@ -498,15 +498,15 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				IndexSpace:      &IndexSpace{Tables: [][]*uint32{{}}},
 			},
 			{
-				ElementsSection: []*segments.ElemSegment{{TableIndex: 0, OffsetExpr: &instr.Expr{}}},
+				ElementsSection: []*segments.ElemSegment{{TableIndex: 0, OffsetExpr: &expr.Expression{}}},
 				TablesSection:   []*types.TableType{{}},
 				IndexSpace:      &IndexSpace{Tables: [][]*uint32{{}}},
 			},
 			{
 				ElementsSection: []*segments.ElemSegment{{
 					TableIndex: 0,
-					OffsetExpr: &instr.Expr{
-						OpCode: instr.OpCodeI32Const,
+					OffsetExpr: &expr.Expression{
+						OpCode: expr.OpCodeI32Const,
 						Data:   []byte{0x0},
 					},
 					Init: []uint32{0x0, 0x0},
@@ -532,8 +532,8 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				m: &Module{
 					ElementsSection: []*segments.ElemSegment{{
 						TableIndex: 0,
-						OffsetExpr: &instr.Expr{
-							OpCode: instr.OpCodeI32Const,
+						OffsetExpr: &expr.Expression{
+							OpCode: expr.OpCodeI32Const,
 							Data:   []byte{0x0},
 						},
 						Init: []uint32{0x1, 0x1},
@@ -547,8 +547,8 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				m: &Module{
 					ElementsSection: []*segments.ElemSegment{{
 						TableIndex: 0,
-						OffsetExpr: &instr.Expr{
-							OpCode: instr.OpCodeI32Const,
+						OffsetExpr: &expr.Expression{
+							OpCode: expr.OpCodeI32Const,
 							Data:   []byte{0x0},
 						},
 						Init: []uint32{0x1, 0x1},
@@ -564,8 +564,8 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				m: &Module{
 					ElementsSection: []*segments.ElemSegment{{
 						TableIndex: 0,
-						OffsetExpr: &instr.Expr{
-							OpCode: instr.OpCodeI32Const,
+						OffsetExpr: &expr.Expression{
+							OpCode: expr.OpCodeI32Const,
 							Data:   []byte{0x1},
 						},
 						Init: []uint32{0x1, 0x1},
@@ -581,8 +581,8 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				m: &Module{
 					ElementsSection: []*segments.ElemSegment{{
 						TableIndex: 0,
-						OffsetExpr: &instr.Expr{
-							OpCode: instr.OpCodeI32Const,
+						OffsetExpr: &expr.Expression{
+							OpCode: expr.OpCodeI32Const,
 							Data:   []byte{0x1},
 						},
 						Init: []uint32{0x1},
@@ -643,7 +643,7 @@ func TestModule_parseBlocks(t *testing.T) {
 		exp  map[uint64]*funcBlock
 	}{
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, 0x0, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, 0x0, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -654,7 +654,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeI32Load), 0x00, 0x0, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeI32Load), 0x00, 0x0, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -665,7 +665,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeI64Store32), 0x00, 0x0, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeI64Store32), 0x00, 0x0, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -676,7 +676,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeMemoryGrow), 0x00, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeMemoryGrow), 0x00, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -687,7 +687,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeMemorySize), 0x00, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeMemorySize), 0x00, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -698,7 +698,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeI32Const), 0x02, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeI32Const), 0x02, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -709,7 +709,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeI64Const), 0x02, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeI64Const), 0x02, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -720,9 +720,9 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1,
-				byte(instr.OpCodeF32Const), 0x02, 0x02, 0x02, 0x02,
-				byte(instr.OpCodeEnd),
+			body: []byte{byte(expr.OpCodeBlock), 0x1,
+				byte(expr.OpCodeF32Const), 0x02, 0x02, 0x02, 0x02,
+				byte(expr.OpCodeEnd),
 			},
 			exp: map[uint64]*funcBlock{
 				0: {
@@ -734,9 +734,9 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1,
-				byte(instr.OpCodeF64Const), 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
-				byte(instr.OpCodeEnd),
+			body: []byte{byte(expr.OpCodeBlock), 0x1,
+				byte(expr.OpCodeF64Const), 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02, 0x02,
+				byte(expr.OpCodeEnd),
 			},
 			exp: map[uint64]*funcBlock{
 				0: {
@@ -748,7 +748,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeLocalGet), 0x02, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeLocalGet), 0x02, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -759,7 +759,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeGlobalSet), 0x03, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeGlobalSet), 0x03, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -770,7 +770,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeGlobalSet), 0x03, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeGlobalSet), 0x03, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -781,7 +781,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeBr), 0x03, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeBr), 0x03, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -792,7 +792,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeBrIf), 0x03, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeBrIf), 0x03, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -803,7 +803,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeCall), 0x03, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeCall), 0x03, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -814,7 +814,7 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeCallIndirect), 0x03, 0x00, byte(instr.OpCodeEnd)},
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeCallIndirect), 0x03, 0x00, byte(expr.OpCodeEnd)},
 			exp: map[uint64]*funcBlock{
 				0: {
 					StartAt:        0,
@@ -825,8 +825,8 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeBrTable),
-				0x03, 0x01, 0x01, 0x01, 0x01, byte(instr.OpCodeEnd),
+			body: []byte{byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeBrTable),
+				0x03, 0x01, 0x01, 0x01, 0x01, byte(expr.OpCodeEnd),
 			},
 			exp: map[uint64]*funcBlock{
 				0: {
@@ -838,11 +838,11 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeNop),
-				byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeCallIndirect), 0x03, 0x00, byte(instr.OpCodeEnd),
-				byte(instr.OpCodeIf), 0x1, byte(instr.OpCodeLocalGet), 0x02,
-				byte(instr.OpCodeElse), byte(instr.OpCodeLocalGet), 0x02,
-				byte(instr.OpCodeEnd),
+			body: []byte{byte(expr.OpCodeNop),
+				byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeCallIndirect), 0x03, 0x00, byte(expr.OpCodeEnd),
+				byte(expr.OpCodeIf), 0x1, byte(expr.OpCodeLocalGet), 0x02,
+				byte(expr.OpCodeElse), byte(expr.OpCodeLocalGet), 0x02,
+				byte(expr.OpCodeEnd),
 			},
 			exp: map[uint64]*funcBlock{
 				1: {
@@ -861,12 +861,12 @@ func TestModule_parseBlocks(t *testing.T) {
 			},
 		},
 		{
-			body: []byte{byte(instr.OpCodeNop),
-				byte(instr.OpCodeBlock), 0x1, byte(instr.OpCodeCallIndirect), 0x03, 0x00, byte(instr.OpCodeEnd),
-				byte(instr.OpCodeIf), 0x1, byte(instr.OpCodeLocalGet), 0x02,
-				byte(instr.OpCodeElse), byte(instr.OpCodeLocalGet), 0x02,
-				byte(instr.OpCodeIf), 0x01, byte(instr.OpCodeLocalGet), 0x02, byte(instr.OpCodeEnd),
-				byte(instr.OpCodeEnd),
+			body: []byte{byte(expr.OpCodeNop),
+				byte(expr.OpCodeBlock), 0x1, byte(expr.OpCodeCallIndirect), 0x03, 0x00, byte(expr.OpCodeEnd),
+				byte(expr.OpCodeIf), 0x1, byte(expr.OpCodeLocalGet), 0x02,
+				byte(expr.OpCodeElse), byte(expr.OpCodeLocalGet), 0x02,
+				byte(expr.OpCodeIf), 0x01, byte(expr.OpCodeLocalGet), 0x02, byte(expr.OpCodeEnd),
+				byte(expr.OpCodeEnd),
 			},
 			exp: map[uint64]*funcBlock{
 				1: {

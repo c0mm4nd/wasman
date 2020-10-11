@@ -1,7 +1,7 @@
 package wasm
 
 import (
-	"github.com/c0mm4nd/wasman/instr"
+	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/stretchr/testify/assert"
 	"math"
@@ -11,7 +11,7 @@ import (
 func Test_i32Const(t *testing.T) {
 	ctx := &wasmContext{
 		Func: &wasmFunc{
-			body: []byte{byte(instr.OpCodeI32Const), 0x05},
+			body: []byte{byte(expr.OpCodeI32Const), 0x05},
 		},
 	}
 
@@ -27,7 +27,7 @@ func Test_i32Const(t *testing.T) {
 func Test_i64Const(t *testing.T) {
 	ctx := &wasmContext{
 		Func: &wasmFunc{
-			body: []byte{byte(instr.OpCodeI64Const), 0x05},
+			body: []byte{byte(expr.OpCodeI64Const), 0x05},
 		},
 	}
 
@@ -44,7 +44,7 @@ func Test_f32Const(t *testing.T) {
 
 	ctx := &wasmContext{
 		Func: &wasmFunc{
-			body: []byte{byte(instr.OpCodeF32Const), 0x00, 0x00, 0x80, 0x3f},
+			body: []byte{byte(expr.OpCodeF32Const), 0x00, 0x00, 0x80, 0x3f},
 		},
 	}
 
@@ -60,7 +60,7 @@ func Test_f32Const(t *testing.T) {
 func Test_f64Const(t *testing.T) {
 	ctx := &wasmContext{
 		Func: &wasmFunc{
-			body: []byte{byte(instr.OpCodeF64Const), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f},
+			body: []byte{byte(expr.OpCodeF64Const), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f},
 		},
 	}
 
