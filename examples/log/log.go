@@ -11,7 +11,7 @@ import (
 func main() {
 	linker1 := wasman.NewLinker()
 
-	err := linker1.DefineFuncGenerator("env", "log_message", func(ins *wasman.Instance) interface{} {
+	err := linker1.DefineAdvancedFunc("env", "log_message", func(ins *wasman.Instance) interface{} {
 		return func(ptr uint32, l uint32) {
 			message := ins.Memory[int(ptr):int(ptr+l)]
 

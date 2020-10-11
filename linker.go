@@ -35,24 +35,41 @@ func (l *Linker) Define(modName string, mod *wasm.Module) {
 	l.Modules[modName] = mod
 }
 
-// FuncGenerator is a advanced host func comparing to normal go host func
-// Dev will be able to handle the pre/post-call process of the func
+// AdvancedFunc is a advanced host func comparing to normal go host func
+// Dev will be able to handle the pre/post-call process of the func and manipulate
+// the Instance's fields like memory
+//
 // e.g. when we wanna add toll after calling the host func f
 //	func ExampleFuncGenerator_addToll() {
+//		var linker = wasman.NewLinker()
 //		var f = func() {fmt.Println("wasm")}
 //
-//		var fg = wasman.FuncGenerator(func(ins *wasman.Instance) interface{} {
+//		var af = wasman.AdvancedFunc(func(ins *wasman.Instance) interface{} {
 //			return func() {
 //				f()
 //				ins.AddGas(11)
 //			}
 //		})
-//		// Then use wasman.DefineFuncGenerator
+//		linker.DefineAdvancedFunc("env", "add_gas", af)
 //	}
-type FuncGenerator = func(ins *wasm.Instance) interface{}
+//
+// e.g. when we wanna manipulate memory
+//	func ExampleFuncGenerator_addToll() {
+//		var linker = wasman.NewLinker()
+//
+//		var af = wasman.AdvancedFunc(func(ins *wasman.Instance) interface{} {
+//			return func(ptr uint32, length uint32) {
+//				msg := ins.Memory[int(ptr), int(ptr+uint32)]
+//				fmt.Println(b)
+//			}
+//		})
+//
+//		linker.DefineAdvancedFunc("env", "print_msg", af)
+//	}
+type AdvancedFunc func(ins *wasm.Instance) interface{}
 
-// DefineFuncGenerator will define a FuncGenerator on linker
-func (l *Linker) DefineFuncGenerator(modName, funcName string, funcGenerator FuncGenerator) error {
+// DefineAdvancedFunc will define a AdvancedFunc on linker
+func (l *Linker) DefineAdvancedFunc(modName, funcName string, funcGenerator AdvancedFunc) error {
 	mod, exists := l.Modules[modName]
 	if !exists {
 		mod = &wasm.Module{IndexSpace: new(wasm.IndexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
@@ -80,7 +97,8 @@ func (l *Linker) DefineFuncGenerator(modName, funcName string, funcGenerator Fun
 	return nil
 }
 
-// DefineFunc puts a go style func into linker's modules
+// DefineFunc puts a simple go style func into Linker's modules.
+// This f should be a simply func which doesnt handle ins's fields.
 func (l *Linker) DefineFunc(modName, funcName string, f interface{}) error {
 	fn := func(ins *wasm.Instance) interface{} {
 		return f
@@ -140,6 +158,7 @@ func getSignature(p reflect.Type) (*types.FuncType, error) {
 			return nil, err
 		}
 	}
+
 	return &types.FuncType{InputTypes: in, ReturnTypes: out}, nil
 }
 
