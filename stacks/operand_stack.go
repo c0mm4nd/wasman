@@ -31,7 +31,7 @@ func (s *OperandStack) Drop() {
 	s.Ptr--
 }
 
-// Pop will return the operand on current Ptr like Pop but Ptr not backspace
+// Peek will return the operand on current Ptr like Pop but Ptr does not get backspace
 func (s *OperandStack) Peek() uint64 {
 	return s.Operands[s.Ptr]
 }
