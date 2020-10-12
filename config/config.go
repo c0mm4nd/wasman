@@ -1,12 +1,25 @@
 package config
 
+import (
+	"errors"
+	"github.com/c0mm4nd/wasman/tollstation"
+)
+
 const (
-	// magic = 0x0061736D
 	DefaultPageSize = 65536
 )
 
-// ModuleConfig is the config applied to the module
+var (
+	ErrShadowing = errors.New("shadowing is disabled")
+)
+
+// ModuleConfig is the config applied to the wasman.Module
 type ModuleConfig struct {
 	DisableFloatPoint bool
-	TollStation       TollStation
+	TollStation       tollstation.TollStation
+}
+
+// ModuleConfig is the config applied to the wasman.Linker
+type LinkerConfig struct {
+	DisableShadowing bool // false by default
 }

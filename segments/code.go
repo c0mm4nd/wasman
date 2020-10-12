@@ -9,11 +9,13 @@ import (
 	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
+// CodeSegment is one unit in the wasman.Module's CodeSection
 type CodeSegment struct {
 	NumLocals uint32
 	Body      []byte
 }
 
+// ReadCodeSegment reads one CodeSegment from the io.Reader
 func ReadCodeSegment(r io.Reader) (*CodeSegment, error) {
 	ss, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {

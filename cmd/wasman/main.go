@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/c0mm4nd/wasman/config"
+	"github.com/c0mm4nd/wasman/tollstation"
 	"os"
 	"strconv"
 	"strings"
@@ -30,10 +31,10 @@ func main() {
 		panic(err)
 	}
 
-	mainMod, err := wasman.NewModule(f, &config.ModuleConfig{
+	mainMod, err := wasman.NewModule(config.ModuleConfig{
 		DisableFloatPoint: false,
-		TollStation:       config.NewSimpleTollStation(*maxToll),
-	})
+		TollStation:       tollstation.NewSimpleTollStation(*maxToll),
+	}, f)
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +55,7 @@ func main() {
 			panic(err)
 		}
 
-		mod, err := wasman.NewModule(f, nil)
+		mod, err := wasman.NewModule(config.ModuleConfig{}, f)
 		if err != nil {
 			panic(err)
 		}
@@ -62,7 +63,7 @@ func main() {
 		externMods[li[0]] = mod
 	}
 
-	l := wasman.NewLinkerWithModuleMap(externMods)
+	l := wasman.NewLinkerWithModuleMap(config.LinkerConfig{}, externMods)
 	ins, err := l.Instantiate(mainMod)
 	if err != nil {
 		panic(err)
@@ -88,7 +89,7 @@ func main() {
 	}
 
 	toll := uint64(0)
-	if ins.ModuleConfig != nil && ins.ModuleConfig.TollStation != nil {
+	if ins.ModuleConfig.TollStation != nil {
 		toll = ins.ModuleConfig.TollStation.GetToll()
 	}
 

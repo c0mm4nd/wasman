@@ -22,8 +22,8 @@ func TestReadGlobalType(t *testing.T) {
 		bytes []byte
 		exp   *types.GlobalType
 	}{
-		{bytes: []byte{0x7e, 0x00}, exp: &types.GlobalType{Value: types.ValueTypeI64, Mutable: false}},
-		{bytes: []byte{0x7e, 0x01}, exp: &types.GlobalType{Value: types.ValueTypeI64, Mutable: true}},
+		{bytes: []byte{0x7e, 0x00}, exp: &types.GlobalType{ValType: types.ValueTypeI64, Mutable: false}},
+		{bytes: []byte{0x7e, 0x01}, exp: &types.GlobalType{ValType: types.ValueTypeI64, Mutable: true}},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			actual, err := types.ReadGlobalType(bytes.NewBuffer(c.bytes))

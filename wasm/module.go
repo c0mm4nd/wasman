@@ -24,20 +24,20 @@ var (
 
 // Module is a standard wasm module implement according to wasm v1, https://www.w3.org/TR/wasm-core-1/#syntax-module%E2%91%A0
 type Module struct {
-	*config.ModuleConfig
+	config.ModuleConfig
 
 	// sections
-	TypesSection     []*types.FuncType
-	ImportsSection   []*segments.ImportSegment
-	FunctionsSection []uint32
-	TablesSection    []*types.TableType
-	MemorySection    []*types.MemoryType
-	GlobalsSection   []*segments.GlobalSegment
-	ExportsSection   map[string]*segments.ExportSegment
-	StartSection     []uint32
-	ElementsSection  []*segments.ElemSegment
-	CodesSection     []*segments.CodeSegment
-	DataSection      []*segments.DataSegment
+	TypeSection     []*types.FuncType
+	ImportSection   []*segments.ImportSegment
+	FunctionSection []uint32
+	TableSection    []*types.TableType
+	MemorySection   []*types.MemoryType
+	GlobalSection   []*segments.GlobalSegment
+	ExportSection   map[string]*segments.ExportSegment
+	StartSection    []uint32
+	ElementsSection []*segments.ElemSegment
+	CodeSection     []*segments.CodeSegment
+	DataSection     []*segments.DataSegment
 
 	// index spaces
 	IndexSpace *IndexSpace
@@ -46,18 +46,18 @@ type Module struct {
 // index to the imports
 type IndexSpace struct {
 	Functions []fn
-	Globals   []*global
+	Globals   []*Global
 	Tables    [][]*uint32
 	Memories  [][]byte
 }
 
-type global struct {
+type Global struct {
 	Type *types.GlobalType
 	Val  interface{}
 }
 
 // NewModule reads bytes from the io.Reader and read all sections, finally return a wasman.Module entity if no error
-func NewModule(r io.Reader, config *config.ModuleConfig) (*Module, error) {
+func NewModule(config config.ModuleConfig, r io.Reader) (*Module, error) {
 	// magic number
 	buf := make([]byte, 4)
 	if n, err := io.ReadFull(r, buf); err != nil || n != 4 || !bytes.Equal(buf, magic) {
@@ -69,13 +69,11 @@ func NewModule(r io.Reader, config *config.ModuleConfig) (*Module, error) {
 		return nil, ErrInvalidVersion
 	}
 
-	module := &Module{}
+	module := &Module{
+		ModuleConfig: config,
+	}
 	if err := module.readSections(r); err != nil {
 		return nil, fmt.Errorf("readSections failed: %w", err)
-	}
-
-	if config != nil {
-		module.ModuleConfig = config
 	}
 
 	return module, nil

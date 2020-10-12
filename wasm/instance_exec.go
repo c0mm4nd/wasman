@@ -67,9 +67,7 @@ func (ins *Instance) execFunc() error {
 		}
 
 		// Toll
-		if ins.Module != nil &&
-			ins.Module.ModuleConfig != nil &&
-			ins.Module.ModuleConfig.TollStation != nil {
+		if ins.Module.ModuleConfig.TollStation != nil {
 			price := ins.TollStation.GetOpPrice(op)
 			err := ins.TollStation.AddToll(price)
 			if err != nil {
@@ -88,8 +86,8 @@ func (ins *Instance) execFunc() error {
 // CallExportedFunc will call the func `name` with the args
 // TODO: enhance this
 func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []uint64, returnTypes []types.ValueType, err error) {
-	exp, ok := ins.Module.ExportsSection[name]
-	if !ok || exp.Desc.Kind != segments.ExportKindFunction {
+	exp, ok := ins.Module.ExportSection[name]
+	if !ok || exp.Desc.Kind != segments.KindFunction {
 		return nil, nil, ErrExportedFuncNotFound
 	}
 

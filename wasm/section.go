@@ -91,9 +91,9 @@ func (m *Module) readSectionTypes(r io.Reader) error {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
 
-	m.TypesSection = make([]*types.FuncType, vs)
-	for i := range m.TypesSection {
-		m.TypesSection[i], err = types.ReadFuncType(r)
+	m.TypeSection = make([]*types.FuncType, vs)
+	for i := range m.TypeSection {
+		m.TypeSection[i], err = types.ReadFuncType(r)
 		if err != nil {
 			return fmt.Errorf("read %d-th function type: %w", i, err)
 		}
@@ -108,9 +108,9 @@ func (m *Module) readSectionImports(r io.Reader) error {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
 
-	m.ImportsSection = make([]*segments.ImportSegment, vs)
-	for i := range m.ImportsSection {
-		m.ImportsSection[i], err = segments.ReadImportSegment(r)
+	m.ImportSection = make([]*segments.ImportSegment, vs)
+	for i := range m.ImportSection {
+		m.ImportSection[i], err = segments.ReadImportSegment(r)
 		if err != nil {
 			return fmt.Errorf("read import: %w", err)
 		}
@@ -125,9 +125,9 @@ func (m *Module) readSectionFunctions(r io.Reader) error {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
 
-	m.FunctionsSection = make([]uint32, vs)
-	for i := range m.FunctionsSection {
-		m.FunctionsSection[i], _, err = leb128decode.DecodeUint32(r)
+	m.FunctionSection = make([]uint32, vs)
+	for i := range m.FunctionSection {
+		m.FunctionSection[i], _, err = leb128decode.DecodeUint32(r)
 		if err != nil {
 			return fmt.Errorf("get typeidx: %w", err)
 		}
@@ -142,9 +142,9 @@ func (m *Module) readSectionTables(r io.Reader) error {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
 
-	m.TablesSection = make([]*types.TableType, vs)
-	for i := range m.TablesSection {
-		m.TablesSection[i], err = types.ReadTableType(r)
+	m.TableSection = make([]*types.TableType, vs)
+	for i := range m.TableSection {
+		m.TableSection[i], err = types.ReadTableType(r)
 		if err != nil {
 			return fmt.Errorf("read table type: %w", err)
 		}
@@ -176,9 +176,9 @@ func (m *Module) readSectionGlobals(r io.Reader) error {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
 
-	m.GlobalsSection = make([]*segments.GlobalSegment, vs)
-	for i := range m.GlobalsSection {
-		m.GlobalsSection[i], err = segments.ReadGlobalSegment(r)
+	m.GlobalSection = make([]*segments.GlobalSegment, vs)
+	for i := range m.GlobalSection {
+		m.GlobalSection[i], err = segments.ReadGlobalSegment(r)
 		if err != nil {
 			return fmt.Errorf("read global segment: %w ", err)
 		}
@@ -193,14 +193,14 @@ func (m *Module) readSectionExports(r io.Reader) error {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
 
-	m.ExportsSection = make(map[string]*segments.ExportSegment, vs)
+	m.ExportSection = make(map[string]*segments.ExportSegment, vs)
 	for i := uint32(0); i < vs; i++ {
 		expDesc, err := segments.ReadExportSegment(r)
 		if err != nil {
 			return fmt.Errorf("read export: %w", err)
 		}
 
-		m.ExportsSection[expDesc.Name] = expDesc
+		m.ExportSection[expDesc.Name] = expDesc
 	}
 
 	return nil
@@ -245,10 +245,10 @@ func (m *Module) readSectionCodes(r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
-	m.CodesSection = make([]*segments.CodeSegment, vs)
+	m.CodeSection = make([]*segments.CodeSegment, vs)
 
-	for i := range m.CodesSection {
-		m.CodesSection[i], err = segments.ReadCodeSegment(r)
+	for i := range m.CodeSection {
+		m.CodeSection[i], err = segments.ReadCodeSegment(r)
 		if err != nil {
 			return fmt.Errorf("read code segment: %w", err)
 		}

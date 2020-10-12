@@ -8,12 +8,17 @@ import (
 	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
+// ElemSegment is one unit of the wasm.Module's ElementsSection, initializing
+// a subrange of a table, at a given offset, from a static vector of elements.
+//
+// https://www.w3.org/TR/wasm-core-1/#element-segments%E2%91%A0
 type ElemSegment struct {
 	TableIndex uint32
 	OffsetExpr *expr.Expression
 	Init       []uint32
 }
 
+// ReadElemSegment reads one ElemSegment from the io.Reader
 func ReadElemSegment(r io.Reader) (*ElemSegment, error) {
 	ti, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {

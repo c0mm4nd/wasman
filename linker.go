@@ -3,6 +3,7 @@ package wasman
 import (
 	"errors"
 	"fmt"
+	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/wasm"
 	"reflect"
 
@@ -17,21 +18,29 @@ var (
 
 // Linker is a helper to instantiate new modules
 type Linker struct {
-	Modules map[string]*wasm.Module // the built-in modules which acts as externs when instantiating coming main module
+	config.LinkerConfig
+
+	Modules map[string]*Module // the built-in modules which acts as externs when instantiating coming main module
 }
 
 // NewLinker creates a new Linker
-func NewLinker() *Linker {
-	return &Linker{map[string]*wasm.Module{}}
+func NewLinker(config config.LinkerConfig) *Linker {
+	return &Linker{
+		LinkerConfig: config,
+		Modules:      map[string]*Module{},
+	}
 }
 
 // NewLinkerWithModuleMap creates a new Linker with the built-in modules
-func NewLinkerWithModuleMap(in map[string]*wasm.Module) *Linker {
-	return &Linker{in}
+func NewLinkerWithModuleMap(config config.LinkerConfig, in map[string]*Module) *Linker {
+	return &Linker{
+		LinkerConfig: config,
+		Modules:      in,
+	}
 }
 
 // Define put the module on its namespace
-func (l *Linker) Define(modName string, mod *wasm.Module) {
+func (l *Linker) Define(modName string, mod *Module) {
 	l.Modules[modName] = mod
 }
 
@@ -66,27 +75,31 @@ func (l *Linker) Define(modName string, mod *wasm.Module) {
 //
 //		linker.DefineAdvancedFunc("env", "print_msg", af)
 //	}
-type AdvancedFunc func(ins *wasm.Instance) interface{}
+type AdvancedFunc func(ins *Instance) interface{}
 
 // DefineAdvancedFunc will define a AdvancedFunc on linker
 func (l *Linker) DefineAdvancedFunc(modName, funcName string, funcGenerator AdvancedFunc) error {
+	sig, err := getSignature(reflect.ValueOf(funcGenerator(&Instance{})).Type())
+	if err != nil {
+		return ErrInvalidSign
+	}
+
 	mod, exists := l.Modules[modName]
 	if !exists {
-		mod = &wasm.Module{IndexSpace: new(wasm.IndexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
+		mod = &Module{IndexSpace: new(wasm.IndexSpace), ExportSection: map[string]*segments.ExportSegment{}}
 		l.Modules[modName] = mod
 	}
 
-	mod.ExportsSection[funcName] = &segments.ExportSegment{
-		Name: funcName,
-		Desc: &segments.ExportDesc{
-			Kind:  segments.ExportKindFunction,
-			Index: uint32(len(mod.IndexSpace.Functions)),
-		},
+	if l.DisableShadowing && mod.ExportSection[funcName] != nil {
+		return config.ErrShadowing
 	}
 
-	sig, err := getSignature(reflect.ValueOf(funcGenerator(&wasm.Instance{})).Type())
-	if err != nil {
-		return ErrInvalidSign
+	mod.ExportSection[funcName] = &segments.ExportSegment{
+		Name: funcName,
+		Desc: &segments.ExportDesc{
+			Kind:  segments.KindFunction,
+			Index: uint32(len(mod.IndexSpace.Functions)),
+		},
 	}
 
 	mod.IndexSpace.Functions = append(mod.IndexSpace.Functions, &wasm.HostFunc{
@@ -100,27 +113,31 @@ func (l *Linker) DefineAdvancedFunc(modName, funcName string, funcGenerator Adva
 // DefineFunc puts a simple go style func into Linker's modules.
 // This f should be a simply func which doesnt handle ins's fields.
 func (l *Linker) DefineFunc(modName, funcName string, f interface{}) error {
-	fn := func(ins *wasm.Instance) interface{} {
+	fn := func(ins *Instance) interface{} {
 		return f
-	}
-
-	mod, exists := l.Modules[modName]
-	if !exists {
-		mod = &wasm.Module{IndexSpace: new(wasm.IndexSpace), ExportsSection: map[string]*segments.ExportSegment{}}
-		l.Modules[modName] = mod
-	}
-
-	mod.ExportsSection[funcName] = &segments.ExportSegment{
-		Name: funcName,
-		Desc: &segments.ExportDesc{
-			Kind:  segments.ExportKindFunction,
-			Index: uint32(len(mod.IndexSpace.Functions)),
-		},
 	}
 
 	sig, err := getSignature(reflect.ValueOf(f).Type())
 	if err != nil {
 		return ErrInvalidSign
+	}
+
+	mod, exists := l.Modules[modName]
+	if !exists {
+		mod = &Module{IndexSpace: new(wasm.IndexSpace), ExportSection: map[string]*segments.ExportSegment{}}
+		l.Modules[modName] = mod
+	}
+
+	if l.DisableShadowing && mod.ExportSection[funcName] != nil {
+		return config.ErrShadowing
+	}
+
+	mod.ExportSection[funcName] = &segments.ExportSegment{
+		Name: funcName,
+		Desc: &segments.ExportDesc{
+			Kind:  segments.KindFunction,
+			Index: uint32(len(mod.IndexSpace.Functions)),
+		},
 	}
 
 	mod.IndexSpace.Functions = append(mod.IndexSpace.Functions, &wasm.HostFunc{
@@ -131,14 +148,95 @@ func (l *Linker) DefineFunc(modName, funcName string, f interface{}) error {
 	return nil
 }
 
+// DefineGlobal will defined an external global for the main module
 func (l *Linker) DefineGlobal(modName, globalName string, global interface{}) error {
-	// TODO
+	ty, err := getTypeOf(reflect.TypeOf(global).Kind())
+	if err != nil {
+		return err
+	}
+
+	mod, exists := l.Modules[modName]
+	if !exists {
+		mod = &Module{IndexSpace: new(wasm.IndexSpace), ExportSection: map[string]*segments.ExportSegment{}}
+		l.Modules[modName] = mod
+	}
+
+	if l.DisableShadowing && mod.ExportSection[globalName] != nil {
+		return config.ErrShadowing
+	}
+
+	mod.ExportSection[globalName] = &segments.ExportSegment{
+		Name: globalName,
+		Desc: &segments.ExportDesc{
+			Kind:  segments.KindGlobal,
+			Index: uint32(len(mod.IndexSpace.Globals)),
+		},
+	}
+
+	mod.IndexSpace.Globals = append(mod.IndexSpace.Globals, &wasm.Global{
+		Type: &types.GlobalType{
+			ValType: ty,
+			Mutable: true,
+		},
+		Val: global,
+	})
+
+	return nil
+}
+
+// DefineTable will defined an external table for the main module
+func (l *Linker) DefineTable(modName, tableName string, table []*uint32) error {
+	mod, exists := l.Modules[modName]
+	if !exists {
+		mod = &Module{IndexSpace: new(wasm.IndexSpace), ExportSection: map[string]*segments.ExportSegment{}}
+		l.Modules[modName] = mod
+	}
+
+	if l.DisableShadowing && mod.ExportSection[tableName] != nil {
+		return config.ErrShadowing
+	}
+
+	mod.ExportSection[tableName] = &segments.ExportSegment{
+		Name: tableName,
+		Desc: &segments.ExportDesc{
+			Kind:  segments.KindTable,
+			Index: uint32(len(mod.IndexSpace.Tables)),
+		},
+	}
+
+	mod.IndexSpace.Tables = append(mod.IndexSpace.Tables, table)
+
+	return nil
+}
+
+// DefineMemory will defined an external memory for the main module
+func (l *Linker) DefineMemory(modName, memName string, mem []byte) error {
+	mod, exists := l.Modules[modName]
+	if !exists {
+		mod = &Module{IndexSpace: new(wasm.IndexSpace), ExportSection: map[string]*segments.ExportSegment{}}
+		l.Modules[modName] = mod
+	}
+
+	if l.DisableShadowing && mod.ExportSection[memName] != nil {
+		return config.ErrShadowing
+	}
+
+	mod.ExportSection[memName] = &segments.ExportSegment{
+		Name: memName,
+		Desc: &segments.ExportDesc{
+			Kind:  segments.KindMem,
+			Index: uint32(len(mod.IndexSpace.Memories)),
+		},
+	}
+
+	mod.IndexSpace.Memories = append(mod.IndexSpace.Memories, mem)
+
 	return nil
 }
 
 // Instantiate will instantiate a Module into an runnable Instance
-func (l *Linker) Instantiate(mainModule *wasm.Module) (*wasm.Instance, error) {
-	return wasm.NewInstance(mainModule, l.Modules)
+func (l *Linker) Instantiate(mainModule *Module) (*Instance, error) {
+	return NewInstance(mainModule, l.Modules)
 }
 
 func getSignature(p reflect.Type) (*types.FuncType, error) {

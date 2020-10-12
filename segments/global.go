@@ -13,6 +13,7 @@ type GlobalSegment struct {
 	Init *expr.Expression
 }
 
+// ReadGlobalSegment reads one GlobalSegment from the io.Reader
 func ReadGlobalSegment(r io.Reader) (*GlobalSegment, error) {
 	gt, err := types.ReadGlobalType(r)
 	if err != nil {

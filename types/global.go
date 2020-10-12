@@ -6,7 +6,7 @@ import (
 )
 
 type GlobalType struct {
-	Value   ValueType
+	ValType ValueType
 	Mutable bool
 }
 
@@ -17,7 +17,7 @@ func ReadGlobalType(r io.Reader) (*GlobalType, error) {
 	}
 
 	ret := &GlobalType{
-		Value: vt[0],
+		ValType: vt[0],
 	}
 
 	b := make([]byte, 1)

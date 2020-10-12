@@ -213,7 +213,7 @@ func Test_callIndirect(t *testing.T) {
 		},
 		Functions: []fn{nil, df},
 		Module: &Module{
-			TypesSection: []*types.FuncType{nil, {}},
+			TypeSection: []*types.FuncType{nil, {}},
 			IndexSpace: &IndexSpace{
 				Tables: [][]*uint32{{nil, uint32Ptr(1)}},
 			},

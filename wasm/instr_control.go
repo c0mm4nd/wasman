@@ -194,7 +194,7 @@ func callIndirect(ins *Instance) error {
 		return err
 	}
 
-	expType := ins.Module.TypesSection[index]
+	expType := ins.Module.TypeSection[index]
 
 	tableIndex := ins.OperandStack.Pop()
 	// note: mvp limits the size of table index space to 1

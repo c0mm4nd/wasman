@@ -2,8 +2,10 @@ package wasman
 
 import "github.com/c0mm4nd/wasman/wasm"
 
+// Instance is same to wasm.Instance
 type Instance = wasm.Instance
 
-func NewInstance(module *wasm.Module, externModules map[string]*wasm.Module) (*wasm.Instance, error) {
+// NewInstance is a wrapper to the wasm.NewInstance
+func NewInstance(module *Module, externModules map[string]*Module) (*Instance, error) {
 	return wasm.NewInstance(module, externModules)
 }

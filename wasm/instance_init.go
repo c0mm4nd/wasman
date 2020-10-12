@@ -23,7 +23,7 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 
 	// fill in the gap between the definition and imported ones in index spaces
 	// note: MVP restricts the size of memory index spaces to 1
-	if diff := len(ins.TablesSection) - len(ins.IndexSpace.Tables); diff > 0 {
+	if diff := len(ins.TableSection) - len(ins.IndexSpace.Tables); diff > 0 {
 		for i := 0; i < diff; i++ {
 			ins.IndexSpace.Tables = append(ins.IndexSpace.Tables, []*uint32{})
 		}
@@ -54,13 +54,13 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 }
 
 func (ins *Instance) resolveImports(externModules map[string]*Module) error {
-	for _, is := range ins.ImportsSection {
+	for _, is := range ins.ImportSection {
 		em, ok := externModules[is.Module]
 		if !ok {
 			return fmt.Errorf("failed to resolve import of module name %s", is.Module)
 		}
 
-		es, ok := em.ExportsSection[is.Name]
+		es, ok := em.ExportSection[is.Name]
 		if !ok {
 			return fmt.Errorf("%s not exported in module %s", is.Name, is.Module)
 		}
@@ -101,7 +101,7 @@ func (ins *Instance) applyFunctionImport(importSeg *segments.ImportSegment, exte
 		return fmt.Errorf("is.Desc.TypeIndexPtr is nill")
 	}
 
-	iSig := ins.TypesSection[*importSeg.Desc.TypeIndexPtr]
+	iSig := ins.TypeSection[*importSeg.Desc.TypeIndexPtr]
 	f := externModule.IndexSpace.Functions[exportSeg.Desc.Index]
 	if !types.HasSameSignature(iSig.ReturnTypes, f.getType().ReturnTypes) {
 		return fmt.Errorf("return signature mimatch: %#v != %#v", iSig.ReturnTypes, f.getType().ReturnTypes)
@@ -147,12 +147,12 @@ func (ins *Instance) applyGlobalImport(externModule *Module, exportSegment *segm
 }
 
 func (ins *Instance) buildGlobalIndexSpace() error {
-	for _, gs := range ins.GlobalsSection {
+	for _, gs := range ins.GlobalSection {
 		v, err := ins.execExpr(gs.Init)
 		if err != nil {
 			return fmt.Errorf("execution failed: %w", err)
 		}
-		ins.IndexSpace.Globals = append(ins.IndexSpace.Globals, &global{
+		ins.IndexSpace.Globals = append(ins.IndexSpace.Globals, &Global{
 			Type: gs.Type,
 			Val:  v,
 		})
@@ -161,17 +161,17 @@ func (ins *Instance) buildGlobalIndexSpace() error {
 }
 
 func (ins *Instance) buildFunctionIndexSpace() error {
-	for codeIndex, typeIndex := range ins.FunctionsSection {
-		if typeIndex >= uint32(len(ins.TypesSection)) {
+	for codeIndex, typeIndex := range ins.FunctionSection {
+		if typeIndex >= uint32(len(ins.TypeSection)) {
 			return fmt.Errorf("function type index out of range")
-		} else if codeIndex >= len(ins.CodesSection) {
+		} else if codeIndex >= len(ins.CodeSection) {
 			return fmt.Errorf("code index out of range")
 		}
 
 		f := &wasmFunc{
-			signature: ins.TypesSection[typeIndex],
-			body:      ins.CodesSection[codeIndex].Body,
-			NumLocal:  ins.CodesSection[codeIndex].NumLocals,
+			signature: ins.TypeSection[typeIndex],
+			body:      ins.CodeSection[codeIndex].Body,
+			NumLocal:  ins.CodeSection[codeIndex].NumLocals,
 		}
 
 		brs, err := ins.parseBlocks(f.body)
@@ -228,7 +228,7 @@ func (ins *Instance) buildTableIndexSpace() error {
 		// note: MVP restricts the size of memory index spaces to 1
 		if elem.TableIndex >= uint32(len(ins.IndexSpace.Tables)) {
 			return fmt.Errorf("index out of range of index space")
-		} else if elem.TableIndex >= uint32(len(ins.TablesSection)) {
+		} else if elem.TableIndex >= uint32(len(ins.TableSection)) {
 			// this is just in case since we could assume len(SecTables) == len(indexSpace.Table)
 			return fmt.Errorf("index out of range of table section")
 		}
@@ -245,9 +245,9 @@ func (ins *Instance) buildTableIndexSpace() error {
 
 		offset := int(offset32)
 		size := offset + len(elem.Init)
-		if ins.TablesSection[elem.TableIndex].Limits.Max != nil &&
-			size > int(*(ins.TablesSection[elem.TableIndex].Limits.Max)) {
-			return fmt.Errorf("table size out of limit of %d", int(*(ins.TablesSection[elem.TableIndex].Limits.Max)))
+		if ins.TableSection[elem.TableIndex].Limits.Max != nil &&
+			size > int(*(ins.TableSection[elem.TableIndex].Limits.Max)) {
+			return fmt.Errorf("table size out of limit of %d", int(*(ins.TableSection[elem.TableIndex].Limits.Max)))
 		}
 
 		table := ins.IndexSpace.Tables[elem.TableIndex]
@@ -288,10 +288,10 @@ func (ins *Instance) readBlockType(r io.Reader) (*blockType, uint64, error) {
 	case -4: // 0x7c in original byte = f64
 		ret = &blockType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}
 	default:
-		if raw < 0 || (raw >= int64(len(ins.TypesSection))) {
+		if raw < 0 || (raw >= int64(len(ins.TypeSection))) {
 			return nil, 0, fmt.Errorf("invalid block type: %d", raw)
 		}
-		ret = ins.TypesSection[raw]
+		ret = ins.TypeSection[raw]
 	}
 	return ret, l, nil
 }

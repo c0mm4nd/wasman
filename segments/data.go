@@ -8,12 +8,17 @@ import (
 	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
+// DataSegment is one unit of the wasman.Module's DataSection, initializing
+// a range of memory, at a given offset, with a static vector of bytes
+//
+// https://www.w3.org/TR/wasm-core-1/#data-segments%E2%91%A0
 type DataSegment struct {
 	MemoryIndex      uint32 // supposed to be zero
 	OffsetExpression *expr.Expression
 	Init             []byte
 }
 
+// ReadDataSegment reads one DataSegment from the io.Reader
 func ReadDataSegment(r io.Reader) (*DataSegment, error) {
 	d, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {

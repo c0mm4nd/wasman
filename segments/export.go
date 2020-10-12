@@ -8,18 +8,13 @@ import (
 	"github.com/c0mm4nd/wasman/types"
 )
 
-const (
-	ExportKindFunction byte = 0x00
-	ExportKindTable    byte = 0x01
-	ExportKindMem      byte = 0x02
-	ExportKindGlobal   byte = 0x03
-)
-
+// ExportDesc means export descriptions, which describe an export in one wasman.Module
 type ExportDesc struct {
 	Kind  byte
 	Index uint32
 }
 
+// ReadExportDesc reads one ExportDesc from the io.Reader
 func ReadExportDesc(r io.Reader) (*ExportDesc, error) {
 	b := make([]byte, 1)
 	if _, err := io.ReadFull(r, b); err != nil {
@@ -40,14 +35,15 @@ func ReadExportDesc(r io.Reader) (*ExportDesc, error) {
 		Kind:  kind,
 		Index: id,
 	}, nil
-
 }
 
+// ExportSegment is one unit of the wasm.Module's ExportSection
 type ExportSegment struct {
 	Name string
 	Desc *ExportDesc
 }
 
+// ReadExportSegment reads one ExportSegment from the io.Reader
 func ReadExportSegment(r io.Reader) (*ExportSegment, error) {
 	name, err := types.ReadNameValue(r)
 	if err != nil {

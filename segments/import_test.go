@@ -55,7 +55,7 @@ func TestReadImportDesc(t *testing.T) {
 			bytes: []byte{0x03, 0x7e, 0x01},
 			exp: &segments.ImportDesc{
 				Kind:          3,
-				GlobalTypePtr: &types.GlobalType{Value: types.ValueTypeI64, Mutable: true},
+				GlobalTypePtr: &types.GlobalType{ValType: types.ValueTypeI64, Mutable: true},
 			},
 		},
 	} {

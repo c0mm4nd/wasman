@@ -6,8 +6,10 @@ import (
 	"io"
 )
 
+// Module is same to wasm.Module
 type Module = wasm.Module
 
-func NewModule(r io.Reader, config *config.ModuleConfig) (*wasm.Module, error) {
-	return wasm.NewModule(r, config)
+// NewInstance is a wrapper to the wasm.NewModule
+func NewModule(config config.ModuleConfig, r io.Reader) (*Module, error) {
+	return wasm.NewModule(config, r)
 }

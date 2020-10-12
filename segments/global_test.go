@@ -12,7 +12,7 @@ import (
 
 func TestReadGlobalSegment(t *testing.T) {
 	exp := &segments.GlobalSegment{
-		Type: &types.GlobalType{Value: types.ValueTypeI64, Mutable: false},
+		Type: &types.GlobalType{ValType: types.ValueTypeI64, Mutable: false},
 		Init: &expr.Expression{
 			OpCode: expr.OpCodeI64Const,
 			Data:   []byte{0x01},
