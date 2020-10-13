@@ -8,6 +8,7 @@ import (
 	"github.com/c0mm4nd/wasman/types"
 )
 
+// GlobalSegment is one unit of the wasm.Module's GlobalSection
 type GlobalSegment struct {
 	Type *types.GlobalType
 	Init *expr.Expression

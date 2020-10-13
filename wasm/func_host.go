@@ -7,6 +7,8 @@ import (
 	"github.com/c0mm4nd/wasman/types"
 )
 
+// HostFunc is an implement of wasm.Fn,
+// which represents all the functions defined under host(golang) environment
 type HostFunc struct {
 	Signature *types.FuncType // the shape of func (defined by inputs and outputs)
 

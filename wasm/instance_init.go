@@ -3,9 +3,9 @@ package wasm
 import (
 	"bytes"
 	"fmt"
-	"github.com/c0mm4nd/wasman/config"
 	"io"
 
+	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/segments"

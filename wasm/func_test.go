@@ -1,12 +1,13 @@
 package wasm
 
 import (
+	"math"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/stretchr/testify/assert"
-	"math"
-	"testing"
 )
 
 func TestHostFunction_Call(t *testing.T) {
@@ -45,6 +46,7 @@ func TestNativeFunction_Call(t *testing.T) {
 		},
 	}
 	vm := &Instance{
+		Module:       new(Module),
 		OperandStack: stacks.NewOperandStack(),
 		Context: &wasmContext{
 			PC: 1000,
@@ -66,6 +68,7 @@ func TestVirtualMachine_execNativeFunction(t *testing.T) {
 		},
 	}
 	vm := &Instance{
+		Module:       new(Module),
 		OperandStack: stacks.NewOperandStack(),
 		Context: &wasmContext{
 			Func: n,

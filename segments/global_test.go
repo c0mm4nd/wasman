@@ -2,12 +2,13 @@ package segments_test
 
 import (
 	"bytes"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestReadGlobalSegment(t *testing.T) {

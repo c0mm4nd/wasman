@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"errors"
 
+	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
-
-	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
 // errors on control instr

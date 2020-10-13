@@ -2,12 +2,13 @@ package segments_test
 
 import (
 	"bytes"
+	"strconv"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strconv"
-	"testing"
 )
 
 func TestDataSegment(t *testing.T) {

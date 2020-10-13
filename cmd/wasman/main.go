@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/c0mm4nd/wasman/config"
-	"github.com/c0mm4nd/wasman/tollstation"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/c0mm4nd/wasman"
+	"github.com/c0mm4nd/wasman/config"
+	"github.com/c0mm4nd/wasman/tollstation"
 )
 
 var strMainModuleFile = flag.String("main", "module.wasm", "main module")

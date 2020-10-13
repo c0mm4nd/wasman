@@ -1,9 +1,10 @@
 package stacks_test
 
 import (
+	"testing"
+
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestVirtualMachineOperandStack(t *testing.T) {

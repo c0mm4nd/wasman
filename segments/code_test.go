@@ -2,10 +2,11 @@ package segments_test
 
 import (
 	"bytes"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestReadCodeSegment(t *testing.T) {

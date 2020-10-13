@@ -2,11 +2,12 @@ package leb128decode_test
 
 import (
 	"bytes"
-	"github.com/c0mm4nd/wasman/leb128decode"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
 func TestDecodeUint32(t *testing.T) {

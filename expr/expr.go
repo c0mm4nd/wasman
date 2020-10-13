@@ -3,10 +3,11 @@ package expr
 import (
 	"bytes"
 	"fmt"
+	"io"
+
 	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/c0mm4nd/wasman/utils"
-	"io"
 )
 
 // Expression is sequences of instructions terminated by an end marker.
@@ -38,7 +39,7 @@ func ReadExpression(r io.Reader) (*Expression, error) {
 	case OpCodeGlobalGet:
 		_, _, err = leb128decode.DecodeUint32(teeR)
 	default:
-		return nil, fmt.Errorf("%w for opcodes.OpCode: %#x", types.ErrInvalidByte, b[0])
+		return nil, fmt.Errorf("%w for opcodes.OpCode: %#x", types.ErrInvalidTypeByte, b[0])
 	}
 
 	if err != nil {

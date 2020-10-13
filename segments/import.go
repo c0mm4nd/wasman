@@ -64,11 +64,11 @@ func ReadImportDesc(r io.Reader) (*ImportDesc, error) {
 			GlobalTypePtr: gt,
 		}, nil
 	default:
-		return nil, fmt.Errorf("%w: invalid byte for importdesc: %#x", types.ErrInvalidByte, b[0])
+		return nil, fmt.Errorf("%w: invalid byte for importdesc: %#x", types.ErrInvalidTypeByte, b[0])
 	}
 }
 
-// ExportSegment is one unit of the wasm.Module's ImportSection
+// ImportSegment is one unit of the wasm.Module's ImportSection
 type ImportSegment struct {
 	Module string
 	Name   string

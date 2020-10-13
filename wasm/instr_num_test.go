@@ -1,9 +1,10 @@
 package wasm
 
 import (
+	"testing"
+
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/stretchr/testify/suite"
-	"testing"
 )
 
 type NumTestSuite struct {

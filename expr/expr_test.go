@@ -2,9 +2,10 @@ package expr_test
 
 import (
 	"bytes"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestReadExpr(t *testing.T) {

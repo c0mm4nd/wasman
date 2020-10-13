@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/c0mm4nd/wasman/config"
 	"math"
+
+	"github.com/c0mm4nd/wasman/config"
 
 	"github.com/c0mm4nd/wasman/stacks"
 
@@ -131,4 +132,20 @@ func (ins *Instance) fetchFloat64() (float64, error) {
 	ins.Context.PC += 7
 
 	return v, nil
+}
+
+// ManuallyGrowMemory will help dev grow the memory on host func,
+// which is very useful when handling bytes between wasm instance and host engine
+func (ins *Instance) ManuallyGrowMemory(delta uint32) int {
+
+	if ins.Module.MemorySection[0].Max != nil &&
+		uint64(delta+uint32(len(ins.Memory)/config.DefaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
+
+		return -1 // failed to grow
+	}
+
+	ptr := uint64(len(ins.Memory)) / config.DefaultPageSize
+	ins.Memory = append(ins.Memory, make([]byte, delta*config.DefaultPageSize)...)
+
+	return int(ptr)
 }

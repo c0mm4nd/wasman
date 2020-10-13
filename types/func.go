@@ -7,11 +7,13 @@ import (
 	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
+// FuncType classify the signature of functions, mapping a vector of parameters to a vector of results, written as follows.
 type FuncType struct {
 	InputTypes  []ValueType
 	ReturnTypes []ValueType
 }
 
+// ReadFuncType will read a types.ReadFuncType from the io.Reader
 func ReadFuncType(r io.Reader) (*FuncType, error) {
 	b := make([]byte, 1)
 	if _, err := io.ReadFull(r, b); err != nil {
@@ -19,7 +21,7 @@ func ReadFuncType(r io.Reader) (*FuncType, error) {
 	}
 
 	if b[0] != 0x60 {
-		return nil, fmt.Errorf("%w: %#x != 0x60", ErrInvalidByte, b[0])
+		return nil, fmt.Errorf("%w: %#x != 0x60", ErrInvalidTypeByte, b[0])
 	}
 
 	s, _, err := leb128decode.DecodeUint32(r)

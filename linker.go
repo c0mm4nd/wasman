@@ -3,9 +3,10 @@ package wasman
 import (
 	"errors"
 	"fmt"
+	"reflect"
+
 	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/wasm"
-	"reflect"
 
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"

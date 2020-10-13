@@ -7,12 +7,14 @@ import (
 	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
-// https://www.w3.org/TR/wasm-core-1/#syntax-limits
+// Limits classify the size range of resizeable storage associated with memory types and table types
+// https://www.w3.org/TR/wasm-core-1/#limits%E2%91%A0
 type Limits struct {
 	Min uint32
 	Max *uint32 // can be nil
 }
 
+// ReadLimits will read a types.Limits from the io.Reader
 func ReadLimits(r io.Reader) (*Limits, error) {
 	b := make([]byte, 1)
 	_, err := io.ReadFull(r, b)
@@ -38,7 +40,7 @@ func ReadLimits(r io.Reader) (*Limits, error) {
 		}
 		ret.Max = &m
 	default:
-		return nil, fmt.Errorf("%w for limits: %#x != 0x00 or 0x01", ErrInvalidByte, b[0])
+		return nil, fmt.Errorf("%w for limits: %#x != 0x00 or 0x01", ErrInvalidTypeByte, b[0])
 	}
 	return ret, nil
 }

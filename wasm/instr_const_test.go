@@ -1,11 +1,12 @@
 package wasm
 
 import (
+	"math"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/stretchr/testify/assert"
-	"math"
-	"testing"
 )
 
 func Test_i32Const(t *testing.T) {

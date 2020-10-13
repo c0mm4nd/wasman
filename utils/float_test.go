@@ -3,11 +3,12 @@ package utils_test
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"math"
-	"testing"
 )
 
 func TestReadFloat32(t *testing.T) {

@@ -16,7 +16,7 @@ func TestReadExportDesc(t *testing.T) {
 	t.Run("ng", func(t *testing.T) {
 		buf := []byte{0x04}
 		_, err := segments.ReadExportDesc(bytes.NewBuffer(buf))
-		require.True(t, errors.Is(err, types.ErrInvalidByte))
+		require.True(t, errors.Is(err, types.ErrInvalidTypeByte))
 		t.Log(err)
 	})
 

@@ -6,7 +6,7 @@ import (
 	"math"
 )
 
-// IEEE 754
+// ReadFloat32 reads a float32 following IEEE 754
 func ReadFloat32(r io.Reader) (float32, error) {
 	buf := make([]byte, 4)
 
@@ -19,7 +19,7 @@ func ReadFloat32(r io.Reader) (float32, error) {
 	return math.Float32frombits(raw), nil
 }
 
-// IEEE 754
+// ReadFloat64 reads a float64 following IEEE 754
 func ReadFloat64(r io.Reader) (float64, error) {
 	buf := make([]byte, 8)
 

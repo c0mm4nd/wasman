@@ -2,11 +2,12 @@ package types_test
 
 import (
 	"bytes"
+	"strconv"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strconv"
-	"testing"
 )
 
 func TestReadValueTypes(t *testing.T) {

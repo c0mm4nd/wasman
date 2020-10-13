@@ -23,10 +23,10 @@ Usage of ./wasman:
         the maximum toll in simple toll station
 ```
 
-Example: [module.wasm](https://github.com/C0MM4ND/minimum-wasm-rs/releases/latest)
+Example: [numeric.wasm](https://github.com/C0MM4ND/minimum-wasm-rs/releases/latest)
 
 ```bash
-$ ./wasman -main module.wasm -func fib 20 # calc the fibonacci number
+$ ./wasman -main numeric.wasm -func fib 20 # calc the fibonacci number
 {
   type: i32
   result: 6765
@@ -37,7 +37,7 @@ $ ./wasman -main module.wasm -func fib 20 # calc the fibonacci number
 If we limit the max toll, it will panic when overflow.
 
 ```bash
-$ ./wasman -main module.wasm -max-toll 300000 -func fib 20
+$ ./wasman -main numeric.wasm -max-toll 300000 -func fib 20
 panic: toll overflow
 
 goroutine 1 [running]:

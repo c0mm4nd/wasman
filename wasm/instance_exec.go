@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/c0mm4nd/wasman/utils"
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
+	"github.com/c0mm4nd/wasman/utils"
 )
 
 // errors on exec func

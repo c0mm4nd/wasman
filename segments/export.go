@@ -23,7 +23,7 @@ func ReadExportDesc(r io.Reader) (*ExportDesc, error) {
 
 	kind := b[0]
 	if kind >= 0x04 {
-		return nil, fmt.Errorf("%w: invalid byte for exportdesc: %#x", types.ErrInvalidByte, kind)
+		return nil, fmt.Errorf("%w: invalid byte for exportdesc: %#x", types.ErrInvalidTypeByte, kind)
 	}
 
 	id, _, err := leb128decode.DecodeUint32(r)

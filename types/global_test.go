@@ -3,18 +3,19 @@ package types_test
 import (
 	"bytes"
 	"errors"
+	"strconv"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strconv"
-	"testing"
 )
 
 func TestReadGlobalType(t *testing.T) {
 	t.Run("ng", func(t *testing.T) {
 		buf := []byte{0x7e, 0x3}
 		_, err := types.ReadGlobalType(bytes.NewBuffer(buf))
-		require.True(t, errors.Is(err, types.ErrInvalidByte))
+		require.True(t, errors.Is(err, types.ErrInvalidTypeByte))
 		t.Log(err)
 	})
 

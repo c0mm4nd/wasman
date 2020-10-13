@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/c0mm4nd/wasman/config"
 	"io"
+
+	"github.com/c0mm4nd/wasman/config"
 
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
@@ -43,7 +44,7 @@ type Module struct {
 	IndexSpace *IndexSpace
 }
 
-// index to the imports
+// IndexSpace is the indeices to the imports
 type IndexSpace struct {
 	Functions []fn
 	Globals   []*Global
@@ -51,6 +52,7 @@ type IndexSpace struct {
 	Memories  [][]byte
 }
 
+// Global is a global value
 type Global struct {
 	Type *types.GlobalType
 	Val  interface{}
@@ -72,6 +74,7 @@ func NewModule(config config.ModuleConfig, r io.Reader) (*Module, error) {
 	module := &Module{
 		ModuleConfig: config,
 	}
+
 	if err := module.readSections(r); err != nil {
 		return nil, fmt.Errorf("readSections failed: %w", err)
 	}

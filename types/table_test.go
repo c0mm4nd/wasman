@@ -3,18 +3,19 @@ package types_test
 import (
 	"bytes"
 	"errors"
+	"strconv"
+	"testing"
+
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strconv"
-	"testing"
 )
 
 func TestReadTableType(t *testing.T) {
 	t.Run("ng", func(t *testing.T) {
 		buf := []byte{0x00}
 		_, err := types.ReadTableType(bytes.NewBuffer(buf))
-		require.True(t, errors.Is(err, types.ErrInvalidByte))
+		require.True(t, errors.Is(err, types.ErrInvalidTypeByte))
 		t.Log(err)
 	})
 
