@@ -9,12 +9,23 @@ import (
 )
 
 // Run me on root folder
-// go run ./examples/log
+// go run ./examples/hoststring
 func main() {
 	linker1 := wasman.NewLinker(config.LinkerConfig{})
 
+	err := linker1.DefineAdvancedFunc("env", "host_string", func(ins *wasman.Instance) interface{} {
+		return func() uint32 {
+			message := "WASMan"
+
+			ptr := ins.ManuallyGrowMemory(uint32(len(message)))
+			copy(ins.Memory[ptr:], message)
+
+			return uint32(ptr)
+		}
+	})
+
 	// cannot call host func in the host func
-	err := linker1.DefineAdvancedFunc("env", "log_message", func(ins *wasman.Instance) interface{} {
+	err = linker1.DefineAdvancedFunc("env", "log_message", func(ins *wasman.Instance) interface{} {
 		return func(ptr uint32, l uint32) {
 			message := ins.Memory[int(ptr):int(ptr+l)]
 
@@ -22,7 +33,7 @@ func main() {
 		}
 	})
 
-	wasm, err := os.Open("examples/log.wasm")
+	wasm, err := os.Open("examples/hoststring.wasm")
 	if err != nil {
 		panic(err)
 	}
@@ -40,7 +51,7 @@ func main() {
 	ptr := ins.ManuallyGrowMemory(uint32(len(name))) // and '\0'
 	copy(ins.Memory[ptr:], name)
 
-	_, _, err = ins.CallExportedFunc("greet", uint64(ptr))
+	_, _, err = ins.CallExportedFunc("greet")
 	if err != nil {
 		panic(err)
 	}

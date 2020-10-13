@@ -41,3 +41,6 @@ jobs:
 
       - name: Test log example
         run: go run ./examples/log
+
+      - name: Test hoststring example
+        run: go run ./examples/hoststring
