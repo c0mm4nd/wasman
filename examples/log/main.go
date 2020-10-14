@@ -1,13 +1,16 @@
 package main
 
 import (
+	"C"
 	"fmt"
-	"github.com/c0mm4nd/wasman/utils"
 	"os"
+
+	"github.com/c0mm4nd/wasman/utils"
 
 	"github.com/c0mm4nd/wasman"
 	"github.com/c0mm4nd/wasman/config"
 )
+import "unsafe"
 
 // Run me on root folder
 // go run ./examples/log
@@ -17,9 +20,13 @@ func main() {
 	// cannot call host func in the host func
 	err := linker1.DefineAdvancedFunc("env", "log_message", func(ins *wasman.Instance) interface{} {
 		return func(ptr uint32, l uint32) {
-			message := ins.Memory.Value[int(ptr):int(ptr+l)]
+			// need ptr & l
+			messageByLen := ins.Memory.Value[int(ptr):int(ptr+l)]
+			fmt.Println(string(messageByLen))
 
-			fmt.Println(string(message))
+			// this method just need one ptr
+			messageByCharVec := C.GoString((*C.char)(unsafe.Pointer(&ins.Memory.Value[ptr])))
+			fmt.Println(messageByCharVec)
 		}
 	})
 	if err != nil {
