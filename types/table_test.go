@@ -3,6 +3,7 @@ package types_test
 import (
 	"bytes"
 	"errors"
+	"github.com/c0mm4nd/wasman/utils"
 	"strconv"
 	"testing"
 
@@ -34,7 +35,7 @@ func TestReadTableType(t *testing.T) {
 			bytes: []byte{0x70, 0x01, 0x01, 0xa},
 			exp: &types.TableType{
 				Elem:   0x70,
-				Limits: &types.Limits{Min: 1, Max: uint32Ptr(10)},
+				Limits: &types.Limits{Min: 1, Max: utils.Uint32Ptr(10)},
 			},
 		},
 	} {

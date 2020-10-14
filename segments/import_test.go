@@ -5,15 +5,12 @@ import (
 	"errors"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
+	"github.com/c0mm4nd/wasman/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"strconv"
 	"testing"
 )
-
-func uint32Ptr(u uint32) *uint32 {
-	return &u
-}
 
 func TestReadImportDesc(t *testing.T) {
 	t.Run("ng", func(t *testing.T) {
@@ -31,7 +28,7 @@ func TestReadImportDesc(t *testing.T) {
 			bytes: []byte{0x00, 0x0a},
 			exp: &segments.ImportDesc{
 				Kind:         0,
-				TypeIndexPtr: uint32Ptr(10),
+				TypeIndexPtr: utils.Uint32Ptr(10),
 			},
 		},
 		{
@@ -72,7 +69,7 @@ func TestReadImportSegment(t *testing.T) {
 	exp := &segments.ImportSegment{
 		Module: "abc",
 		Name:   "ABC",
-		Desc:   &segments.ImportDesc{Kind: 0, TypeIndexPtr: uint32Ptr(10)},
+		Desc:   &segments.ImportDesc{Kind: 0, TypeIndexPtr: utils.Uint32Ptr(10)},
 	}
 
 	buf := []byte{byte(len(exp.Module))}

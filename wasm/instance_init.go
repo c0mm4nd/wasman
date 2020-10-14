@@ -25,7 +25,10 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 	// note: MVP restricts the size of memory index spaces to 1
 	if diff := len(ins.TableSection) - len(ins.IndexSpace.Tables); diff > 0 {
 		for i := 0; i < diff; i++ {
-			ins.IndexSpace.Tables = append(ins.IndexSpace.Tables, []*uint32{})
+			ins.IndexSpace.Tables = append(ins.IndexSpace.Tables, &Table{
+				TableType: *ins.TableSection[i+len(ins.IndexSpace.Tables)],
+				Value:     []*uint32{},
+			})
 		}
 	}
 
@@ -33,7 +36,10 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 	// note: MVP restricts the size of memory index spaces to 1
 	if diff := len(ins.MemorySection) - len(ins.IndexSpace.Memories); diff > 0 {
 		for i := 0; i < diff; i++ {
-			ins.IndexSpace.Memories = append(ins.IndexSpace.Memories, []byte{})
+			ins.IndexSpace.Memories = append(ins.IndexSpace.Memories, &Memory{
+				MemoryType: *ins.MemorySection[i+len(ins.IndexSpace.Memories)],
+				Value:      []byte{},
+			})
 		}
 	}
 
@@ -138,7 +144,7 @@ func (ins *Instance) applyGlobalImport(externModule *Module, exportSegment *segm
 	}
 
 	gb := externModule.IndexSpace.Globals[exportSegment.Desc.Index]
-	if gb.Type.Mutable {
+	if gb.GlobalType.Mutable {
 		return fmt.Errorf("cannot import mutable global")
 	}
 
@@ -153,8 +159,8 @@ func (ins *Instance) buildGlobalIndexSpace() error {
 			return fmt.Errorf("execution failed: %w", err)
 		}
 		ins.IndexSpace.Globals = append(ins.IndexSpace.Globals, &Global{
-			Type: gs.Type,
-			Val:  v,
+			GlobalType: gs.Type,
+			Val:        v,
 		})
 	}
 	return nil
@@ -211,13 +217,13 @@ func (ins *Instance) buildMemoryIndexSpace() error {
 		}
 
 		memory := ins.IndexSpace.Memories[d.MemoryIndex]
-		if size > len(memory) {
+		if size > len(memory.Value) {
 			next := make([]byte, size)
-			copy(next, memory)
+			copy(next, memory.Value)
 			copy(next[offset:], d.Init)
-			ins.IndexSpace.Memories[d.MemoryIndex] = next
+			ins.IndexSpace.Memories[d.MemoryIndex].Value = next
 		} else {
-			copy(memory[offset:], d.Init)
+			copy(memory.Value[offset:], d.Init)
 		}
 	}
 	return nil
@@ -251,16 +257,16 @@ func (ins *Instance) buildTableIndexSpace() error {
 		}
 
 		table := ins.IndexSpace.Tables[elem.TableIndex]
-		if size > len(table) {
+		if size > len(table.Value) {
 			next := make([]*uint32, size)
-			copy(next, table)
-			for i, b := range elem.Init {
-				next[i+offset] = &b
+			copy(next, table.Value)
+			for i := range elem.Init {
+				next[i+offset] = &elem.Init[i]
 			}
-			ins.IndexSpace.Tables[elem.TableIndex] = next
+			ins.IndexSpace.Tables[elem.TableIndex].Value = next
 		} else {
-			for i, b := range elem.Init {
-				table[i+offset] = &b
+			for i := range elem.Init {
+				table.Value[i+offset] = &elem.Init[i]
 			}
 		}
 	}

@@ -27,7 +27,7 @@ func i32Load(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint32(ins.Memory[base:])))
+	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint32(ins.Memory.Value[base:])))
 
 	return nil
 }
@@ -38,7 +38,7 @@ func i64Load(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(binary.LittleEndian.Uint64(ins.Memory[base:]))
+	ins.OperandStack.Push(binary.LittleEndian.Uint64(ins.Memory.Value[base:]))
 
 	return nil
 }
@@ -57,7 +57,7 @@ func i32Load8s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(uint64(ins.Memory[base]))
+	ins.OperandStack.Push(uint64(ins.Memory.Value[base]))
 
 	return nil
 }
@@ -72,7 +72,7 @@ func i32Load16s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint16(ins.Memory[base:])))
+	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint16(ins.Memory.Value[base:])))
 
 	return nil
 }
@@ -87,7 +87,7 @@ func i64Load8s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(uint64(ins.Memory[base]))
+	ins.OperandStack.Push(uint64(ins.Memory.Value[base]))
 
 	return nil
 }
@@ -102,7 +102,7 @@ func i64Load16s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint16(ins.Memory[base:])))
+	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint16(ins.Memory.Value[base:])))
 
 	return nil
 }
@@ -117,7 +117,7 @@ func i64Load32s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint32(ins.Memory[base:])))
+	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint32(ins.Memory.Value[base:])))
 
 	return nil
 }
@@ -133,7 +133,7 @@ func i32Store(ins *Instance) error {
 		return err
 	}
 
-	binary.LittleEndian.PutUint32(ins.Memory[base:], uint32(val))
+	binary.LittleEndian.PutUint32(ins.Memory.Value[base:], uint32(val))
 
 	return nil
 }
@@ -145,7 +145,7 @@ func i64Store(ins *Instance) error {
 		return err
 	}
 
-	binary.LittleEndian.PutUint64(ins.Memory[base:], val)
+	binary.LittleEndian.PutUint64(ins.Memory.Value[base:], val)
 
 	return nil
 }
@@ -157,7 +157,7 @@ func f32Store(ins *Instance) error {
 		return err
 	}
 
-	binary.LittleEndian.PutUint32(ins.Memory[base:], uint32(val))
+	binary.LittleEndian.PutUint32(ins.Memory.Value[base:], uint32(val))
 
 	return nil
 }
@@ -169,7 +169,7 @@ func f64Store(ins *Instance) error {
 		return err
 	}
 
-	binary.LittleEndian.PutUint64(ins.Memory[base:], v)
+	binary.LittleEndian.PutUint64(ins.Memory.Value[base:], v)
 
 	return nil
 }
@@ -181,7 +181,7 @@ func i32Store8(ins *Instance) error {
 		return err
 	}
 
-	ins.Memory[base] = v
+	ins.Memory.Value[base] = v
 
 	return nil
 }
@@ -193,7 +193,7 @@ func i32Store16(ins *Instance) error {
 		return err
 	}
 
-	binary.LittleEndian.PutUint16(ins.Memory[base:], v)
+	binary.LittleEndian.PutUint16(ins.Memory.Value[base:], v)
 
 	return nil
 }
@@ -205,7 +205,7 @@ func i64Store8(ins *Instance) error {
 		return err
 	}
 
-	ins.Memory[base] = v
+	ins.Memory.Value[base] = v
 
 	return nil
 }
@@ -217,7 +217,7 @@ func i64Store16(ins *Instance) error {
 		return err
 	}
 
-	binary.LittleEndian.PutUint16(ins.Memory[base:], v)
+	binary.LittleEndian.PutUint16(ins.Memory.Value[base:], v)
 
 	return nil
 }
@@ -229,14 +229,14 @@ func i64Store32(ins *Instance) error {
 		return err
 	}
 
-	binary.LittleEndian.PutUint32(ins.Memory[base:], v)
+	binary.LittleEndian.PutUint32(ins.Memory.Value[base:], v)
 
 	return nil
 }
 
 func memorySize(ins *Instance) error {
 	ins.Context.PC++
-	ins.OperandStack.Push(uint64(int32(len(ins.Memory) / config.DefaultPageSize)))
+	ins.OperandStack.Push(uint64(int32(len(ins.Memory.Value) / config.DefaultPageSize)))
 
 	return nil
 }
@@ -246,15 +246,15 @@ func memoryGrow(ins *Instance) error {
 	n := uint32(ins.OperandStack.Pop())
 
 	if ins.Module.MemorySection[0].Max != nil &&
-		uint64(n+uint32(len(ins.Memory)/config.DefaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
+		uint64(n+uint32(len(ins.Memory.Value)/config.DefaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
 		v := int32(-1)
 		ins.OperandStack.Push(uint64(v))
 
 		return nil
 	}
 
-	ins.OperandStack.Push(uint64(len(ins.Memory)) / config.DefaultPageSize)
-	ins.Memory = append(ins.Memory, make([]byte, n*config.DefaultPageSize)...)
+	ins.OperandStack.Push(uint64(len(ins.Memory.Value)) / config.DefaultPageSize)
+	ins.Memory.Value = append(ins.Memory.Value, make([]byte, n*config.DefaultPageSize)...)
 
 	return nil
 }

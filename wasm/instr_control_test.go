@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"github.com/c0mm4nd/wasman/utils"
 	"testing"
 
 	"github.com/c0mm4nd/wasman/expr"
@@ -216,7 +217,9 @@ func Test_callIndirect(t *testing.T) {
 		Module: &Module{
 			TypeSection: []*types.FuncType{nil, {}},
 			IndexSpace: &IndexSpace{
-				Tables: [][]*uint32{{nil, uint32Ptr(1)}},
+				Tables: []*Table{
+					{Value: []*uint32{nil, utils.Uint32Ptr(1)}},
+				},
 			},
 		},
 		OperandStack: stacks.NewOperandStack(),

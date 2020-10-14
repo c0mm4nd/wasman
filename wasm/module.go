@@ -48,14 +48,8 @@ type Module struct {
 type IndexSpace struct {
 	Functions []fn
 	Globals   []*Global
-	Tables    [][]*uint32
-	Memories  [][]byte
-}
-
-// Global is a global value
-type Global struct {
-	Type *types.GlobalType
-	Val  interface{}
+	Tables    []*Table
+	Memories  []*Memory
 }
 
 // NewModule reads bytes from the io.Reader and read all sections, finally return a wasman.Module entity if no error

@@ -175,7 +175,7 @@ func (l *Linker) DefineGlobal(modName, globalName string, global interface{}) er
 	}
 
 	mod.IndexSpace.Globals = append(mod.IndexSpace.Globals, &wasm.Global{
-		Type: &types.GlobalType{
+		GlobalType: &types.GlobalType{
 			ValType: ty,
 			Mutable: true,
 		},
@@ -205,7 +205,10 @@ func (l *Linker) DefineTable(modName, tableName string, table []*uint32) error {
 		},
 	}
 
-	mod.IndexSpace.Tables = append(mod.IndexSpace.Tables, table)
+	mod.IndexSpace.Tables = append(mod.IndexSpace.Tables, &wasm.Table{
+		TableType: *mod.TableSection[0],
+		Value:     table,
+	})
 
 	return nil
 }
@@ -230,7 +233,10 @@ func (l *Linker) DefineMemory(modName, memName string, mem []byte) error {
 		},
 	}
 
-	mod.IndexSpace.Memories = append(mod.IndexSpace.Memories, mem)
+	mod.IndexSpace.Memories = append(mod.IndexSpace.Memories, &wasm.Memory{
+		MemoryType: *mod.MemorySection[0],
+		Value:      mem,
+	})
 
 	return nil
 }

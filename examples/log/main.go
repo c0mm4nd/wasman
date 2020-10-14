@@ -16,7 +16,7 @@ func main() {
 	// cannot call host func in the host func
 	err := linker1.DefineAdvancedFunc("env", "log_message", func(ins *wasman.Instance) interface{} {
 		return func(ptr uint32, l uint32) {
-			message := ins.Memory[int(ptr):int(ptr+l)]
+			message := ins.Memory.Value[int(ptr):int(ptr+l)]
 
 			fmt.Println(string(message))
 		}
@@ -37,8 +37,9 @@ func main() {
 	}
 
 	name := "wasman engine"
-	ptr := ins.ManuallyGrowMemory(uint32(len(name)))
-	copy(ins.Memory[ptr:], name)
+	ptr := len(ins.Memory.Value) / config.DefaultPageSize
+	ins.Memory.Value = append(ins.Memory.Value, make([]byte, len(name)*4)...)
+	copy(ins.Memory.Value[ptr:], name)
 
 	_, _, err = ins.CallExportedFunc("greet", uint64(ptr))
 	if err != nil {

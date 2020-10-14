@@ -12,6 +12,7 @@ var (
 	ErrFuncInvalidReturnType = errors.New("invalid func return type")
 )
 
+// fn is an instance of the func value
 type fn interface {
 	getType() *types.FuncType
 	call(ins *Instance) error

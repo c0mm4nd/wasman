@@ -11,13 +11,13 @@ import (
 
 // errors on control instr
 var (
-	ErrUnreachable              = errors.New("unreachable")
-	ErrBlockNotInitialized      = errors.New("block not initialized")
-	ErrBlockNotFound            = errors.New("block not found")
-	ErrFuncSignMismatch         = errors.New("function signature mismatch")
-	ErrLabelNotFound            = errors.New("label not found")
-	ErrTableIndexOutOfRange     = errors.New("table index out of range")
-	ErrTableEntryNotInitialized = errors.New("table entry not initialized")
+	ErrUnreachable                 = errors.New("unreachable")
+	ErrBlockNotInitialized         = errors.New("block not initialized")
+	ErrBlockNotFound               = errors.New("block not found")
+	ErrFuncSignMismatch            = errors.New("function signature mismatch")
+	ErrLabelNotFound               = errors.New("label not found")
+	ErrTableIndexOutOfRange        = errors.New("table index out of range")
+	ErrTableInstanceNotInitialized = errors.New("table entry not initialized")
 )
 
 func unreachable(_ *Instance) error {
@@ -197,13 +197,13 @@ func callIndirect(ins *Instance) error {
 
 	tableIndex := ins.OperandStack.Pop()
 	// note: mvp limits the size of table index space to 1
-	if tableIndex >= uint64(len(ins.Module.IndexSpace.Tables[0])) {
+	if tableIndex >= uint64(len(ins.Module.IndexSpace.Tables[0].Value)) {
 		return ErrTableIndexOutOfRange
 	}
 
-	te := ins.Module.IndexSpace.Tables[0][tableIndex]
+	te := ins.Module.IndexSpace.Tables[0].Value[tableIndex]
 	if te == nil {
-		return ErrTableEntryNotInitialized
+		return ErrTableInstanceNotInitialized
 	}
 
 	f := ins.Functions[*te]

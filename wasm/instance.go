@@ -19,7 +19,7 @@ type Instance struct {
 
 	Context   *wasmContext
 	Functions []fn
-	Memory    []byte
+	Memory    *Memory
 	Globals   []uint64
 
 	*stacks.OperandStack
@@ -38,8 +38,8 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 
 	// initializing memory
 	ins.Memory = ins.Module.IndexSpace.Memories[0]
-	if diff := uint64(ins.Module.MemorySection[0].Min)*config.DefaultPageSize - uint64(len(ins.Memory)); diff > 0 {
-		ins.Memory = append(ins.Memory, make([]byte, diff)...)
+	if diff := uint64(ins.Module.MemorySection[0].Min)*config.DefaultPageSize - uint64(len(ins.Memory.Value)); diff > 0 {
+		ins.Memory.Value = append(ins.Memory.Value, make([]byte, diff)...)
 	}
 
 	// initializing functions
@@ -136,16 +136,16 @@ func (ins *Instance) fetchFloat64() (float64, error) {
 
 // ManuallyGrowMemory will help dev grow the memory on host func,
 // which is very useful when handling bytes between wasm instance and host engine
-func (ins *Instance) ManuallyGrowMemory(delta uint32) int {
-
-	if ins.Module.MemorySection[0].Max != nil &&
-		uint64(delta+uint32(len(ins.Memory)/config.DefaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
-
-		return -1 // failed to grow
-	}
-
-	ptr := uint64(len(ins.Memory)) / config.DefaultPageSize
-	ins.Memory = append(ins.Memory, make([]byte, delta*config.DefaultPageSize)...)
-
-	return int(ptr)
-}
+//func (ins *Instance) ManuallyGrowMemory(delta uint32) int {
+//
+//	if ins.Module.MemorySection[0].Max != nil &&
+//		uint64(delta+uint32(len(ins.Memories[0])/config.DefaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
+//
+//		return -1 // failed to grow
+//	}
+//
+//	ptr := uint64(len(ins.Memory)) / config.DefaultPageSize
+//	ins.Memory = append(ins.Memory, make([]byte, delta*config.DefaultPageSize)...)
+//
+//	return int(ptr)
+//}
