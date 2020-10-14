@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/c0mm4nd/wasman/utils"
 	"os"
 
 	"github.com/c0mm4nd/wasman"
@@ -21,6 +22,9 @@ func main() {
 			fmt.Println(string(message))
 		}
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	wasm, err := os.Open("examples/log.wasm")
 	if err != nil {
@@ -37,8 +41,7 @@ func main() {
 	}
 
 	name := "wasman engine"
-	ptr := len(ins.Memory.Value) / config.DefaultPageSize
-	ins.Memory.Value = append(ins.Memory.Value, make([]byte, len(name)*4)...)
+	ptr := ins.Memory.Grow(utils.CalcPageSize(len(name), config.DefaultPageSize))
 	copy(ins.Memory.Value[ptr:], name)
 
 	_, _, err = ins.CallExportedFunc("greet", uint64(ptr))

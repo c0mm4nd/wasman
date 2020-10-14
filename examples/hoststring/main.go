@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/c0mm4nd/wasman/utils"
 	"os"
 
 	"github.com/c0mm4nd/wasman"
@@ -17,12 +18,15 @@ func main() {
 		return func() uint32 {
 			message := "WASMan"
 
-			ptr := ins.Memory.Grow(len(message))
+			ptr := ins.Memory.Grow(utils.CalcPageSize(len(message), config.DefaultPageSize))
 			copy(ins.Memory.Value[ptr:], message)
 
-			return uint32(ptr)
+			return ptr
 		}
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	// cannot call host func in the host func
 	err = linker1.DefineAdvancedFunc("env", "log_message", func(ins *wasman.Instance) interface{} {
@@ -32,6 +36,9 @@ func main() {
 			fmt.Println(string(message))
 		}
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	wasm, err := os.Open("examples/hoststring.wasm")
 	if err != nil {
@@ -46,10 +53,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	name := "wasman engine"
-	ptr := ins.Memory.Grow(len(name)) // and '\0'
-	copy(ins.Memory.Value[ptr:], name)
 
 	_, _, err = ins.CallExportedFunc("greet")
 	if err != nil {
