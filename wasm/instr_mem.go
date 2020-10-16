@@ -2,7 +2,6 @@ package wasm
 
 import (
 	"encoding/binary"
-
 	"github.com/c0mm4nd/wasman/config"
 )
 

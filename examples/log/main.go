@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/c0mm4nd/wasman/utils"
-
 	"github.com/c0mm4nd/wasman"
 	"github.com/c0mm4nd/wasman/config"
 )
@@ -48,11 +46,22 @@ func main() {
 	}
 
 	name := "wasman engine"
-	ptr := ins.Memory.Grow(utils.CalcPageSize(len(name), config.DefaultPageSize))
-	copy(ins.Memory.Value[ptr:], name)
-
-	_, _, err = ins.CallExportedFunc("greet", uint64(ptr))
+	ret, _, err := ins.CallExportedFunc("allocate", uint64(len(name)+1))
 	if err != nil {
 		panic(err)
 	}
+
+	ptr := ret[0]
+
+	copy(ins.Memory.Value[ptr:], name)
+
+	for range make([]byte, 100) {
+		_, _, err = ins.CallExportedFunc("greet", ptr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	fmt.Println("mem size", len(ins.Memory.Value))
+
 }
