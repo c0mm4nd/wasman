@@ -2,8 +2,13 @@ package wasm
 
 import (
 	"encoding/binary"
+	"errors"
+
 	"github.com/c0mm4nd/wasman/config"
 )
+
+// ErrPtrOutOfBounds will be throw when the pointer visiting a pos out of the range of memory
+var ErrPtrOutOfBounds = errors.New("pointer is out of bounds")
 
 func memoryBase(ins *Instance) (uint64, error) {
 	ins.Context.PC++
@@ -17,7 +22,12 @@ func memoryBase(ins *Instance) (uint64, error) {
 		return 0, err
 	}
 
-	return uint64(v) + ins.OperandStack.Pop(), nil
+	base := uint64(v) + ins.OperandStack.Pop()
+	if !(base < uint64(len(ins.Memory.Value))) {
+		return 0, ErrPtrOutOfBounds
+	}
+
+	return base, nil
 }
 
 func i32Load(ins *Instance) error {

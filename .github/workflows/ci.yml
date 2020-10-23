@@ -44,3 +44,6 @@ jobs:
 
       - name: Test hoststring example
         run: go run ./examples/hoststring
+
+      - name: Test hostbytes example
+        run: go run ./examples/hostbytes
