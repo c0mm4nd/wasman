@@ -5,7 +5,6 @@ import (
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_getLocal(t *testing.T) {
@@ -18,9 +17,16 @@ func Test_getLocal(t *testing.T) {
 	}
 
 	vm := &Instance{Context: ctx, OperandStack: stacks.NewOperandStack()}
-	assert.NoError(t, getLocal(vm))
-	assert.Equal(t, exp, vm.OperandStack.Pop())
-	assert.Equal(t, -1, vm.OperandStack.Ptr)
+	err := getLocal(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if vm.OperandStack.Pop() != exp {
+		t.Fail()
+	}
+	if vm.OperandStack.Ptr != -1 {
+		t.Fail()
+	}
 }
 
 func Test_setLocal(t *testing.T) {
@@ -36,9 +42,16 @@ func Test_setLocal(t *testing.T) {
 	st.Push(exp)
 
 	vm := &Instance{Context: ctx, OperandStack: st}
-	assert.NoError(t, setLocal(vm))
-	assert.Equal(t, exp, vm.Context.Locals[5])
-	assert.Equal(t, -1, vm.OperandStack.Ptr)
+	err := setLocal(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if vm.Context.Locals[5] != exp {
+		t.Fail()
+	}
+	if vm.OperandStack.Ptr != -1 {
+		t.Fail()
+	}
 }
 
 func Test_teeLocal(t *testing.T) {
@@ -54,9 +67,16 @@ func Test_teeLocal(t *testing.T) {
 	st.Push(exp)
 
 	vm := &Instance{Context: ctx, OperandStack: st}
-	assert.NoError(t, teeLocal(vm))
-	assert.Equal(t, exp, vm.Context.Locals[5])
-	assert.Equal(t, exp, vm.OperandStack.Pop())
+	err := teeLocal(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if vm.Context.Locals[5] != exp {
+		t.Fail()
+	}
+	if vm.OperandStack.Pop() != exp {
+		t.Fail()
+	}
 }
 
 func Test_getGlobal(t *testing.T) {
@@ -74,9 +94,16 @@ func Test_getGlobal(t *testing.T) {
 		OperandStack: stacks.NewOperandStack(),
 		Globals:      globals,
 	}
-	assert.NoError(t, getGlobal(vm))
-	assert.Equal(t, exp, vm.OperandStack.Pop())
-	assert.Equal(t, -1, vm.OperandStack.Ptr)
+	err := getGlobal(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if vm.OperandStack.Pop() != exp {
+		t.Fail()
+	}
+	if vm.OperandStack.Ptr != -1 {
+		t.Fail()
+	}
 }
 
 func Test_setGlobal(t *testing.T) {
@@ -91,7 +118,14 @@ func Test_setGlobal(t *testing.T) {
 	st.Push(exp)
 
 	vm := &Instance{Context: ctx, OperandStack: st, Globals: []uint64{0, 0, 0, 0, 0, 0}}
-	assert.NoError(t, setGlobal(vm))
-	assert.Equal(t, exp, vm.Globals[5])
-	assert.Equal(t, -1, vm.OperandStack.Ptr)
+	err := setGlobal(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if vm.Globals[5] != exp {
+		t.Fail()
+	}
+	if vm.OperandStack.Ptr != -1 {
+		t.Fail()
+	}
 }

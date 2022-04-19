@@ -2,11 +2,10 @@ package segments_test
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/c0mm4nd/wasman/segments"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReadCodeSegment(t *testing.T) {
@@ -16,6 +15,10 @@ func TestReadCodeSegment(t *testing.T) {
 		Body:      []byte{0x1, 0x1, 0x12, 0x3, 0x01},
 	}
 	actual, err := segments.ReadCodeSegment(bytes.NewBuffer(buf))
-	require.NoError(t, err)
-	assert.Equal(t, exp, actual)
+	if err != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(exp, actual) {
+		t.Fail()
+	}
 }

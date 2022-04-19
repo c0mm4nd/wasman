@@ -10,8 +10,14 @@ Another wasm interpreter engine for gophers.
 
 ### Executable
 
+Install
+
 ```bash
-$ ./wasman -h
+go install github.com/c0mm4nd/wasman/cmd/wasman
+```
+
+```bash
+$ wasman -h
 Usage of ./wasman:
   -extern-files string
         external modules files
@@ -26,7 +32,7 @@ Usage of ./wasman:
 Example: [numeric.wasm](https://github.com/C0MM4ND/minimum-wasm-rs/releases/latest)
 
 ```bash
-$ ./wasman -main numeric.wasm -func fib 20 # calc the fibonacci number
+$ wasman -main numeric.wasm -func fib 20 # calc the fibonacci number
 {
   type: i32
   result: 6765
@@ -37,7 +43,7 @@ $ ./wasman -main numeric.wasm -func fib 20 # calc the fibonacci number
 If we limit the max toll, it will panic when overflow.
 
 ```bash
-$ ./wasman -main numeric.wasm -max-toll 300000 -func fib 20
+$ wasman -main numeric.wasm -max-toll 300000 -func fib 20
 panic: toll overflow
 
 goroutine 1 [running]:

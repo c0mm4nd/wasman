@@ -2,12 +2,11 @@ package types_test
 
 import (
 	"bytes"
+	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/c0mm4nd/wasman/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReadValueTypes(t *testing.T) {
@@ -32,8 +31,12 @@ func TestReadValueTypes(t *testing.T) {
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			actual, err := types.ReadValueTypes(bytes.NewBuffer(c.bytes), c.num)
-			require.NoError(t, err)
-			assert.Equal(t, c.exp, actual)
+			if err != nil {
+				t.Fail()
+			}
+			if !reflect.DeepEqual(c.exp, actual) {
+				t.Fail()
+			}
 		})
 	}
 }
@@ -44,8 +47,12 @@ func TestReadNameValue(t *testing.T) {
 	buf := []byte{byte(l)}
 	buf = append(buf, exp...)
 	actual, err := types.ReadNameValue(bytes.NewBuffer(buf))
-	require.NoError(t, err)
-	assert.Equal(t, exp, actual)
+	if err != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(exp, actual) {
+		t.Fail()
+	}
 }
 
 func TestHasSameValues(t *testing.T) {
@@ -58,6 +65,8 @@ func TestHasSameValues(t *testing.T) {
 		{a: []types.ValueType{types.ValueTypeF64}, exp: false},
 		{a: []types.ValueType{types.ValueTypeF64}, b: []types.ValueType{types.ValueTypeF64}, exp: true},
 	} {
-		assert.Equal(t, c.exp, types.HasSameSignature(c.a, c.b))
+		if !reflect.DeepEqual(c.exp, types.HasSameSignature(c.a, c.b)) {
+			t.Fail()
+		}
 	}
 }

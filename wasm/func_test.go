@@ -7,7 +7,6 @@ import (
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHostFunction_Call(t *testing.T) {
@@ -26,16 +25,30 @@ func TestHostFunction_Call(t *testing.T) {
 
 	vm := &Instance{OperandStack: stacks.NewOperandStack()}
 	vm.OperandStack.Push(10)
-
-	assert.NoError(t, hf.call(vm))
-	assert.Equal(t, 3, vm.OperandStack.Ptr)
-	assert.Equal(t, int64(10), cnt)
+	err := hf.call(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if vm.OperandStack.Ptr != 3 {
+		t.Fail()
+	}
+	if cnt != 10 {
+		t.Fail()
+	}
 
 	// f64
-	assert.Equal(t, 4.0, math.Float64frombits(vm.OperandStack.Pop()))
-	assert.Equal(t, float32(3.0), float32(math.Float64frombits(vm.OperandStack.Pop())))
-	assert.Equal(t, int64(2), int64(vm.OperandStack.Pop()))
-	assert.Equal(t, int32(1), int32(vm.OperandStack.Pop()))
+	if math.Float64frombits(vm.OperandStack.Pop()) != 4.0 {
+		t.Fail()
+	}
+	if float32(math.Float64frombits(vm.OperandStack.Pop())) != 3.0 {
+		t.Fail()
+	}
+	if vm.OperandStack.Pop() != 2 {
+		t.Fail()
+	}
+	if vm.OperandStack.Pop() != 1 {
+		t.Fail()
+	}
 }
 
 func TestNativeFunction_Call(t *testing.T) {
@@ -52,10 +65,15 @@ func TestNativeFunction_Call(t *testing.T) {
 			PC: 1000,
 		},
 	}
-
-	assert.NoError(t, n.call(vm))
-	assert.Equal(t, uint64(0x05), vm.OperandStack.Pop())
-	assert.Equal(t, uint64(1000), vm.Context.PC)
+	if n.call(vm) != nil {
+		t.Fail()
+	}
+	if vm.OperandStack.Pop() != 0x05 {
+		t.Fail()
+	}
+	if vm.Context.PC != 1000 {
+		t.Fail()
+	}
 }
 
 func TestVirtualMachine_execNativeFunction(t *testing.T) {
@@ -75,8 +93,16 @@ func TestVirtualMachine_execNativeFunction(t *testing.T) {
 		},
 	}
 
-	assert.NoError(t, vm.execFunc())
-	assert.Equal(t, uint64(4), vm.Context.PC)
-	assert.Equal(t, uint64(0x01), vm.OperandStack.Pop())
-	assert.Equal(t, uint64(0x05), vm.OperandStack.Pop())
+	if vm.execFunc() != nil {
+		t.Fail()
+	}
+	if vm.Context.PC != 4 {
+		t.Fail()
+	}
+	if vm.OperandStack.Pop() != 0x01 {
+		t.Fail()
+	}
+	if vm.OperandStack.Pop() != 0x05 {
+		t.Fail()
+	}
 }

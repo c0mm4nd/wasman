@@ -2,13 +2,12 @@ package segments_test
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReadGlobalSegment(t *testing.T) {
@@ -22,6 +21,10 @@ func TestReadGlobalSegment(t *testing.T) {
 
 	buf := []byte{0x7e, 0x00, 0x42, 0x01, 0x0b}
 	actual, err := segments.ReadGlobalSegment(bytes.NewBuffer(buf))
-	require.NoError(t, err)
-	assert.Equal(t, exp, actual)
+	if err != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(exp, actual) {
+		t.Fail()
+	}
 }

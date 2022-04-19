@@ -2,13 +2,12 @@ package segments_test
 
 import (
 	"bytes"
+	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/segments"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReadElementSegment(t *testing.T) {
@@ -41,8 +40,12 @@ func TestReadElementSegment(t *testing.T) {
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			actual, err := segments.ReadElemSegment(bytes.NewBuffer(c.bytes))
-			require.NoError(t, err)
-			assert.Equal(t, c.exp, actual)
+			if err != nil {
+				t.Fail()
+			}
+			if !reflect.DeepEqual(c.exp, actual) {
+				t.Fail()
+			}
 		})
 	}
 }

@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/c0mm4nd/wasman/utils"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReadFloat32(t *testing.T) {
@@ -16,8 +15,12 @@ func TestReadFloat32(t *testing.T) {
 	bs := make([]byte, 4)
 	binary.LittleEndian.PutUint32(bs, math.Float32bits(exp))
 	actual, err := utils.ReadFloat32(bytes.NewBuffer(bs))
-	require.NoError(t, err)
-	assert.Equal(t, exp, actual)
+	if err != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(exp, actual) {
+		t.Fail()
+	}
 }
 
 func TestReadFloat64(t *testing.T) {
@@ -26,6 +29,10 @@ func TestReadFloat64(t *testing.T) {
 	binary.LittleEndian.PutUint64(bs, math.Float64bits(exp))
 
 	actual, err := utils.ReadFloat64(bytes.NewBuffer(bs))
-	require.NoError(t, err)
-	assert.Equal(t, exp, actual)
+	if err != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(exp, actual) {
+		t.Fail()
+	}
 }

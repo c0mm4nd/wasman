@@ -4,21 +4,19 @@ import (
 	"testing"
 
 	"github.com/c0mm4nd/wasman/stacks"
-	"github.com/stretchr/testify/suite"
 )
 
-type NumTestSuite struct {
-	suite.Suite
+type NumTestSet struct {
 	vm *Instance
 }
 
-func (suite *NumTestSuite) SetupTest() {
-	suite.vm = &Instance{
+func (s *NumTestSet) SetupTest() {
+	s.vm = &Instance{
 		OperandStack: stacks.NewOperandStack(),
 	}
 }
 
-func (suite *NumTestSuite) Test_i32eqz() {
+func (s *NumTestSet) Test_i32eqz(t *testing.T) {
 	var testTable = []struct {
 		input int
 		want  uint64
@@ -27,13 +25,17 @@ func (suite *NumTestSuite) Test_i32eqz() {
 		{input: 1, want: 0},
 	}
 	for _, tt := range testTable {
-		suite.vm.OperandStack.Push(uint64(tt.input))
-		suite.NoError(i32eqz(suite.vm))
-		suite.Equal(tt.want, suite.vm.OperandStack.Pop())
+		s.vm.OperandStack.Push(uint64(tt.input))
+		if i32eqz(s.vm) != nil {
+			t.Fail()
+		}
+		if s.vm.OperandStack.Pop() != tt.want {
+			t.Fail()
+		}
 	}
 }
 
-func (suite *NumTestSuite) Test_i32ne() {
+func (s *NumTestSet) Test_i32ne(t *testing.T) {
 	var testTable = []struct {
 		input [2]int
 		want  uint64
@@ -42,14 +44,18 @@ func (suite *NumTestSuite) Test_i32ne() {
 		{input: [2]int{3, 3}, want: 0},
 	}
 	for _, tt := range testTable {
-		suite.vm.OperandStack.Push(uint64(tt.input[0]))
-		suite.vm.OperandStack.Push(uint64(tt.input[1]))
-		suite.NoError(i32ne(suite.vm))
-		suite.Equal(tt.want, suite.vm.OperandStack.Pop())
+		s.vm.OperandStack.Push(uint64(tt.input[0]))
+		s.vm.OperandStack.Push(uint64(tt.input[1]))
+		if i32ne(s.vm) != nil {
+			t.Fail()
+		}
+		if s.vm.OperandStack.Pop() != tt.want {
+			t.Fail()
+		}
 	}
 }
 
-func (suite *NumTestSuite) Test_i32lts() {
+func (s *NumTestSet) Test_i32lts(t *testing.T) {
 	var testTable = []struct {
 		input [2]int
 		want  uint64
@@ -58,14 +64,18 @@ func (suite *NumTestSuite) Test_i32lts() {
 		{input: [2]int{4, -1}, want: 0},
 	}
 	for _, tt := range testTable {
-		suite.vm.OperandStack.Push(uint64(tt.input[0]))
-		suite.vm.OperandStack.Push(uint64(tt.input[1]))
-		suite.NoError(i32lts(suite.vm))
-		suite.Equal(tt.want, suite.vm.OperandStack.Pop())
+		s.vm.OperandStack.Push(uint64(tt.input[0]))
+		s.vm.OperandStack.Push(uint64(tt.input[1]))
+		if i32lts(s.vm) != nil {
+			t.Fail()
+		}
+		if s.vm.OperandStack.Pop() != tt.want {
+			t.Fail()
+		}
 	}
 }
 
-func (suite *NumTestSuite) Test_i32ltu() {
+func (s *NumTestSet) Test_i32ltu(t *testing.T) {
 	var testTable = []struct {
 		input [2]int
 		want  uint64
@@ -74,14 +84,18 @@ func (suite *NumTestSuite) Test_i32ltu() {
 		{input: [2]int{4, 1}, want: 0},
 	}
 	for _, tt := range testTable {
-		suite.vm.OperandStack.Push(uint64(tt.input[0]))
-		suite.vm.OperandStack.Push(uint64(tt.input[1]))
-		suite.NoError(i32ltu(suite.vm))
-		suite.Equal(tt.want, suite.vm.OperandStack.Pop())
+		s.vm.OperandStack.Push(uint64(tt.input[0]))
+		s.vm.OperandStack.Push(uint64(tt.input[1]))
+		if i32ltu(s.vm) != nil {
+			t.Fail()
+		}
+		if s.vm.OperandStack.Pop() != tt.want {
+			t.Fail()
+		}
 	}
 }
 
-func (suite *NumTestSuite) Test_i32gts() {
+func (s *NumTestSet) Test_i32gts(t *testing.T) {
 	var testTable = []struct {
 		input [2]int
 		want  uint64
@@ -90,15 +104,23 @@ func (suite *NumTestSuite) Test_i32gts() {
 		{input: [2]int{-4, 1}, want: 0},
 	}
 	for _, tt := range testTable {
-		suite.vm.OperandStack.Push(uint64(tt.input[0]))
-		suite.vm.OperandStack.Push(uint64(tt.input[1]))
-		suite.NoError(i32gts(suite.vm))
-		suite.Equal(tt.want, suite.vm.OperandStack.Pop())
+		s.vm.OperandStack.Push(uint64(tt.input[0]))
+		s.vm.OperandStack.Push(uint64(tt.input[1]))
+		if i32gts(s.vm) != nil {
+			t.Fail()
+		}
+		if s.vm.OperandStack.Pop() != tt.want {
+			t.Fail()
+		}
 	}
 }
 
-// In order for 'go test' to run this suite, we need to create
-// a normal test function and pass our suite to suite.Run
 func TestRunSuite(t *testing.T) {
-	suite.Run(t, new(NumTestSuite))
+	set := new(NumTestSet)
+	set.SetupTest()
+	set.Test_i32eqz(t)
+	set.Test_i32ne(t)
+	set.Test_i32lts(t)
+	set.Test_i32ltu(t)
+	set.Test_i32gts(t)
 }

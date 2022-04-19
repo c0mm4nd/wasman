@@ -3,20 +3,21 @@ package types_test
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/c0mm4nd/wasman/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReadGlobalType(t *testing.T) {
 	t.Run("ng", func(t *testing.T) {
 		buf := []byte{0x7e, 0x3}
 		_, err := types.ReadGlobalType(bytes.NewBuffer(buf))
-		require.True(t, errors.Is(err, types.ErrInvalidTypeByte))
-		t.Log(err)
+		if !errors.Is(err, types.ErrInvalidTypeByte) {
+			t.Log(err)
+			t.Fail()
+		}
 	})
 
 	for i, c := range []struct {
@@ -28,8 +29,12 @@ func TestReadGlobalType(t *testing.T) {
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			actual, err := types.ReadGlobalType(bytes.NewBuffer(c.bytes))
-			require.NoError(t, err)
-			assert.Equal(t, c.exp, actual)
+			if err != nil {
+				t.Fail()
+			}
+			if !reflect.DeepEqual(c.exp, actual) {
+				t.Fail()
+			}
 		})
 	}
 }

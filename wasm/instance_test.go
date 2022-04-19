@@ -2,15 +2,15 @@ package wasm
 
 import (
 	"bytes"
-	"github.com/c0mm4nd/wasman/utils"
+	"reflect"
 	"strconv"
 	"testing"
+
+	"github.com/c0mm4nd/wasman/utils"
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestInstance_executeConstExpression(t *testing.T) {
@@ -22,8 +22,10 @@ func TestInstance_executeConstExpression(t *testing.T) {
 			m := &Module{IndexSpace: new(IndexSpace)}
 			ins := &Instance{Module: m}
 			_, err := ins.execExpr(expression)
-			assert.Error(t, err)
-			t.Log(err)
+			if err == nil {
+				t.Log(err)
+				t.Fail()
+			}
 		}
 	})
 
@@ -64,8 +66,12 @@ func TestInstance_executeConstExpression(t *testing.T) {
 		} {
 
 			actual, err := c.ins.execExpr(c.expr)
-			require.NoError(t, err)
-			assert.Equal(t, c.val, actual)
+			if err != nil {
+				t.Fail()
+			}
+			if !reflect.DeepEqual(c.val, actual) {
+				t.Fail()
+			}
 		}
 	})
 }
@@ -105,7 +111,9 @@ func TestModule_resolveImports(t *testing.T) {
 		} {
 			ins := &Instance{Module: c.module}
 			err := ins.resolveImports(c.externModules)
-			assert.Error(t, err)
+			if err == nil {
+				t.Fail()
+			}
 			t.Log(err)
 		}
 	})
@@ -136,8 +144,12 @@ func TestModule_resolveImports(t *testing.T) {
 
 		ins := &Instance{Module: m}
 		err := ins.resolveImports(ems)
-		require.NoError(t, err)
-		assert.Equal(t, 1, m.IndexSpace.Globals[0].Val)
+		if err != nil {
+			t.Fail()
+		}
+		if m.IndexSpace.Globals[0].Val != 1 {
+			t.Fail()
+		}
 	})
 }
 
@@ -155,8 +167,12 @@ func TestModule_applyFunctionImport(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{}}
 		ins := &Instance{Module: m}
 		err := ins.applyFunctionImport(is, em, es)
-		require.NoError(t, err)
-		assert.Equal(t, em.IndexSpace.Functions[0], m.IndexSpace.Functions[0])
+		if err != nil {
+			t.Fail()
+		}
+		if em.IndexSpace.Functions[0] != m.IndexSpace.Functions[0] {
+			t.Fail()
+		}
 	})
 
 	t.Run("error", func(t *testing.T) {
@@ -205,7 +221,10 @@ func TestModule_applyFunctionImport(t *testing.T) {
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
 		} {
-			assert.Error(t, (&Instance{Module: &c.module}).applyFunctionImport(c.importSegment, c.exportedModule, c.exportedSegment))
+			err := (&Instance{Module: &c.module}).applyFunctionImport(c.importSegment, c.exportedModule, c.exportedSegment)
+			if err == nil {
+				t.Fail()
+			}
 		}
 	})
 }
@@ -215,7 +234,9 @@ func TestModule_applyTableImport(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{Index: 10}}
 		em := &Module{IndexSpace: new(IndexSpace)}
 		err := (&Instance{Module: &Module{}}).applyTableImport(em, es)
-		assert.Error(t, err)
+		if err == nil {
+			t.Fail()
+		}
 	})
 
 	t.Run("ok", func(t *testing.T) {
@@ -231,8 +252,12 @@ func TestModule_applyTableImport(t *testing.T) {
 		m := &Module{IndexSpace: new(IndexSpace)}
 		ins := &Instance{Module: m}
 		err := ins.applyTableImport(em, es)
-		require.NoError(t, err)
-		assert.Equal(t, exp, *ins.Module.IndexSpace.Tables[0].Value[0])
+		if err != nil {
+			t.Fail()
+		}
+		if *ins.Module.IndexSpace.Tables[0].Value[0] != exp {
+			t.Fail()
+		}
 	})
 }
 
@@ -241,7 +266,9 @@ func TestModule_applyMemoryImport(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{Index: 10}}
 		em := &Module{IndexSpace: new(IndexSpace)}
 		err := (&Instance{Module: &Module{}}).applyMemoryImport(em, es)
-		assert.Error(t, err)
+		if err == nil {
+			t.Fail()
+		}
 	})
 
 	t.Run("ok", func(t *testing.T) {
@@ -252,8 +279,12 @@ func TestModule_applyMemoryImport(t *testing.T) {
 		m := &Module{IndexSpace: new(IndexSpace)}
 		ins := &Instance{Module: m}
 		err := ins.applyMemoryImport(em, es)
-		require.NoError(t, err)
-		assert.Equal(t, byte(0x01), ins.Module.IndexSpace.Memories[0].Value[0])
+		if err != nil {
+			t.Fail()
+		}
+		if byte(0x01) != ins.Module.IndexSpace.Memories[0].Value[0] {
+			t.Fail()
+		}
 	})
 }
 
@@ -276,7 +307,9 @@ func TestModule_applyGlobalImport(t *testing.T) {
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
 		} {
-			assert.Error(t, (&Instance{Module: &Module{}}).applyGlobalImport(c.exportedModule, c.exportedSegment))
+			if (&Instance{Module: &Module{}}).applyGlobalImport(c.exportedModule, c.exportedSegment) == nil {
+				t.Fail()
+			}
 		}
 	})
 
@@ -291,8 +324,12 @@ func TestModule_applyGlobalImport(t *testing.T) {
 
 		ins := &Instance{Module: m}
 		err := ins.applyGlobalImport(em, es)
-		require.NoError(t, err)
-		assert.Equal(t, 1, ins.IndexSpace.Globals[0].Val)
+		if err != nil {
+			t.Fail()
+		}
+		if ins.IndexSpace.Globals[0].Val != 1 {
+			t.Fail()
+		}
 	})
 }
 
@@ -310,8 +347,13 @@ func TestModule_buildGlobalIndexSpace(t *testing.T) {
 		IndexSpace: new(IndexSpace),
 	}
 	ins := &Instance{Module: m}
-	require.NoError(t, ins.buildGlobalIndexSpace())
-	assert.Equal(t, &Global{GlobalType: nil, Val: int64(1)}, m.IndexSpace.Globals[0])
+	err := ins.buildGlobalIndexSpace()
+	if err != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(&Global{GlobalType: nil, Val: int64(1)}, m.IndexSpace.Globals[0]) {
+		t.Fail()
+	}
 }
 
 func TestModule_buildFunctionIndexSpace(t *testing.T) {
@@ -326,7 +368,9 @@ func TestModule_buildFunctionIndexSpace(t *testing.T) {
 				TypeSection:     []*types.FuncType{{}},
 				IndexSpace:      new(IndexSpace)},
 		} {
-			assert.Error(t, (&Instance{Module: m}).buildFunctionIndexSpace())
+			if (&Instance{Module: m}).buildFunctionIndexSpace() == nil {
+				t.Fail()
+			}
 		}
 	})
 
@@ -338,10 +382,16 @@ func TestModule_buildFunctionIndexSpace(t *testing.T) {
 			IndexSpace:      new(IndexSpace),
 		}
 		ins := &Instance{Module: m}
-		assert.NoError(t, ins.buildFunctionIndexSpace())
+		if ins.buildFunctionIndexSpace() != nil {
+			t.Fail()
+		}
 		f := m.IndexSpace.Functions[0].(*wasmFunc)
-		assert.Equal(t, types.ValueTypeF32, f.signature.ReturnTypes[0])
-		assert.Equal(t, byte(0x01), f.body[0])
+		if f.signature.ReturnTypes[0] != types.ValueTypeF32 {
+			t.Fail()
+		}
+		if f.body[0] != 0x01 {
+			t.Fail()
+		}
 	})
 }
 
@@ -379,7 +429,9 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 		} {
 			ins := &Instance{Module: m}
 			err := ins.buildMemoryIndexSpace()
-			assert.Error(t, err)
+			if err == nil {
+				t.Fail()
+			}
 			t.Log(err)
 		}
 	})
@@ -503,8 +555,13 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 			},
 		} {
 			ins := &Instance{Module: c.m}
-			require.NoError(t, ins.buildMemoryIndexSpace())
-			assert.Equal(t, c.exp, ins.IndexSpace.Memories)
+			err := ins.buildMemoryIndexSpace()
+			if err != nil {
+				t.Fail()
+			}
+			if !reflect.DeepEqual(c.exp, ins.IndexSpace.Memories) {
+				t.Fail()
+			}
 		}
 	})
 }
@@ -547,7 +604,9 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 			},
 		} {
 			err := (&Instance{Module: m}).buildTableIndexSpace()
-			assert.Error(t, err)
+			if err == nil {
+				t.Fail()
+			}
 			t.Log(err)
 		}
 	})
@@ -640,16 +699,27 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 			},
 		} {
 			ins := &Instance{Module: c.m}
-			require.NoError(t, ins.buildTableIndexSpace())
-			require.Len(t, ins.Module.IndexSpace.Tables, len(c.exp))
+			err := ins.buildTableIndexSpace()
+			if err != nil {
+				t.Fail()
+			}
+			if len(ins.Module.IndexSpace.Tables) != len(c.exp) {
+				t.Fail()
+			}
 			for i, actualTable := range ins.Module.IndexSpace.Tables {
 				expTable := c.exp[i]
-				require.Len(t, actualTable.Value, len(expTable.Value))
+				if len(actualTable.Value) != len(expTable.Value) {
+					t.Fail()
+				}
 				for i, exp := range expTable.Value {
 					if exp == nil {
-						assert.Nil(t, actualTable.Value[i])
+						if actualTable.Value[i] != nil {
+							t.Fail()
+						}
 					} else {
-						assert.Equal(t, *exp, *actualTable.Value[i])
+						if *actualTable.Value[i] != *exp {
+							t.Fail()
+						}
 					}
 				}
 			}
@@ -668,16 +738,28 @@ func TestModule_readBlockType(t *testing.T) {
 		{bytes: []byte{0x7c}, exp: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}},
 	} {
 		actual, num, err := (&Instance{Module: &Module{}}).readBlockType(bytes.NewBuffer(c.bytes))
-		require.NoError(t, err)
-		assert.Equal(t, uint64(1), num)
-		assert.Equal(t, c.exp, actual)
+		if err != nil {
+			t.Fail()
+		}
+		if num != 1 {
+			t.Fail()
+		}
+		if !reflect.DeepEqual(c.exp, actual) {
+			t.Fail()
+		}
 	}
 
 	m := &Module{TypeSection: []*types.FuncType{{}, {InputTypes: []types.ValueType{types.ValueTypeI32}}}}
 	actual, num, err := (&Instance{Module: m}).readBlockType(bytes.NewBuffer([]byte{0x01}))
-	require.NoError(t, err)
-	assert.Equal(t, uint64(1), num)
-	assert.Equal(t, &types.FuncType{InputTypes: []types.ValueType{types.ValueTypeI32}}, actual)
+	if err != nil {
+		t.Fail()
+	}
+	if num != 1 {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(&types.FuncType{InputTypes: []types.ValueType{types.ValueTypeI32}}, actual) {
+		t.Fail()
+	}
 }
 
 func TestModule_parseBlocks(t *testing.T) {
@@ -937,8 +1019,12 @@ func TestModule_parseBlocks(t *testing.T) {
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			actual, err := (&Instance{Module: m}).parseBlocks(c.body)
-			require.NoError(t, err)
-			assert.Equal(t, c.exp, actual)
+			if err != nil {
+				t.Fail()
+			}
+			if !reflect.DeepEqual(c.exp, actual) {
+				t.Fail()
+			}
 		})
 	}
 }

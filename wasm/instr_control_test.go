@@ -1,13 +1,14 @@
 package wasm
 
 import (
-	"github.com/c0mm4nd/wasman/utils"
+	"reflect"
 	"testing"
+
+	"github.com/c0mm4nd/wasman/utils"
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_block(t *testing.T) {
@@ -25,13 +26,19 @@ func Test_block(t *testing.T) {
 		},
 		LabelStack: stacks.NewLabelStack(),
 	}
-	assert.NoError(t, block(&Instance{Context: ctx}))
-	assert.Equal(t, &stacks.Label{
+	if block(&Instance{Context: ctx}) != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(&stacks.Label{
 		Arity:          1,
 		ContinuationPC: 100,
 		EndPC:          100,
-	}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr])
-	assert.Equal(t, uint64(4), ctx.PC)
+	}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr]) {
+		t.Fail()
+	}
+	if ctx.PC != 4 {
+		t.Fail()
+	}
 }
 
 func Test_loop(t *testing.T) {
@@ -49,13 +56,19 @@ func Test_loop(t *testing.T) {
 		},
 		LabelStack: stacks.NewLabelStack(),
 	}
-	assert.NoError(t, loop(&Instance{Context: ctx}))
-	assert.Equal(t, &stacks.Label{
+	if loop(&Instance{Context: ctx}) != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(&stacks.Label{
 		Arity:          1,
 		ContinuationPC: 0,
 		EndPC:          100,
-	}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr])
-	assert.Equal(t, uint64(4), ctx.PC)
+	}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr]) {
+		t.Fail()
+	}
+	if ctx.PC != 4 {
+		t.Fail()
+	}
 }
 
 func Test_ifOp(t *testing.T) {
@@ -76,13 +89,19 @@ func Test_ifOp(t *testing.T) {
 		}
 		vm := &Instance{Context: ctx, OperandStack: stacks.NewOperandStack()}
 		vm.OperandStack.Push(1)
-		assert.NoError(t, ifOp(vm))
-		assert.Equal(t, &stacks.Label{
+		if ifOp(vm) != nil {
+			t.Fail()
+		}
+		if !reflect.DeepEqual(&stacks.Label{
 			Arity:          1,
 			ContinuationPC: 100,
 			EndPC:          100,
-		}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr])
-		assert.Equal(t, uint64(4), ctx.PC)
+		}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr]) {
+			t.Fail()
+		}
+		if ctx.PC != 4 {
+			t.Fail()
+		}
 	})
 	t.Run("false", func(t *testing.T) {
 		ctx := &wasmContext{
@@ -102,13 +121,19 @@ func Test_ifOp(t *testing.T) {
 		}
 		vm := &Instance{Context: ctx, OperandStack: stacks.NewOperandStack()}
 		vm.OperandStack.Push(0)
-		assert.NoError(t, ifOp(vm))
-		assert.Equal(t, &stacks.Label{
+		if ifOp(vm) != nil {
+			t.Fail()
+		}
+		if !reflect.DeepEqual(&stacks.Label{
 			Arity:          1,
 			ContinuationPC: 100,
 			EndPC:          100,
-		}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr])
-		assert.Equal(t, uint64(50), ctx.PC)
+		}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr]) {
+			t.Fail()
+		}
+		if ctx.PC != 50 {
+			t.Fail()
+		}
 	})
 }
 
@@ -118,15 +143,23 @@ func Test_elseOp(t *testing.T) {
 	}
 
 	ctx.LabelStack.Push(&stacks.Label{EndPC: 100000})
-	assert.NoError(t, elseOp(&Instance{Context: ctx}))
-	assert.Equal(t, uint64(100000), ctx.PC)
+	if elseOp(&Instance{Context: ctx}) != nil {
+		t.Fail()
+	}
+	if ctx.PC != 100000 {
+		t.Fail()
+	}
 }
 
 func Test_end(t *testing.T) {
 	ctx := &wasmContext{LabelStack: stacks.NewLabelStack()}
 	ctx.LabelStack.Push(&stacks.Label{EndPC: 100000})
-	assert.NoError(t, end(&Instance{Context: ctx}))
-	assert.Equal(t, -1, ctx.LabelStack.Ptr)
+	if end(&Instance{Context: ctx}) != nil {
+		t.Fail()
+	}
+	if ctx.LabelStack.Ptr != -1 {
+		t.Fail()
+	}
 }
 
 func Test_br(t *testing.T) {
@@ -139,8 +172,12 @@ func Test_br(t *testing.T) {
 		OperandStack: stacks.NewOperandStack()}
 	ctx.LabelStack.Push(&stacks.Label{ContinuationPC: 5})
 	ctx.LabelStack.Push(&stacks.Label{})
-	assert.NoError(t, br(vm))
-	assert.Equal(t, uint64(5), ctx.PC)
+	if br(vm) != nil {
+		t.Fail()
+	}
+	if ctx.PC != 5 {
+		t.Fail()
+	}
 }
 
 func Test_brIf(t *testing.T) {
@@ -154,8 +191,12 @@ func Test_brIf(t *testing.T) {
 		vm.OperandStack.Push(1)
 		ctx.LabelStack.Push(&stacks.Label{ContinuationPC: 5})
 		ctx.LabelStack.Push(&stacks.Label{})
-		assert.NoError(t, brIf(vm))
-		assert.Equal(t, uint64(5), ctx.PC)
+		if brIf(vm) != nil {
+			t.Fail()
+		}
+		if ctx.PC != 5 {
+			t.Fail()
+		}
 	})
 
 	t.Run("false", func(t *testing.T) {
@@ -166,8 +207,12 @@ func Test_brIf(t *testing.T) {
 
 		vm := &Instance{Context: ctx, OperandStack: stacks.NewOperandStack()}
 		vm.OperandStack.Push(0)
-		assert.NoError(t, brIf(vm))
-		assert.Equal(t, uint64(1), ctx.PC)
+		if brIf(vm) != nil {
+			t.Fail()
+		}
+		if ctx.PC != 1 {
+			t.Fail()
+		}
 	})
 }
 
@@ -201,8 +246,12 @@ func Test_call(t *testing.T) {
 		Functions: []fn{nil, df},
 	}
 
-	assert.NoError(t, call(ins))
-	assert.Equal(t, 1, df.cnt)
+	if call(ins) != nil {
+		t.Fail()
+	}
+	if df.cnt != 1 {
+		t.Fail()
+	}
 }
 
 func Test_callIndirect(t *testing.T) {
@@ -226,6 +275,10 @@ func Test_callIndirect(t *testing.T) {
 	}
 	ins.OperandStack.Push(1)
 
-	assert.NoError(t, callIndirect(ins))
-	assert.Equal(t, 1, df.cnt)
+	if callIndirect(ins) != nil {
+		t.Fail()
+	}
+	if df.cnt != 1 {
+		t.Fail()
+	}
 }

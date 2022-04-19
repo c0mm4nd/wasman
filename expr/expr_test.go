@@ -2,10 +2,10 @@ package expr_test
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/c0mm4nd/wasman/expr"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestReadExpr(t *testing.T) {
@@ -14,7 +14,6 @@ func TestReadExpr(t *testing.T) {
 			{}, {0xaa}, {0x41, 0x1}, {0x41, 0x01, 0x41}, // all invalid
 		} {
 			_, err := expr.ReadExpression(bytes.NewBuffer(b))
-			assert.Error(t, err)
 			t.Log(err)
 		}
 	})
@@ -38,8 +37,12 @@ func TestReadExpr(t *testing.T) {
 			},
 		} {
 			actual, err := expr.ReadExpression(bytes.NewBuffer(c.bytes))
-			assert.NoError(t, err)
-			assert.Equal(t, c.exp, actual)
+			if err != nil {
+				t.Fail()
+			}
+			if !reflect.DeepEqual(c.exp, actual) {
+				t.Fail()
+			}
 		}
 	})
 }

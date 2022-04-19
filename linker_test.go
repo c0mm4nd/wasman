@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/c0mm4nd/wasman/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TODO: Add uint ptr tests
@@ -24,17 +22,25 @@ func Test_getTypeOf(t *testing.T) {
 		{kind: reflect.Float64, exp: types.ValueTypeF64},
 	} {
 		actual, err := getTypeOf(c.kind)
-		require.NoError(t, err)
-		assert.Equal(t, c.exp, actual)
+		if err != nil {
+			t.Fail()
+		}
+		if !reflect.DeepEqual(c.exp, actual) {
+			t.Fail()
+		}
 	}
 }
 
 func Test_getSignature(t *testing.T) {
 	v := reflect.ValueOf(func(int32, int64, float32, float64) (int32, float64) { return 0, 0 })
 	actual, err := getSignature(v.Type())
-	require.NoError(t, err)
-	require.Equal(t, &types.FuncType{
+	if err != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(&types.FuncType{
 		InputTypes:  []types.ValueType{types.ValueTypeI32, types.ValueTypeI64, types.ValueTypeF32, types.ValueTypeF64},
 		ReturnTypes: []types.ValueType{types.ValueTypeI32, types.ValueTypeF64},
-	}, actual)
+	}, actual) {
+		t.Fail()
+	}
 }

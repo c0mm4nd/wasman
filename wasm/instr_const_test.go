@@ -6,7 +6,6 @@ import (
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_i32Const(t *testing.T) {
@@ -20,9 +19,16 @@ func Test_i32Const(t *testing.T) {
 		Context:      ctx,
 		OperandStack: stacks.NewOperandStack(),
 	}
-	assert.NoError(t, i32Const(vm))
-	assert.Equal(t, uint32(0x05), uint32(vm.OperandStack.Pop()))
-	assert.Equal(t, -1, vm.OperandStack.Ptr)
+	err := i32Const(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if uint32(vm.OperandStack.Pop()) != 0x05 {
+		t.Fail()
+	}
+	if vm.OperandStack.Ptr != -1 {
+		t.Fail()
+	}
 }
 
 func Test_i64Const(t *testing.T) {
@@ -36,9 +42,16 @@ func Test_i64Const(t *testing.T) {
 		Context:      ctx,
 		OperandStack: stacks.NewOperandStack(),
 	}
-	assert.NoError(t, i64Const(vm))
-	assert.Equal(t, uint32(0x05), uint32(vm.OperandStack.Pop()))
-	assert.Equal(t, -1, vm.OperandStack.Ptr)
+	err := i64Const(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if vm.OperandStack.Pop() != 0x05 {
+		t.Fail()
+	}
+	if vm.OperandStack.Ptr != -1 {
+		t.Fail()
+	}
 }
 
 func Test_f32Const(t *testing.T) {
@@ -53,9 +66,16 @@ func Test_f32Const(t *testing.T) {
 		Context:      ctx,
 		OperandStack: stacks.NewOperandStack(),
 	}
-	assert.NoError(t, f32Const(vm))
-	assert.Equal(t, float32(1.0), math.Float32frombits(uint32(vm.OperandStack.Pop())))
-	assert.Equal(t, -1, vm.OperandStack.Ptr)
+	err := f32Const(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if math.Float32frombits(uint32(vm.OperandStack.Pop())) != 1.0 {
+		t.Fail()
+	}
+	if vm.OperandStack.Ptr != -1 {
+		t.Fail()
+	}
 }
 
 func Test_f64Const(t *testing.T) {
@@ -69,7 +89,14 @@ func Test_f64Const(t *testing.T) {
 		Context:      ctx,
 		OperandStack: stacks.NewOperandStack(),
 	}
-	assert.NoError(t, f64Const(vm))
-	assert.Equal(t, 1.0, math.Float64frombits(vm.OperandStack.Pop()))
-	assert.Equal(t, -1, vm.OperandStack.Ptr)
+	err := f64Const(vm)
+	if err != nil {
+		t.Fail()
+	}
+	if math.Float64frombits(vm.OperandStack.Pop()) != 1.0 {
+		t.Fail()
+	}
+	if vm.OperandStack.Ptr != -1 {
+		t.Fail()
+	}
 }

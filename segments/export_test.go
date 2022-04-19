@@ -3,21 +3,23 @@ package segments_test
 import (
 	"bytes"
 	"errors"
+	"reflect"
 	"strconv"
+
+	"testing"
 
 	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestReadExportDesc(t *testing.T) {
 	t.Run("ng", func(t *testing.T) {
 		buf := []byte{0x04}
 		_, err := segments.ReadExportDesc(bytes.NewBuffer(buf))
-		require.True(t, errors.Is(err, types.ErrInvalidTypeByte))
-		t.Log(err)
+		if !errors.Is(err, types.ErrInvalidTypeByte) {
+			t.Log(err)
+			t.Fail()
+		}
 	})
 
 	for i, c := range []struct {
@@ -43,8 +45,12 @@ func TestReadExportDesc(t *testing.T) {
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			actual, err := segments.ReadExportDesc(bytes.NewBuffer(c.bytes))
-			require.NoError(t, err)
-			assert.Equal(t, c.exp, actual)
+			if err != nil {
+				t.Fail()
+			}
+			if !reflect.DeepEqual(c.exp, actual) {
+				t.Fail()
+			}
 		})
 
 	}
@@ -61,6 +67,10 @@ func TestReadExportSegment(t *testing.T) {
 	buf = append(buf, 0x00, 0x0a)
 
 	actual, err := segments.ReadExportSegment(bytes.NewBuffer(buf))
-	require.NoError(t, err)
-	assert.Equal(t, exp, actual)
+	if err != nil {
+		t.Fail()
+	}
+	if !reflect.DeepEqual(exp, actual) {
+		t.Fail()
+	}
 }
