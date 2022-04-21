@@ -12,7 +12,7 @@ import (
 )
 
 func Test_block(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		PC: 1,
 		Func: &wasmFunc{
 			Blocks: map[uint64]*funcBlock{
@@ -42,7 +42,7 @@ func Test_block(t *testing.T) {
 }
 
 func Test_loop(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		PC: 1,
 		Func: &wasmFunc{
 			Blocks: map[uint64]*funcBlock{
@@ -73,7 +73,7 @@ func Test_loop(t *testing.T) {
 
 func Test_ifOp(t *testing.T) {
 	t.Run("true", func(t *testing.T) {
-		ctx := &wasmContext{
+		ctx := &Frame{
 			PC: 1,
 			Func: &wasmFunc{
 				Blocks: map[uint64]*funcBlock{
@@ -104,7 +104,7 @@ func Test_ifOp(t *testing.T) {
 		}
 	})
 	t.Run("false", func(t *testing.T) {
-		ctx := &wasmContext{
+		ctx := &Frame{
 			PC: 1,
 			Func: &wasmFunc{
 				Blocks: map[uint64]*funcBlock{
@@ -138,7 +138,7 @@ func Test_ifOp(t *testing.T) {
 }
 
 func Test_elseOp(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		LabelStack: stacks.NewLabelStack(),
 	}
 
@@ -152,7 +152,7 @@ func Test_elseOp(t *testing.T) {
 }
 
 func Test_end(t *testing.T) {
-	ctx := &wasmContext{LabelStack: stacks.NewLabelStack()}
+	ctx := &Frame{LabelStack: stacks.NewLabelStack()}
 	ctx.LabelStack.Push(&stacks.Label{EndPC: 100000})
 	if end(&Instance{Context: ctx}) != nil {
 		t.Fail()
@@ -163,7 +163,7 @@ func Test_end(t *testing.T) {
 }
 
 func Test_br(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		LabelStack: stacks.NewLabelStack(),
 		Func:       &wasmFunc{body: []byte{0x00, 0x01}},
 	}
@@ -182,7 +182,7 @@ func Test_br(t *testing.T) {
 
 func Test_brIf(t *testing.T) {
 	t.Run("true", func(t *testing.T) {
-		ctx := &wasmContext{
+		ctx := &Frame{
 			LabelStack: stacks.NewLabelStack(),
 			Func:       &wasmFunc{body: []byte{0x00, 0x01}},
 		}
@@ -200,7 +200,7 @@ func Test_brIf(t *testing.T) {
 	})
 
 	t.Run("false", func(t *testing.T) {
-		ctx := &wasmContext{
+		ctx := &Frame{
 			LabelStack: stacks.NewLabelStack(),
 			Func:       &wasmFunc{body: []byte{0x00, 0x01}},
 		}
@@ -238,7 +238,7 @@ func (d *dummyFunc) getType() *types.FuncType { return &types.FuncType{} }
 func Test_call(t *testing.T) {
 	df := &dummyFunc{}
 	ins := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeCall), 0x01},
 			},
@@ -257,7 +257,7 @@ func Test_call(t *testing.T) {
 func Test_callIndirect(t *testing.T) {
 	df := &dummyFunc{}
 	ins := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeCall), 0x01, 0x00},
 			},

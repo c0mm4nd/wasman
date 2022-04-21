@@ -1,21 +1,27 @@
 package stacks
 
+import "errors"
+
 const (
 	// InitialOperandStackHeight is the initial length of the OperandStack
 	InitialOperandStackHeight = 1024
 )
 
+var ErrCallDepthOverflow = errors.New("call depth overflow")
+
 // OperandStack is the stack of the operand. https://www.w3.org/TR/wasm-core-1/#stack
 type OperandStack struct {
-	Operands []uint64
-	Ptr      int // current pointer on stack
+	Operands       []uint64
+	Ptr            int // current pointer on stack
+	CallDepthLimit *int
 }
 
-// NewOperandStack creates a new OperandStack
+// NewOperandStack creates a new OperandStack with no limit
 func NewOperandStack() *OperandStack {
 	return &OperandStack{
-		Operands: make([]uint64, InitialOperandStackHeight),
-		Ptr:      -1,
+		Operands:       make([]uint64, InitialOperandStackHeight),
+		Ptr:            -1,
+		CallDepthLimit: nil,
 	}
 }
 
@@ -38,6 +44,11 @@ func (s *OperandStack) Peek() uint64 {
 
 // Push will push one operand into the stack on the next Ptr
 func (s *OperandStack) Push(val uint64) {
+	// call depth check
+	if s.CallDepthLimit != nil && s.Ptr > int(*s.CallDepthLimit) {
+		panic(ErrCallDepthOverflow)
+	}
+
 	if s.Ptr+1 == len(s.Operands) {
 		// grow stack
 		s.Operands = append(s.Operands, val)

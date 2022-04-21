@@ -9,7 +9,7 @@ import (
 
 func Test_getLocal(t *testing.T) {
 	exp := uint64(100)
-	ctx := &wasmContext{
+	ctx := &Frame{
 		Func: &wasmFunc{
 			body: []byte{byte(expr.OpCodeLocalGet), 0x05},
 		},
@@ -30,7 +30,7 @@ func Test_getLocal(t *testing.T) {
 }
 
 func Test_setLocal(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		Func: &wasmFunc{
 			body: []byte{byte(expr.OpCodeLocalSet), 0x05},
 		},
@@ -55,7 +55,7 @@ func Test_setLocal(t *testing.T) {
 }
 
 func Test_teeLocal(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		Func: &wasmFunc{
 			body: []byte{byte(expr.OpCodeLocalTee), 0x05},
 		},
@@ -80,7 +80,7 @@ func Test_teeLocal(t *testing.T) {
 }
 
 func Test_getGlobal(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		Func: &wasmFunc{
 			body: []byte{byte(expr.OpCodeGlobalGet), 0x05},
 		},
@@ -107,7 +107,7 @@ func Test_getGlobal(t *testing.T) {
 }
 
 func Test_setGlobal(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		Func: &wasmFunc{
 			body: []byte{byte(expr.OpCodeGlobalSet), 0x05},
 		},

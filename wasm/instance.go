@@ -17,7 +17,7 @@ import (
 type Instance struct {
 	*Module
 
-	Context   *wasmContext
+	Context   *Frame
 	Functions []fn
 	Memory    *Memory
 	Globals   []uint64

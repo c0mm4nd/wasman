@@ -9,7 +9,7 @@ import (
 )
 
 func Test_i32Const(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		Func: &wasmFunc{
 			body: []byte{byte(expr.OpCodeI32Const), 0x05},
 		},
@@ -32,7 +32,7 @@ func Test_i32Const(t *testing.T) {
 }
 
 func Test_i64Const(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		Func: &wasmFunc{
 			body: []byte{byte(expr.OpCodeI64Const), 0x05},
 		},
@@ -56,7 +56,7 @@ func Test_i64Const(t *testing.T) {
 
 func Test_f32Const(t *testing.T) {
 
-	ctx := &wasmContext{
+	ctx := &Frame{
 		Func: &wasmFunc{
 			body: []byte{byte(expr.OpCodeF32Const), 0x00, 0x00, 0x80, 0x3f},
 		},
@@ -79,7 +79,7 @@ func Test_f32Const(t *testing.T) {
 }
 
 func Test_f64Const(t *testing.T) {
-	ctx := &wasmContext{
+	ctx := &Frame{
 		Func: &wasmFunc{
 			body: []byte{byte(expr.OpCodeF64Const), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f},
 		},

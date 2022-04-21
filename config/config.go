@@ -20,6 +20,7 @@ var (
 type ModuleConfig struct {
 	DisableFloatPoint bool
 	TollStation       tollstation.TollStation
+	CallDepthLimit    *uint64
 }
 
 // LinkerConfig is the config applied to the wasman.Linker

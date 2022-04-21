@@ -15,7 +15,7 @@ import (
 
 func Test_i32Load(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -37,7 +37,7 @@ func Test_i32Load(t *testing.T) {
 
 func Test_i64Load(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI64Load), 0x00, 0x01},
 			},
@@ -59,7 +59,7 @@ func Test_i64Load(t *testing.T) {
 
 func Test_f32Load(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeF32Load), 0x00, 0x01},
 			},
@@ -82,7 +82,7 @@ func Test_f32Load(t *testing.T) {
 
 func Test_f64Load(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeF64Load), 0x00, 0x01},
 			},
@@ -104,7 +104,7 @@ func Test_f64Load(t *testing.T) {
 
 func Test_i32Load8s(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -126,7 +126,7 @@ func Test_i32Load8s(t *testing.T) {
 
 func Test_i32Load8u(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -148,7 +148,7 @@ func Test_i32Load8u(t *testing.T) {
 
 func Test_i32Load16s(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -170,7 +170,7 @@ func Test_i32Load16s(t *testing.T) {
 
 func Test_i32Load16u(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -192,7 +192,7 @@ func Test_i32Load16u(t *testing.T) {
 
 func Test_i64Load8s(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -214,7 +214,7 @@ func Test_i64Load8s(t *testing.T) {
 
 func Test_i64Load8u(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -236,7 +236,7 @@ func Test_i64Load8u(t *testing.T) {
 
 func Test_i64Load16s(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -258,7 +258,7 @@ func Test_i64Load16s(t *testing.T) {
 
 func Test_i64Load16u(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -280,7 +280,7 @@ func Test_i64Load16u(t *testing.T) {
 
 func Test_i64Load32s(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -302,7 +302,7 @@ func Test_i64Load32s(t *testing.T) {
 
 func Test_i64Load32u(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Load), 0x00, 0x01},
 			},
@@ -324,7 +324,7 @@ func Test_i64Load32u(t *testing.T) {
 
 func Test_i32Store(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Store), 0x00, 0x01},
 			},
@@ -347,7 +347,7 @@ func Test_i32Store(t *testing.T) {
 
 func Test_i64Store(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Store), 0x00, 0x01},
 			},
@@ -375,7 +375,7 @@ func Test_i64Store(t *testing.T) {
 
 func Test_f32Store(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Store), 0x00, 0x01},
 			},
@@ -398,7 +398,7 @@ func Test_f32Store(t *testing.T) {
 
 func Test_f64Store(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Store), 0x00, 0x01},
 			},
@@ -421,7 +421,7 @@ func Test_f64Store(t *testing.T) {
 
 func Test_i32store8(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Store), 0x00, 0x01},
 			},
@@ -444,7 +444,7 @@ func Test_i32store8(t *testing.T) {
 
 func Test_i32store16(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Store), 0x00, 0x01},
 			},
@@ -467,7 +467,7 @@ func Test_i32store16(t *testing.T) {
 
 func Test_i64store8(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Store), 0x00, 0x01},
 			},
@@ -490,7 +490,7 @@ func Test_i64store8(t *testing.T) {
 
 func Test_i64store16(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Store), 0x00, 0x01},
 			},
@@ -513,7 +513,7 @@ func Test_i64store16(t *testing.T) {
 
 func Test_i64store32(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeI32Store), 0x00, 0x01},
 			},
@@ -536,7 +536,7 @@ func Test_i64store32(t *testing.T) {
 
 func Test_memorySize(t *testing.T) {
 	vm := &Instance{
-		Context: &wasmContext{},
+		Context: &Frame{},
 		Memory: &Memory{
 			Value: make([]byte, config.DefaultPageSize*2),
 		},
@@ -554,7 +554,7 @@ func Test_memorySize(t *testing.T) {
 func Test_memoryGrow(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		vm := &Instance{
-			Context: &wasmContext{},
+			Context: &Frame{},
 			Memory: &Memory{
 				Value: make([]byte, config.DefaultPageSize*2),
 			},
@@ -578,7 +578,7 @@ func Test_memoryGrow(t *testing.T) {
 
 	t.Run("oom", func(t *testing.T) {
 		vm := &Instance{
-			Context: &wasmContext{},
+			Context: &Frame{},
 			Memory: &Memory{
 				Value: make([]byte, config.DefaultPageSize*2),
 			},

@@ -33,7 +33,7 @@ func (f *wasmFunc) call(ins *Instance) error {
 	}
 
 	prev := ins.Context
-	ins.Context = &wasmContext{
+	ins.Context = &Frame{
 		Func:       f,
 		Locals:     locals,
 		LabelStack: stacks.NewLabelStack(),

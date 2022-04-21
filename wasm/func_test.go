@@ -61,7 +61,7 @@ func TestNativeFunction_Call(t *testing.T) {
 	vm := &Instance{
 		Module:       new(Module),
 		OperandStack: stacks.NewOperandStack(),
-		Context: &wasmContext{
+		Context: &Frame{
 			PC: 1000,
 		},
 	}
@@ -88,7 +88,7 @@ func TestVirtualMachine_execNativeFunction(t *testing.T) {
 	vm := &Instance{
 		Module:       new(Module),
 		OperandStack: stacks.NewOperandStack(),
-		Context: &wasmContext{
+		Context: &Frame{
 			Func: n,
 		},
 	}

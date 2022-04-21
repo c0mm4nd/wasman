@@ -54,3 +54,13 @@ main.main()
 ### Go Embedding
 
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/c0mm4nd/wasman)](https://pkg.go.dev/github.com/c0mm4nd/wasman)
+
+#### Example
+
+*Look for examples?*
+
+They are in [examples folder](./examples)
+
+## TODOs
+
+- add more complex examples

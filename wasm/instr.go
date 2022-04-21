@@ -5,8 +5,8 @@ import (
 	"github.com/c0mm4nd/wasman/stacks"
 )
 
-// wasmContext is the context data of one instance
-type wasmContext struct {
+// Frame is the context data of one instance
+type Frame struct {
 	PC         uint64
 	Func       *wasmFunc
 	Locals     []uint64
