@@ -68,8 +68,9 @@ func ifOp(ins *Instance) error {
 		return ErrBlockNotInitialized
 	}
 	ctx.PC += block.BlockTypeBytes
-
-	if ins.OperandStack.Pop() == 0 {
+	
+	elseExists := block.ElseAt > block.StartAt
+	if ins.OperandStack.Pop() == 0 && elseExists {
 		// enter else
 		ins.Active.PC = block.ElseAt
 	}
