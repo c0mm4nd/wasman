@@ -11,13 +11,30 @@ type Memory struct {
 	Value []byte
 }
 
-func (mem *Memory) Grow(delta int) uint32 {
-	if mem.Max != nil && uint32(delta)+uint32(len(mem.Value))/config.DefaultPageSize > *(mem.Max) {
-		return 0 // failed to grow
+// memoryBytesNumToPages converts the given number of bytes into the number of pages.
+func memoryBytesNumToPages(bytesNum uint64) (pages uint32) {
+	return uint32(bytesNum >> config.DefaultMemoryPageSizeInBits)
+}
+
+// MemoryPagesToBytesNum converts the given pages into the number of bytes contained in these pages.
+func MemoryPagesToBytesNum(pages uint32) (bytesNum uint64) {
+	return uint64(pages) << config.DefaultMemoryPageSizeInBits
+}
+
+// PageSize returns the current memory buffer size in pages.
+func (m *Memory) PageSize() uint32 {
+	return memoryBytesNumToPages(uint64(len(m.Value)))
+}
+
+func (mem *Memory) Grow(newPages uint32) (result uint32) {
+	currentPages := memoryBytesNumToPages(uint64(len(mem.Value)))
+
+	if mem.Max != nil &&
+		newPages+currentPages > *(mem.Max) {
+		return 0xffffffff // failed to grow
 	}
 
-	ptr := uint32(len(mem.Value)) / config.DefaultPageSize
-	mem.Value = append(mem.Value, make([]byte, delta*config.DefaultPageSize)...)
+	mem.Value = append(mem.Value, make([]byte, MemoryPagesToBytesNum(newPages))...)
 
-	return ptr
+	return currentPages
 }

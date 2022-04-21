@@ -538,7 +538,7 @@ func Test_memorySize(t *testing.T) {
 	vm := &Instance{
 		Active: &Frame{},
 		Memory: &Memory{
-			Value: make([]byte, config.DefaultPageSize*2),
+			Value: make([]byte, config.DefaultMemoryPageSize*2),
 		},
 		OperandStack: stacks.NewOperandStack(),
 	}
@@ -556,7 +556,7 @@ func Test_memoryGrow(t *testing.T) {
 		vm := &Instance{
 			Active: &Frame{},
 			Memory: &Memory{
-				Value: make([]byte, config.DefaultPageSize*2),
+				Value: make([]byte, config.DefaultMemoryPageSize*2),
 			},
 			OperandStack: stacks.NewOperandStack(),
 			Module: &Module{
@@ -571,7 +571,7 @@ func Test_memoryGrow(t *testing.T) {
 		if vm.OperandStack.Pop() != uint64(0x2) {
 			t.Fail()
 		}
-		if len(vm.Memory.Value)/config.DefaultPageSize != 7 {
+		if len(vm.Memory.Value)/config.DefaultMemoryPageSize != 7 {
 			t.Fail()
 		}
 	})
@@ -580,7 +580,7 @@ func Test_memoryGrow(t *testing.T) {
 		vm := &Instance{
 			Active: &Frame{},
 			Memory: &Memory{
-				Value: make([]byte, config.DefaultPageSize*2),
+				Value: make([]byte, config.DefaultMemoryPageSize*2),
 			},
 			OperandStack: stacks.NewOperandStack(),
 			Module: &Module{
@@ -590,7 +590,8 @@ func Test_memoryGrow(t *testing.T) {
 
 		exp := int32(-1)
 		vm.OperandStack.Push(5)
-		if memoryGrow(vm) != nil {
+		err := memoryGrow(vm)
+		if err != nil {
 			t.Fail()
 		}
 		if vm.OperandStack.Pop() != uint64(exp) {

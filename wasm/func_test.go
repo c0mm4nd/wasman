@@ -64,6 +64,10 @@ func TestNativeFunction_Call(t *testing.T) {
 		Active: &Frame{
 			PC: 1000,
 		},
+		FrameStack: &stacks.Stack[*Frame]{
+			Ptr:    -1,
+			Values: make([]*Frame, stacks.InitialLabelStackHeight),
+		},
 	}
 	if n.call(vm) != nil {
 		t.Fail()

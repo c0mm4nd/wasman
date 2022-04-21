@@ -60,7 +60,7 @@ func main() {
 
 			// bytes way
 			msg := ins.Memory.Value[ptr : ptr+l]
-			fmt.Println(string(msg))
+			fmt.Printf("%x\n", msg)
 		}
 	})
 	if err != nil {

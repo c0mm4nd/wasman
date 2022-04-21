@@ -245,7 +245,7 @@ func i64Store32(ins *Instance) error {
 
 func memorySize(ins *Instance) error {
 	ins.Active.PC++
-	ins.OperandStack.Push(uint64(int32(len(ins.Memory.Value) / config.DefaultPageSize)))
+	ins.OperandStack.Push(uint64(int32(len(ins.Memory.Value) / config.DefaultMemoryPageSize)))
 
 	return nil
 }
@@ -255,15 +255,15 @@ func memoryGrow(ins *Instance) error {
 	n := uint32(ins.OperandStack.Pop())
 
 	if ins.Module.MemorySection[0].Max != nil &&
-		uint64(n+uint32(len(ins.Memory.Value)/config.DefaultPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
+		uint64(n+uint32(len(ins.Memory.Value)/config.DefaultMemoryPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
 		v := int32(-1)
 		ins.OperandStack.Push(uint64(v))
 
 		return nil
 	}
 
-	ins.OperandStack.Push(uint64(len(ins.Memory.Value)) / config.DefaultPageSize)
-	ins.Memory.Value = append(ins.Memory.Value, make([]byte, n*config.DefaultPageSize)...)
+	ins.OperandStack.Push(uint64(len(ins.Memory.Value)) / config.DefaultMemoryPageSize)
+	ins.Memory.Value = append(ins.Memory.Value, make([]byte, n*config.DefaultMemoryPageSize)...)
 
 	return nil
 }

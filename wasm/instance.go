@@ -44,7 +44,7 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 
 	// initializing memory
 	ins.Memory = ins.Module.IndexSpace.Memories[0]
-	if diff := uint64(ins.Module.MemorySection[0].Min)*config.DefaultPageSize - uint64(len(ins.Memory.Value)); diff > 0 {
+	if diff := uint64(ins.Module.MemorySection[0].Min)*uint64(config.DefaultMemoryPageSize) - uint64(len(ins.Memory.Value)); diff > 0 {
 		ins.Memory.Value = append(ins.Memory.Value, make([]byte, diff)...)
 	}
 

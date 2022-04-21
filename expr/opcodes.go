@@ -1,6 +1,6 @@
 package expr
 
-type OpCode byte
+type OpCode = byte
 
 const (
 	// control instruction

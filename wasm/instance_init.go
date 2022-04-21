@@ -211,7 +211,7 @@ func (ins *Instance) buildMemoryIndexSpace() error {
 		}
 
 		size := int(offset) + len(d.Init)
-		if ins.MemorySection[d.MemoryIndex].Max != nil && uint32(size) > *(ins.MemorySection[d.MemoryIndex].Max)*config.DefaultPageSize {
+		if ins.MemorySection[d.MemoryIndex].Max != nil && uint32(size) > *(ins.MemorySection[d.MemoryIndex].Max)*config.DefaultMemoryPageSize {
 			return fmt.Errorf("memory size out of limit %d * 64Ki", int(*(ins.MemorySection[d.MemoryIndex].Max)))
 		}
 

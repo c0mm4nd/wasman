@@ -168,7 +168,7 @@ func Test_br(t *testing.T) {
 		Func:       &wasmFunc{body: []byte{0x00, 0x01}},
 	}
 	vm := &Instance{
-		Active:      ctx,
+		Active:       ctx,
 		OperandStack: stacks.NewOperandStack()}
 	ctx.LabelStack.Push(&stacks.Label{ContinuationPC: 5})
 	ctx.LabelStack.Push(&stacks.Label{})
