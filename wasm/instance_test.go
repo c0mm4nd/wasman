@@ -737,7 +737,7 @@ func TestModule_readBlockType(t *testing.T) {
 		{bytes: []byte{0x7d}, exp: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF32}}},
 		{bytes: []byte{0x7c}, exp: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}},
 	} {
-		actual, num, err := (&Instance{Module: &Module{}}).readBlockType(bytes.NewBuffer(c.bytes))
+		actual, num, err := (&Instance{Module: &Module{}}).readBlockType(bytes.NewReader(c.bytes))
 		if err != nil {
 			t.Fail()
 		}
@@ -750,7 +750,7 @@ func TestModule_readBlockType(t *testing.T) {
 	}
 
 	m := &Module{TypeSection: []*types.FuncType{{}, {InputTypes: []types.ValueType{types.ValueTypeI32}}}}
-	actual, num, err := (&Instance{Module: m}).readBlockType(bytes.NewBuffer([]byte{0x01}))
+	actual, num, err := (&Instance{Module: m}).readBlockType(bytes.NewReader([]byte{0x01}))
 	if err != nil {
 		t.Fail()
 	}

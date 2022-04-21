@@ -53,7 +53,7 @@ type IndexSpace struct {
 }
 
 // NewModule reads bytes from the io.Reader and read all sections, finally return a wasman.Module entity if no error
-func NewModule(config config.ModuleConfig, r io.Reader) (*Module, error) {
+func NewModule(config config.ModuleConfig, r *bytes.Reader) (*Module, error) {
 	// magic number
 	buf := make([]byte, 4)
 	if n, err := io.ReadFull(r, buf); err != nil || n != 4 || !bytes.Equal(buf, magic) {

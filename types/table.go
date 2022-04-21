@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 )
@@ -13,7 +14,7 @@ type TableType struct {
 }
 
 // ReadTableType will read a types.TableType from the io.Reader
-func ReadTableType(r io.Reader) (*TableType, error) {
+func ReadTableType(r *bytes.Reader) (*TableType, error) {
 	b := make([]byte, 1)
 	if _, err := io.ReadFull(r, b); err != nil {
 		return nil, fmt.Errorf("read leading byte: %w", err)

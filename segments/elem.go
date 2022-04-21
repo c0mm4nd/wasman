@@ -1,8 +1,8 @@
 package segments
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128decode"
@@ -19,7 +19,7 @@ type ElemSegment struct {
 }
 
 // ReadElemSegment reads one ElemSegment from the io.Reader
-func ReadElemSegment(r io.Reader) (*ElemSegment, error) {
+func ReadElemSegment(r *bytes.Reader) (*ElemSegment, error) {
 	ti, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("get table index: %w", err)

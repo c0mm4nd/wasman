@@ -20,7 +20,7 @@ var (
 )
 
 func (ins *Instance) execExpr(expression *expr.Expression) (v interface{}, err error) {
-	r := bytes.NewBuffer(expression.Data)
+	r := bytes.NewReader(expression.Data)
 	switch expression.OpCode {
 	case expr.OpCodeI32Const:
 		v, _, err = leb128decode.DecodeInt32(r)
@@ -58,8 +58,8 @@ func (ins *Instance) execExpr(expression *expr.Expression) (v interface{}, err e
 }
 
 func (ins *Instance) execFunc() error {
-	for ; int(ins.Context.PC) < len(ins.Context.Func.body); ins.Context.PC++ {
-		opByte := ins.Context.Func.body[ins.Context.PC]
+	for ; int(ins.Active.PC) < len(ins.Active.Func.body); ins.Active.PC++ {
+		opByte := ins.Active.Func.body[ins.Active.PC]
 		op := expr.OpCode(opByte)
 		err := instructions[op](ins)
 		if err != nil {

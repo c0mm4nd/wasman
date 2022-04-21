@@ -4,84 +4,95 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
+)
+
+const (
+	maxVarintLen32 = 5
+	maxVarintLen64 = 10
 )
 
 var (
 	// leb128 decoding errors
-	// errOverflow32 = errors.New("overflows a 32-bit integer")
+	errOverflow32 = errors.New("overflows a 32-bit integer")
 	errOverflow33 = errors.New("overflows a 33-bit integer")
 	errOverflow64 = errors.New("overflows a 64-bit integer")
 )
 
 // DecodeUint32 will decode a uint32 from io.Reader, returning it as the ret with the bytes length l which it read.
-func DecodeUint32(r io.Reader) (ret uint32, l uint64, err error) {
-	const (
-		uint32Mask  uint32 = 1 << 7
-		uint32Mask2        = ^uint32Mask
-	)
-
-	for shift := 0; shift < 35; shift += 7 {
-		b, err := readByteAsUint32(r)
+func DecodeUint32(r *bytes.Reader) (ret uint32, bytesRead uint64, err error) {
+	// Derived from https://github.com/golang/go/blob/aafad20b617ee63d58fcd4f6e0d98fe27760678c/src/encoding/binary/varint.go
+	// with the modification on the overflow handling tailored for 32-bits.
+	var s uint32
+	var b byte
+	for i := 0; i < maxVarintLen32; i++ {
+		b, err = r.ReadByte()
 		if err != nil {
-			return 0, 0, fmt.Errorf("readByte failed: %w", err)
+			return 0, 0, err
 		}
-		l++
-		ret |= (b & uint32Mask2) << shift
-		if b&uint32Mask == 0 {
-			break
+		if b < 0x80 {
+			// Unused bits must be all zero.
+			if i == maxVarintLen32-1 && (b&0xf0) > 0 {
+				return 0, 0, errOverflow32
+			}
+			return ret | uint32(b)<<s, uint64(i) + 1, nil
 		}
+		ret |= (uint32(b) & 0x7f) << s
+		s += 7
 	}
-	return
+	return 0, 0, errOverflow32
 }
 
 // DecodeUint64 will decode a uint64 from io.Reader, returning it as the ret with the bytes length l which it read.
-func DecodeUint64(r io.Reader) (ret uint64, l uint64, err error) {
-	const (
-		uint64Mask  uint64 = 1 << 7
-		uint64Mask2        = ^uint64Mask
-	)
-	for shift := 0; shift < 64; shift += 7 {
-		b, err := readByteAsUint64(r)
+func DecodeUint64(r *bytes.Reader) (ret uint64, bytesRead uint64, err error) {
+	// Derived from https://github.com/golang/go/blob/aafad20b617ee63d58fcd4f6e0d98fe27760678c/src/encoding/binary/varint.go
+	var s uint64
+	var b byte
+	for i := 0; i < maxVarintLen64; i++ {
+		b, err = r.ReadByte()
 		if err != nil {
-			return 0, 0, fmt.Errorf("readByte failed: %w", err)
+			return 0, 0, err
 		}
-		l++
-		ret |= (b & uint64Mask2) << shift
-		if b&uint64Mask == 0 {
-			break
+		if b < 0x80 {
+			// Unused bits (non first bit) must all be zero.
+			if i == maxVarintLen64-1 && b > 1 {
+				return 0, 0, errOverflow64
+			}
+			return ret | uint64(b)<<s, uint64(i) + 1, nil
 		}
+		ret |= (uint64(b) & 0x7f) << s
+		s += 7
 	}
-	return
+	return 0, 0, errOverflow64
 }
 
 // DecodeInt32 will decode a int32 from io.Reader, returning it as the ret with the bytes length l which it read.
-func DecodeInt32(r io.Reader) (ret int32, l uint64, err error) {
-	const (
-		int32Mask  int32 = 1 << 7
-		int32Mask2       = ^int32Mask
-		int32Mask3       = 1 << 6
-		int32Mask4       = ^0
-	)
+func DecodeInt32(r *bytes.Reader) (ret int32, bytesRead uint64, err error) {
 	var shift int
-	var b int32
-	for shift < 35 {
-		b, err = readByteAsInt32(r)
+	var b byte
+	for {
+		b, err = r.ReadByte()
 		if err != nil {
 			return 0, 0, fmt.Errorf("readByte failed: %w", err)
 		}
-		l++
-		ret |= (b & int32Mask2) << shift
+		ret |= (int32(b) & 0x7f) << shift
 		shift += 7
-		if b&int32Mask == 0 {
-			break
+		bytesRead++
+		if b&0x80 == 0 {
+			if shift < 32 && (b&0x40) != 0 {
+				ret |= ^0 << shift
+			}
+			// Over flow checks.
+			// fixme: can be optimized.
+			if bytesRead > 5 {
+				return 0, 0, errOverflow32
+			} else if unused := b & 0b00110000; bytesRead == 5 && ret < 0 && unused != 0b00110000 {
+				return 0, 0, errOverflow32
+			} else if bytesRead == 5 && ret >= 0 && unused != 0x00 {
+				return 0, 0, errOverflow32
+			}
+			return
 		}
 	}
-
-	if shift < 32 && (b&int32Mask3) == int32Mask3 {
-		ret |= int32Mask4 << shift
-	}
-	return
 }
 
 // DecodeInt33AsInt64 will decode a int33 from io.Reader, returning it as the int64 ret with the bytes length l which it read.
@@ -166,27 +177,3 @@ func DecodeInt64(r *bytes.Reader) (ret int64, bytesRead uint64, err error) {
 		}
 	}
 }
-
-func readByteAsUint32(r io.Reader) (uint32, error) {
-	b := make([]byte, 1)
-	_, err := io.ReadFull(r, b)
-	return uint32(b[0]), err
-}
-
-func readByteAsInt32(r io.Reader) (int32, error) {
-	b := make([]byte, 1)
-	_, err := io.ReadFull(r, b)
-	return int32(b[0]), err
-}
-
-func readByteAsUint64(r io.Reader) (uint64, error) {
-	b := make([]byte, 1)
-	_, err := io.ReadFull(r, b)
-	return uint64(b[0]), err
-}
-
-// func readByteAsInt64(r io.Reader) (int64, error) {
-// 	b := make([]byte, 1)
-// 	_, err := io.ReadFull(r, b)
-// 	return int64(b[0]), err
-// }

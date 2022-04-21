@@ -16,7 +16,7 @@ func Test_i32Const(t *testing.T) {
 	}
 
 	vm := &Instance{
-		Context:      ctx,
+		Active:      ctx,
 		OperandStack: stacks.NewOperandStack(),
 	}
 	err := i32Const(vm)
@@ -39,7 +39,7 @@ func Test_i64Const(t *testing.T) {
 	}
 
 	vm := &Instance{
-		Context:      ctx,
+		Active:      ctx,
 		OperandStack: stacks.NewOperandStack(),
 	}
 	err := i64Const(vm)
@@ -63,7 +63,7 @@ func Test_f32Const(t *testing.T) {
 	}
 
 	vm := &Instance{
-		Context:      ctx,
+		Active:      ctx,
 		OperandStack: stacks.NewOperandStack(),
 	}
 	err := f32Const(vm)
@@ -86,7 +86,7 @@ func Test_f64Const(t *testing.T) {
 	}
 
 	vm := &Instance{
-		Context:      ctx,
+		Active:      ctx,
 		OperandStack: stacks.NewOperandStack(),
 	}
 	err := f64Const(vm)

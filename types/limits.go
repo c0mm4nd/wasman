@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 
@@ -15,7 +16,7 @@ type Limits struct {
 }
 
 // ReadLimits will read a types.Limits from the io.Reader
-func ReadLimits(r io.Reader) (*Limits, error) {
+func ReadLimits(r *bytes.Reader) (*Limits, error) {
 	b := make([]byte, 1)
 	_, err := io.ReadFull(r, b)
 	if err != nil {

@@ -1,6 +1,7 @@
 package segments
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 
@@ -15,7 +16,7 @@ type ExportDesc struct {
 }
 
 // ReadExportDesc reads one ExportDesc from the io.Reader
-func ReadExportDesc(r io.Reader) (*ExportDesc, error) {
+func ReadExportDesc(r *bytes.Reader) (*ExportDesc, error) {
 	b := make([]byte, 1)
 	if _, err := io.ReadFull(r, b); err != nil {
 		return nil, fmt.Errorf("read value kind: %w", err)
@@ -44,7 +45,7 @@ type ExportSegment struct {
 }
 
 // ReadExportSegment reads one ExportSegment from the io.Reader
-func ReadExportSegment(r io.Reader) (*ExportSegment, error) {
+func ReadExportSegment(r *bytes.Reader) (*ExportSegment, error) {
 	name, err := types.ReadNameValue(r)
 	if err != nil {
 		return nil, fmt.Errorf("read name of export module: %w", err)

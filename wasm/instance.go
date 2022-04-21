@@ -17,12 +17,14 @@ import (
 type Instance struct {
 	*Module
 
-	Context   *Frame
+	Active     *Frame
+	FrameStack *stacks.Stack[*Frame]
+
 	Functions []fn
 	Memory    *Memory
 	Globals   []uint64
 
-	*stacks.OperandStack
+	OperandStack *stacks.Stack[uint64]
 }
 
 // NewInstance will instantiate the module with extern modules
@@ -84,52 +86,52 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 }
 
 func (ins *Instance) fetchInt32() (int32, error) {
-	ret, num, err := leb128decode.DecodeInt32(bytes.NewBuffer(
-		ins.Context.Func.body[ins.Context.PC:]))
+	ret, num, err := leb128decode.DecodeInt32(bytes.NewReader(
+		ins.Active.Func.body[ins.Active.PC:]))
 	if err != nil {
 		return 0, err
 	}
-	ins.Context.PC += num - 1
+	ins.Active.PC += num - 1
 
 	return ret, nil
 }
 
 func (ins *Instance) fetchUint32() (uint32, error) {
-	ret, num, err := leb128decode.DecodeUint32(bytes.NewBuffer(
-		ins.Context.Func.body[ins.Context.PC:]))
+	ret, num, err := leb128decode.DecodeUint32(bytes.NewReader(
+		ins.Active.Func.body[ins.Active.PC:]))
 	if err != nil {
 		return 0, err
 	}
 
-	ins.Context.PC += num - 1
+	ins.Active.PC += num - 1
 
 	return ret, nil
 }
 
 func (ins *Instance) fetchInt64() (int64, error) {
-	ret, num, err := leb128decode.DecodeInt64(bytes.NewBuffer(
-		ins.Context.Func.body[ins.Context.PC:]))
+	ret, num, err := leb128decode.DecodeInt64(bytes.NewReader(
+		ins.Active.Func.body[ins.Active.PC:]))
 	if err != nil {
 		return 0, err
 	}
 
-	ins.Context.PC += num - 1
+	ins.Active.PC += num - 1
 
 	return ret, nil
 }
 
 func (ins *Instance) fetchFloat32() (float32, error) {
 	v := math.Float32frombits(binary.LittleEndian.Uint32(
-		ins.Context.Func.body[ins.Context.PC:]))
-	ins.Context.PC += 3
+		ins.Active.Func.body[ins.Active.PC:]))
+	ins.Active.PC += 3
 
 	return v, nil
 }
 
 func (ins *Instance) fetchFloat64() (float64, error) {
 	v := math.Float64frombits(binary.LittleEndian.Uint64(
-		ins.Context.Func.body[ins.Context.PC:]))
-	ins.Context.PC += 7
+		ins.Active.Func.body[ins.Active.PC:]))
+	ins.Active.PC += 7
 
 	return v, nil
 }

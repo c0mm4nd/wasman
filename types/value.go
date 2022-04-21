@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -64,7 +65,7 @@ func ReadValueTypes(r io.Reader, num uint32) ([]ValueType, error) {
 }
 
 // ReadNameValue will read a name string from the io.Reader
-func ReadNameValue(r io.Reader) (string, error) {
+func ReadNameValue(r *bytes.Reader) (string, error) {
 	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return "", fmt.Errorf("read size of name: %w", err)

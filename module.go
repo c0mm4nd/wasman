@@ -1,7 +1,9 @@
 package wasman
 
 import (
+	"bytes"
 	"io"
+	"io/ioutil"
 
 	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/wasm"
@@ -12,5 +14,10 @@ type Module = wasm.Module
 
 // NewModule is a wrapper to the wasm.NewModule
 func NewModule(config config.ModuleConfig, r io.Reader) (*Module, error) {
-	return wasm.NewModule(config, r)
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return wasm.NewModule(config, bytes.NewReader(b))
 }

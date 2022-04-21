@@ -13,7 +13,7 @@ func TestReadExpr(t *testing.T) {
 		for _, b := range [][]byte{
 			{}, {0xaa}, {0x41, 0x1}, {0x41, 0x01, 0x41}, // all invalid
 		} {
-			_, err := expr.ReadExpression(bytes.NewBuffer(b))
+			_, err := expr.ReadExpression(bytes.NewReader(b))
 			t.Log(err)
 		}
 	})
@@ -36,7 +36,7 @@ func TestReadExpr(t *testing.T) {
 				exp:   &expr.Expression{OpCode: expr.OpCodeGlobalGet, Data: []byte{0x01}},
 			},
 		} {
-			actual, err := expr.ReadExpression(bytes.NewBuffer(c.bytes))
+			actual, err := expr.ReadExpression(bytes.NewReader(c.bytes))
 			if err != nil {
 				t.Fail()
 			}

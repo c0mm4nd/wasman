@@ -1,8 +1,8 @@
 package segments
 
 import (
+	"bytes"
 	"fmt"
-	"io"
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/types"
@@ -15,7 +15,7 @@ type GlobalSegment struct {
 }
 
 // ReadGlobalSegment reads one GlobalSegment from the io.Reader
-func ReadGlobalSegment(r io.Reader) (*GlobalSegment, error) {
+func ReadGlobalSegment(r *bytes.Reader) (*GlobalSegment, error) {
 	gt, err := types.ReadGlobalType(r)
 	if err != nil {
 		return nil, fmt.Errorf("read global type: %w", err)

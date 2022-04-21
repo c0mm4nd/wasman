@@ -9,7 +9,7 @@ import (
 
 func TestVirtualMachineOperandStack(t *testing.T) {
 	s := stacks.NewOperandStack()
-	if stacks.InitialOperandStackHeight != len(s.Operands) {
+	if stacks.InitialOperandStackHeight != len(s.Values) {
 		t.Fail()
 	}
 
@@ -23,33 +23,33 @@ func TestVirtualMachineOperandStack(t *testing.T) {
 	for i := 0; i < stacks.InitialOperandStackHeight+1; i++ {
 		s.Push(uint64(i))
 	}
-	if len(s.Operands) <= stacks.InitialOperandStackHeight {
+	if len(s.Values) <= stacks.InitialOperandStackHeight {
 		t.Fail()
 	}
 
 	// verify the length is not shortened
-	for i := 0; i < len(s.Operands); i++ {
+	for i := 0; i < len(s.Values); i++ {
 		_ = s.Pop()
 	}
 
-	if len(s.Operands) <= stacks.InitialOperandStackHeight {
+	if len(s.Values) <= stacks.InitialOperandStackHeight {
 		t.Fail()
 	}
 
 	// for coverage OperandStack.Drop()
 	// verify the length is not shortened
-	for i := 0; i < len(s.Operands); i++ {
+	for i := 0; i < len(s.Values); i++ {
 		s.Drop()
 	}
 
-	if len(s.Operands) <= stacks.InitialOperandStackHeight {
+	if len(s.Values) <= stacks.InitialOperandStackHeight {
 		t.Fail()
 	}
 }
 
 func TestVirtualMachineLabelStack(t *testing.T) {
 	s := stacks.NewLabelStack()
-	if stacks.InitialLabelStackHeight != len(s.Labels) {
+	if stacks.InitialLabelStackHeight != len(s.Values) {
 		t.Fail()
 	}
 
@@ -63,16 +63,16 @@ func TestVirtualMachineLabelStack(t *testing.T) {
 	for i := 0; i < stacks.InitialLabelStackHeight+1; i++ {
 		s.Push(&stacks.Label{})
 	}
-	if len(s.Labels) <= stacks.InitialLabelStackHeight {
+	if len(s.Values) <= stacks.InitialLabelStackHeight {
 		t.Fail()
 	}
 
 	// verify the length is not shortened
-	for i := 0; i < len(s.Labels); i++ {
+	for i := 0; i < len(s.Values); i++ {
 		_ = s.Pop()
 	}
 
-	if len(s.Labels) <= stacks.InitialLabelStackHeight {
+	if len(s.Values) <= stacks.InitialLabelStackHeight {
 		t.Fail()
 	}
 }

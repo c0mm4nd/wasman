@@ -10,7 +10,11 @@ import (
 var ErrUndefined = errors.New("undefined")
 
 func i32eqz(ins *Instance) error {
-	ins.OperandStack.PushBool(ins.OperandStack.Pop() == 0)
+	if ins.OperandStack.Pop() == 0 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -18,7 +22,11 @@ func i32eqz(ins *Instance) error {
 func i32eq(ins *Instance) error {
 	v1 := ins.OperandStack.Pop()
 	v2 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(v1 == v2)
+	if v1 == v2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -26,7 +34,11 @@ func i32eq(ins *Instance) error {
 func i32ne(ins *Instance) error {
 	v1 := ins.OperandStack.Pop()
 	v2 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(v1 != v2)
+	if v1 != v2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -34,7 +46,11 @@ func i32ne(ins *Instance) error {
 func i32lts(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(int32(v1) < int32(v2))
+	if int32(v1) < int32(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -42,7 +58,12 @@ func i32lts(ins *Instance) error {
 func i32ltu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(uint32(v1) < uint32(v2))
+	if uint32(v1) < uint32(v2) {
+
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -50,7 +71,11 @@ func i32ltu(ins *Instance) error {
 func i32gts(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(int32(v1) > int32(v2))
+	if int32(v1) > int32(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -58,7 +83,11 @@ func i32gts(ins *Instance) error {
 func i32gtu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(uint32(v1) > uint32(v2))
+	if uint32(v1) > uint32(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -66,7 +95,11 @@ func i32gtu(ins *Instance) error {
 func i32les(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(int32(v1) <= int32(v2))
+	if int32(v1) <= int32(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -74,7 +107,11 @@ func i32les(ins *Instance) error {
 func i32leu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(uint32(v1) <= uint32(v2))
+	if uint32(v1) <= uint32(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -82,7 +119,11 @@ func i32leu(ins *Instance) error {
 func i32ges(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(int32(v1) >= int32(v2))
+	if int32(v1) >= int32(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -90,13 +131,21 @@ func i32ges(ins *Instance) error {
 func i32geu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(uint32(v1) >= uint32(v2))
+	if uint32(v1) >= uint32(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
 
 func i64eqz(ins *Instance) error {
-	ins.OperandStack.PushBool(ins.OperandStack.Pop() == 0)
+	if ins.OperandStack.Pop() == 0 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -104,7 +153,11 @@ func i64eqz(ins *Instance) error {
 func i64eq(ins *Instance) error {
 	v1 := ins.OperandStack.Pop()
 	v2 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(v1 == v2)
+	if v1 == v2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -112,7 +165,11 @@ func i64eq(ins *Instance) error {
 func i64ne(ins *Instance) error {
 	v1 := ins.OperandStack.Pop()
 	v2 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(v1 != v2)
+	if v1 != v2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -120,7 +177,11 @@ func i64ne(ins *Instance) error {
 func i64lts(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(int64(v1) < int64(v2))
+	if int64(v1) < int64(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -128,7 +189,11 @@ func i64lts(ins *Instance) error {
 func i64ltu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(v1 < v2)
+	if v1 < v2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -136,7 +201,11 @@ func i64ltu(ins *Instance) error {
 func i64gts(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(int64(v1) > int64(v2))
+	if int64(v1) > int64(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -144,7 +213,11 @@ func i64gts(ins *Instance) error {
 func i64gtu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(v1 < v2)
+	if v1 < v2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -152,7 +225,11 @@ func i64gtu(ins *Instance) error {
 func i64les(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(int64(v1) <= int64(v2))
+	if int64(v1) <= int64(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -160,7 +237,11 @@ func i64les(ins *Instance) error {
 func i64leu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(v1 <= v2)
+	if v1 <= v2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -168,7 +249,11 @@ func i64leu(ins *Instance) error {
 func i64ges(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(int64(v1) >= int64(v2))
+	if int64(v1) >= int64(v2) {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -176,15 +261,22 @@ func i64ges(ins *Instance) error {
 func i64geu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	ins.OperandStack.PushBool(v1 >= v2)
-
+	if v1 >= v2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 	return nil
 }
 
 func f32eq(ins *Instance) error {
 	f2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	f1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.PushBool(f1 == f2)
+	if f1 == f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -192,7 +284,11 @@ func f32eq(ins *Instance) error {
 func f32ne(ins *Instance) error {
 	f2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	f1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.PushBool(f1 != f2)
+	if f1 != f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -200,7 +296,11 @@ func f32ne(ins *Instance) error {
 func f32lt(ins *Instance) error {
 	f2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	f1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.PushBool(f1 < f2)
+	if f1 < f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -208,7 +308,11 @@ func f32lt(ins *Instance) error {
 func f32gt(ins *Instance) error {
 	f1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	f2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.PushBool(f1 > f2)
+	if f1 > f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -216,7 +320,11 @@ func f32gt(ins *Instance) error {
 func f32le(ins *Instance) error {
 	f2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	f1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.PushBool(f1 <= f2)
+	if f1 <= f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -224,7 +332,11 @@ func f32le(ins *Instance) error {
 func f32ge(ins *Instance) error {
 	f2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	f1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.PushBool(f1 >= f2)
+	if f1 >= f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -232,7 +344,11 @@ func f32ge(ins *Instance) error {
 func f64eq(ins *Instance) error {
 	f2 := math.Float64frombits(ins.OperandStack.Pop())
 	f1 := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.PushBool(f1 == f2)
+	if f1 == f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -240,7 +356,11 @@ func f64eq(ins *Instance) error {
 func f64ne(ins *Instance) error {
 	f2 := math.Float64frombits(ins.OperandStack.Pop())
 	f1 := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.PushBool(f1 != f2)
+	if f1 != f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -248,7 +368,11 @@ func f64ne(ins *Instance) error {
 func f64lt(ins *Instance) error {
 	f2 := math.Float64frombits(ins.OperandStack.Pop())
 	f1 := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.PushBool(f1 < f2)
+	if f1 < f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -256,7 +380,11 @@ func f64lt(ins *Instance) error {
 func f64gt(ins *Instance) error {
 	f2 := math.Float64frombits(ins.OperandStack.Pop())
 	f1 := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.PushBool(f1 > f2)
+	if f1 > f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -264,7 +392,11 @@ func f64gt(ins *Instance) error {
 func f64le(ins *Instance) error {
 	f2 := math.Float64frombits(ins.OperandStack.Pop())
 	f1 := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.PushBool(f1 <= f2)
+	if f1 <= f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }
@@ -272,7 +404,11 @@ func f64le(ins *Instance) error {
 func f64ge(ins *Instance) error {
 	f2 := math.Float64frombits(ins.OperandStack.Pop())
 	f1 := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.PushBool(f1 >= f2)
+	if f1 >= f2 {
+		ins.OperandStack.Push(1)
+	} else {
+		ins.OperandStack.Push(0)
+	}
 
 	return nil
 }

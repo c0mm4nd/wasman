@@ -32,8 +32,8 @@ func (f *wasmFunc) call(ins *Instance) error {
 		locals[al-1-i] = ins.OperandStack.Pop()
 	}
 
-	prev := ins.Context
-	ins.Context = &Frame{
+	prev := ins.Active
+	ins.Active = &Frame{
 		Func:       f,
 		Locals:     locals,
 		LabelStack: stacks.NewLabelStack(),
@@ -44,7 +44,7 @@ func (f *wasmFunc) call(ins *Instance) error {
 		return err
 	}
 
-	ins.Context = prev
+	ins.Active = prev
 
 	return nil
 }

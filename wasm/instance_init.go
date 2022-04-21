@@ -3,7 +3,6 @@ package wasm
 import (
 	"bytes"
 	"fmt"
-	"io"
 
 	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/expr"
@@ -275,7 +274,7 @@ func (ins *Instance) buildTableIndexSpace() error {
 
 type blockType = types.FuncType
 
-func (ins *Instance) readBlockType(r io.Reader) (*blockType, uint64, error) {
+func (ins *Instance) readBlockType(r *bytes.Reader) (*blockType, uint64, error) {
 	raw, l, err := leb128decode.DecodeInt33AsInt64(r)
 	if err != nil {
 		return nil, 0, fmt.Errorf("decode int33: %w", err)
@@ -310,13 +309,13 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 		if 0x28 <= rawOc && rawOc <= 0x3e { // memory load,store
 			pc++
 			// align
-			_, l, err := leb128decode.DecodeUint32(bytes.NewBuffer(body[pc:]))
+			_, l, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read memory align: %w", err)
 			}
 			pc += l
 			// offset
-			_, l, err = leb128decode.DecodeUint32(bytes.NewBuffer(body[pc:]))
+			_, l, err = leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read memory offset: %w", err)
 			}
@@ -326,13 +325,13 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 			pc++
 			switch expr.OpCode(rawOc) {
 			case expr.OpCodeI32Const:
-				_, l, err := leb128decode.DecodeInt32(bytes.NewBuffer(body[pc:]))
+				_, l, err := leb128decode.DecodeInt32(bytes.NewReader(body[pc:]))
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
 				pc += l - 1
 			case expr.OpCodeI64Const:
-				_, l, err := leb128decode.DecodeInt64(bytes.NewBuffer(body[pc:]))
+				_, l, err := leb128decode.DecodeInt64(bytes.NewReader(body[pc:]))
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
@@ -348,7 +347,7 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 			(0x0c <= rawOc && rawOc <= 0x0d) || // br,br_if instructions
 			(0x10 <= rawOc && rawOc <= 0x11) { // call,call_indirect
 			pc++
-			_, l, err := leb128decode.DecodeUint32(bytes.NewBuffer(body[pc:]))
+			_, l, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read immediate: %w", err)
 			}
@@ -359,7 +358,7 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 			continue
 		} else if rawOc == 0x0e { // br_table
 			pc++
-			r := bytes.NewBuffer(body[pc:])
+			r := bytes.NewReader(body[pc:])
 			nl, num, err := leb128decode.DecodeUint32(r)
 			if err != nil {
 				return nil, fmt.Errorf("read immediate: %w", err)
@@ -383,7 +382,7 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 
 		switch expr.OpCode(rawOc) {
 		case expr.OpCodeBlock, expr.OpCodeIf, expr.OpCodeLoop:
-			bt, l, err := ins.readBlockType(bytes.NewBuffer(body[pc+1:]))
+			bt, l, err := ins.readBlockType(bytes.NewReader(body[pc+1:]))
 			if err != nil {
 				return nil, fmt.Errorf("read block: %w", err)
 			}

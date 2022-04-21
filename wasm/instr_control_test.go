@@ -26,14 +26,14 @@ func Test_block(t *testing.T) {
 		},
 		LabelStack: stacks.NewLabelStack(),
 	}
-	if block(&Instance{Context: ctx}) != nil {
+	if block(&Instance{Active: ctx}) != nil {
 		t.Fail()
 	}
 	if !reflect.DeepEqual(&stacks.Label{
 		Arity:          1,
 		ContinuationPC: 100,
 		EndPC:          100,
-	}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr]) {
+	}, ctx.LabelStack.Values[ctx.LabelStack.Ptr]) {
 		t.Fail()
 	}
 	if ctx.PC != 4 {
@@ -56,14 +56,14 @@ func Test_loop(t *testing.T) {
 		},
 		LabelStack: stacks.NewLabelStack(),
 	}
-	if loop(&Instance{Context: ctx}) != nil {
+	if loop(&Instance{Active: ctx}) != nil {
 		t.Fail()
 	}
 	if !reflect.DeepEqual(&stacks.Label{
 		Arity:          1,
 		ContinuationPC: 0,
 		EndPC:          100,
-	}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr]) {
+	}, ctx.LabelStack.Values[ctx.LabelStack.Ptr]) {
 		t.Fail()
 	}
 	if ctx.PC != 4 {
@@ -87,7 +87,7 @@ func Test_ifOp(t *testing.T) {
 			},
 			LabelStack: stacks.NewLabelStack(),
 		}
-		vm := &Instance{Context: ctx, OperandStack: stacks.NewOperandStack()}
+		vm := &Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}
 		vm.OperandStack.Push(1)
 		if ifOp(vm) != nil {
 			t.Fail()
@@ -96,7 +96,7 @@ func Test_ifOp(t *testing.T) {
 			Arity:          1,
 			ContinuationPC: 100,
 			EndPC:          100,
-		}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr]) {
+		}, ctx.LabelStack.Values[ctx.LabelStack.Ptr]) {
 			t.Fail()
 		}
 		if ctx.PC != 4 {
@@ -119,7 +119,7 @@ func Test_ifOp(t *testing.T) {
 			},
 			LabelStack: stacks.NewLabelStack(),
 		}
-		vm := &Instance{Context: ctx, OperandStack: stacks.NewOperandStack()}
+		vm := &Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}
 		vm.OperandStack.Push(0)
 		if ifOp(vm) != nil {
 			t.Fail()
@@ -128,7 +128,7 @@ func Test_ifOp(t *testing.T) {
 			Arity:          1,
 			ContinuationPC: 100,
 			EndPC:          100,
-		}, ctx.LabelStack.Labels[ctx.LabelStack.Ptr]) {
+		}, ctx.LabelStack.Values[ctx.LabelStack.Ptr]) {
 			t.Fail()
 		}
 		if ctx.PC != 50 {
@@ -143,7 +143,7 @@ func Test_elseOp(t *testing.T) {
 	}
 
 	ctx.LabelStack.Push(&stacks.Label{EndPC: 100000})
-	if elseOp(&Instance{Context: ctx}) != nil {
+	if elseOp(&Instance{Active: ctx}) != nil {
 		t.Fail()
 	}
 	if ctx.PC != 100000 {
@@ -154,7 +154,7 @@ func Test_elseOp(t *testing.T) {
 func Test_end(t *testing.T) {
 	ctx := &Frame{LabelStack: stacks.NewLabelStack()}
 	ctx.LabelStack.Push(&stacks.Label{EndPC: 100000})
-	if end(&Instance{Context: ctx}) != nil {
+	if end(&Instance{Active: ctx}) != nil {
 		t.Fail()
 	}
 	if ctx.LabelStack.Ptr != -1 {
@@ -168,7 +168,7 @@ func Test_br(t *testing.T) {
 		Func:       &wasmFunc{body: []byte{0x00, 0x01}},
 	}
 	vm := &Instance{
-		Context:      ctx,
+		Active:      ctx,
 		OperandStack: stacks.NewOperandStack()}
 	ctx.LabelStack.Push(&stacks.Label{ContinuationPC: 5})
 	ctx.LabelStack.Push(&stacks.Label{})
@@ -187,7 +187,7 @@ func Test_brIf(t *testing.T) {
 			Func:       &wasmFunc{body: []byte{0x00, 0x01}},
 		}
 
-		vm := &Instance{Context: ctx, OperandStack: stacks.NewOperandStack()}
+		vm := &Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}
 		vm.OperandStack.Push(1)
 		ctx.LabelStack.Push(&stacks.Label{ContinuationPC: 5})
 		ctx.LabelStack.Push(&stacks.Label{})
@@ -205,7 +205,7 @@ func Test_brIf(t *testing.T) {
 			Func:       &wasmFunc{body: []byte{0x00, 0x01}},
 		}
 
-		vm := &Instance{Context: ctx, OperandStack: stacks.NewOperandStack()}
+		vm := &Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}
 		vm.OperandStack.Push(0)
 		if brIf(vm) != nil {
 			t.Fail()
@@ -238,7 +238,7 @@ func (d *dummyFunc) getType() *types.FuncType { return &types.FuncType{} }
 func Test_call(t *testing.T) {
 	df := &dummyFunc{}
 	ins := &Instance{
-		Context: &Frame{
+		Active: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeCall), 0x01},
 			},
@@ -257,7 +257,7 @@ func Test_call(t *testing.T) {
 func Test_callIndirect(t *testing.T) {
 	df := &dummyFunc{}
 	ins := &Instance{
-		Context: &Frame{
+		Active: &Frame{
 			Func: &wasmFunc{
 				body: []byte{byte(expr.OpCodeCall), 0x01, 0x00},
 			},

@@ -61,7 +61,7 @@ func TestNativeFunction_Call(t *testing.T) {
 	vm := &Instance{
 		Module:       new(Module),
 		OperandStack: stacks.NewOperandStack(),
-		Context: &Frame{
+		Active: &Frame{
 			PC: 1000,
 		},
 	}
@@ -71,7 +71,7 @@ func TestNativeFunction_Call(t *testing.T) {
 	if vm.OperandStack.Pop() != 0x05 {
 		t.Fail()
 	}
-	if vm.Context.PC != 1000 {
+	if vm.Active.PC != 1000 {
 		t.Fail()
 	}
 }
@@ -88,7 +88,7 @@ func TestVirtualMachine_execNativeFunction(t *testing.T) {
 	vm := &Instance{
 		Module:       new(Module),
 		OperandStack: stacks.NewOperandStack(),
-		Context: &Frame{
+		Active: &Frame{
 			Func: n,
 		},
 	}
@@ -96,7 +96,7 @@ func TestVirtualMachine_execNativeFunction(t *testing.T) {
 	if vm.execFunc() != nil {
 		t.Fail()
 	}
-	if vm.Context.PC != 4 {
+	if vm.Active.PC != 4 {
 		t.Fail()
 	}
 	if vm.OperandStack.Pop() != 0x01 {

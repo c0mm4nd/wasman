@@ -20,7 +20,7 @@ func TestReadGlobalSegment(t *testing.T) {
 	}
 
 	buf := []byte{0x7e, 0x00, 0x42, 0x01, 0x0b}
-	actual, err := segments.ReadGlobalSegment(bytes.NewBuffer(buf))
+	actual, err := segments.ReadGlobalSegment(bytes.NewReader(buf))
 	if err != nil {
 		t.Fail()
 	}

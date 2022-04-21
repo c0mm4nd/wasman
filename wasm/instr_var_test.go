@@ -16,7 +16,7 @@ func Test_getLocal(t *testing.T) {
 		Locals: []uint64{0, 0, 0, 0, 0, exp},
 	}
 
-	vm := &Instance{Context: ctx, OperandStack: stacks.NewOperandStack()}
+	vm := &Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}
 	err := getLocal(vm)
 	if err != nil {
 		t.Fail()
@@ -41,12 +41,12 @@ func Test_setLocal(t *testing.T) {
 	st := stacks.NewOperandStack()
 	st.Push(exp)
 
-	vm := &Instance{Context: ctx, OperandStack: st}
+	vm := &Instance{Active: ctx, OperandStack: st}
 	err := setLocal(vm)
 	if err != nil {
 		t.Fail()
 	}
-	if vm.Context.Locals[5] != exp {
+	if vm.Active.Locals[5] != exp {
 		t.Fail()
 	}
 	if vm.OperandStack.Ptr != -1 {
@@ -66,12 +66,12 @@ func Test_teeLocal(t *testing.T) {
 	st := stacks.NewOperandStack()
 	st.Push(exp)
 
-	vm := &Instance{Context: ctx, OperandStack: st}
+	vm := &Instance{Active: ctx, OperandStack: st}
 	err := teeLocal(vm)
 	if err != nil {
 		t.Fail()
 	}
-	if vm.Context.Locals[5] != exp {
+	if vm.Active.Locals[5] != exp {
 		t.Fail()
 	}
 	if vm.OperandStack.Pop() != exp {
@@ -90,7 +90,7 @@ func Test_getGlobal(t *testing.T) {
 	globals := []uint64{0, 0, 0, 0, 0, exp}
 
 	vm := &Instance{
-		Context:      ctx,
+		Active:      ctx,
 		OperandStack: stacks.NewOperandStack(),
 		Globals:      globals,
 	}
@@ -117,7 +117,7 @@ func Test_setGlobal(t *testing.T) {
 	st := stacks.NewOperandStack()
 	st.Push(exp)
 
-	vm := &Instance{Context: ctx, OperandStack: st, Globals: []uint64{0, 0, 0, 0, 0, 0}}
+	vm := &Instance{Active: ctx, OperandStack: st, Globals: []uint64{0, 0, 0, 0, 0, 0}}
 	err := setGlobal(vm)
 	if err != nil {
 		t.Fail()

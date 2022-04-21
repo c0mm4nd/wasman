@@ -29,7 +29,7 @@ func nop(_ *Instance) error {
 }
 
 func block(ins *Instance) error {
-	ctx := ins.Context
+	ctx := ins.Active
 	block, ok := ctx.Func.Blocks[ctx.PC]
 	if !ok {
 		return ErrBlockNotInitialized
@@ -46,7 +46,7 @@ func block(ins *Instance) error {
 }
 
 func loop(ins *Instance) error {
-	ctx := ins.Context
+	ctx := ins.Active
 	block, ok := ctx.Func.Blocks[ctx.PC]
 	if !ok {
 		return ErrBlockNotFound
@@ -62,8 +62,8 @@ func loop(ins *Instance) error {
 }
 
 func ifOp(ins *Instance) error {
-	ctx := ins.Context
-	block, ok := ctx.Func.Blocks[ins.Context.PC]
+	ctx := ins.Active
+	block, ok := ctx.Func.Blocks[ins.Active.PC]
 	if !ok {
 		return ErrBlockNotInitialized
 	}
@@ -71,7 +71,7 @@ func ifOp(ins *Instance) error {
 
 	if ins.OperandStack.Pop() == 0 {
 		// enter else
-		ins.Context.PC = block.ElseAt
+		ins.Active.PC = block.ElseAt
 	}
 
 	ctx.LabelStack.Push(&stacks.Label{
@@ -84,22 +84,22 @@ func ifOp(ins *Instance) error {
 }
 
 func elseOp(ins *Instance) error {
-	l := ins.Context.LabelStack.Pop()
-	ins.Context.PC = l.EndPC
+	l := ins.Active.LabelStack.Pop()
+	ins.Active.PC = l.EndPC
 
 	return nil
 }
 
 func end(ins *Instance) error {
-	if ins.Context.LabelStack.Ptr > -1 {
-		_ = ins.Context.LabelStack.Pop()
+	if ins.Active.LabelStack.Ptr > -1 {
+		_ = ins.Active.LabelStack.Pop()
 	}
 
 	return nil
 }
 
 func br(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	index, err := ins.fetchUint32()
 	if err != nil {
 		return err
@@ -112,20 +112,20 @@ func branchAt(ins *Instance, index uint32) error {
 	var l *stacks.Label
 
 	for i := uint32(0); i < index+1; i++ {
-		l = ins.Context.LabelStack.Pop()
+		l = ins.Active.LabelStack.Pop()
 	}
 
 	if l == nil {
 		return ErrLabelNotFound
 	}
 
-	ins.Context.PC = l.ContinuationPC
+	ins.Active.PC = l.ContinuationPC
 
 	return nil
 }
 
 func brIf(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	index, err := ins.fetchUint32()
 	if err != nil {
 		return err
@@ -140,8 +140,8 @@ func brIf(ins *Instance) error {
 }
 
 func brTable(ins *Instance) error {
-	ins.Context.PC++
-	r := bytes.NewBuffer(ins.Context.Func.body[ins.Context.PC:])
+	ins.Active.PC++
+	r := bytes.NewReader(ins.Active.Func.body[ins.Active.PC:])
 	nl, num, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return err
@@ -161,7 +161,7 @@ func brTable(ins *Instance) error {
 	if err != nil {
 		return err
 	}
-	ins.Context.PC += n + num
+	ins.Active.PC += n + num
 
 	i := ins.OperandStack.Pop()
 	if uint32(i) < nl {
@@ -172,7 +172,7 @@ func brTable(ins *Instance) error {
 }
 
 func call(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	index, err := ins.fetchUint32()
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ func call(ins *Instance) error {
 }
 
 func callIndirect(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	index, err := ins.fetchUint32()
 	if err != nil {
 		return err
@@ -218,7 +218,7 @@ func callIndirect(ins *Instance) error {
 		return err
 	}
 
-	ins.Context.PC++ // skip 0x00
+	ins.Active.PC++ // skip 0x00
 
 	return nil
 }

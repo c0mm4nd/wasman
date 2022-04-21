@@ -11,12 +11,12 @@ import (
 var ErrPtrOutOfBounds = errors.New("pointer is out of bounds")
 
 func memoryBase(ins *Instance) (uint64, error) {
-	ins.Context.PC++
+	ins.Active.PC++
 	_, err := ins.fetchUint32() // ignore align
 	if err != nil {
 		return 0, err
 	}
-	ins.Context.PC++
+	ins.Active.PC++
 	v, err := ins.fetchUint32()
 	if err != nil {
 		return 0, err
@@ -244,14 +244,14 @@ func i64Store32(ins *Instance) error {
 }
 
 func memorySize(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	ins.OperandStack.Push(uint64(int32(len(ins.Memory.Value) / config.DefaultPageSize)))
 
 	return nil
 }
 
 func memoryGrow(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	n := uint32(ins.OperandStack.Pop())
 
 	if ins.Module.MemorySection[0].Max != nil &&

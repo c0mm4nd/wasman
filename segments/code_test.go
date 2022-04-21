@@ -14,7 +14,7 @@ func TestReadCodeSegment(t *testing.T) {
 		NumLocals: 0x01,
 		Body:      []byte{0x1, 0x1, 0x12, 0x3, 0x01},
 	}
-	actual, err := segments.ReadCodeSegment(bytes.NewBuffer(buf))
+	actual, err := segments.ReadCodeSegment(bytes.NewReader(buf))
 	if err != nil {
 		t.Fail()
 	}

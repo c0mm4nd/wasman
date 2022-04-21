@@ -5,7 +5,7 @@ import (
 )
 
 func i32Const(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 
 	v, err := ins.fetchInt32()
 	if err != nil {
@@ -18,7 +18,7 @@ func i32Const(ins *Instance) error {
 }
 
 func i64Const(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 
 	v, err := ins.fetchInt64()
 	if err != nil {
@@ -31,7 +31,7 @@ func i64Const(ins *Instance) error {
 }
 
 func f32Const(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 
 	v, err := ins.fetchFloat32()
 	if err != nil {
@@ -44,7 +44,7 @@ func f32Const(ins *Instance) error {
 }
 
 func f64Const(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 
 	v, err := ins.fetchFloat64()
 	if err != nil {

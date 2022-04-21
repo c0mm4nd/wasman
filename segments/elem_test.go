@@ -39,7 +39,7 @@ func TestReadElementSegment(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			actual, err := segments.ReadElemSegment(bytes.NewBuffer(c.bytes))
+			actual, err := segments.ReadElemSegment(bytes.NewReader(c.bytes))
 			if err != nil {
 				t.Fail()
 			}

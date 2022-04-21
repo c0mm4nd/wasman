@@ -30,7 +30,7 @@ func TestReadValueTypes(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			actual, err := types.ReadValueTypes(bytes.NewBuffer(c.bytes), c.num)
+			actual, err := types.ReadValueTypes(bytes.NewReader(c.bytes), c.num)
 			if err != nil {
 				t.Fail()
 			}
@@ -46,7 +46,7 @@ func TestReadNameValue(t *testing.T) {
 	l := len(exp)
 	buf := []byte{byte(l)}
 	buf = append(buf, exp...)
-	actual, err := types.ReadNameValue(bytes.NewBuffer(buf))
+	actual, err := types.ReadNameValue(bytes.NewReader(buf))
 	if err != nil {
 		t.Fail()
 	}

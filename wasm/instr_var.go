@@ -1,45 +1,45 @@
 package wasm
 
 func getLocal(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	id, err := ins.fetchUint32()
 	if err != nil {
 		return err
 	}
 
-	ins.OperandStack.Push(ins.Context.Locals[id])
+	ins.OperandStack.Push(ins.Active.Locals[id])
 
 	return nil
 }
 
 func setLocal(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	id, err := ins.fetchUint32()
 	if err != nil {
 		return err
 	}
 
 	v := ins.OperandStack.Pop()
-	ins.Context.Locals[id] = v
+	ins.Active.Locals[id] = v
 
 	return nil
 }
 
 func teeLocal(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	id, err := ins.fetchUint32()
 	if err != nil {
 		return err
 	}
 
 	v := ins.OperandStack.Peek()
-	ins.Context.Locals[id] = v
+	ins.Active.Locals[id] = v
 
 	return nil
 }
 
 func getGlobal(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	id, err := ins.fetchUint32()
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func getGlobal(ins *Instance) error {
 }
 
 func setGlobal(ins *Instance) error {
-	ins.Context.PC++
+	ins.Active.PC++
 	id, err := ins.fetchUint32()
 	if err != nil {
 		return err

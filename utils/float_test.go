@@ -14,7 +14,7 @@ func TestReadFloat32(t *testing.T) {
 	var exp float32 = 3.1231231231
 	bs := make([]byte, 4)
 	binary.LittleEndian.PutUint32(bs, math.Float32bits(exp))
-	actual, err := utils.ReadFloat32(bytes.NewBuffer(bs))
+	actual, err := utils.ReadFloat32(bytes.NewReader(bs))
 	if err != nil {
 		t.Fail()
 	}
@@ -28,7 +28,7 @@ func TestReadFloat64(t *testing.T) {
 	bs := make([]byte, 8)
 	binary.LittleEndian.PutUint64(bs, math.Float64bits(exp))
 
-	actual, err := utils.ReadFloat64(bytes.NewBuffer(bs))
+	actual, err := utils.ReadFloat64(bytes.NewReader(bs))
 	if err != nil {
 		t.Fail()
 	}

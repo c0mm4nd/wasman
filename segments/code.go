@@ -1,9 +1,9 @@
 package segments
 
 import (
+	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128decode"
@@ -16,36 +16,42 @@ type CodeSegment struct {
 }
 
 // ReadCodeSegment reads one CodeSegment from the io.Reader
-func ReadCodeSegment(r io.Reader) (*CodeSegment, error) {
+func ReadCodeSegment(r *bytes.Reader) (*CodeSegment, error) {
 	ss, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("get the size of code segment: %w", err)
 	}
-
-	r = io.LimitReader(r, int64(ss))
+	remaining := int64(ss)
 
 	// parse locals
-	ls, _, err := leb128decode.DecodeUint32(r)
+	ls, bytesRead, err := leb128decode.DecodeUint32(r)
+	remaining -= int64(bytesRead)
 	if err != nil {
 		return nil, fmt.Errorf("get the size locals: %w", err)
+	} else if remaining < 0 {
+		return nil, io.EOF
 	}
 
 	var numLocals uint32
-	b := make([]byte, 1)
+	var n uint32
 	for i := uint32(0); i < ls; i++ {
-		n, _, err := leb128decode.DecodeUint32(r)
+		n, bytesRead, err = leb128decode.DecodeUint32(r)
+		remaining -= int64(bytesRead) + 1 // +1 for the subsequent ReadByte
 		if err != nil {
 			return nil, fmt.Errorf("read n of locals: %w", err)
+		} else if remaining < 0 {
+			return nil, io.EOF
 		}
 		numLocals += n
 
-		if _, err := io.ReadFull(r, b); err != nil {
-			return nil, fmt.Errorf("read type of local")
+		if _, err := r.ReadByte(); err != nil {
+			return nil, fmt.Errorf("read type of local") // TODO: save read localType
 		}
 	}
 
 	// extract body
-	body, err := ioutil.ReadAll(r)
+	body := make([]byte, remaining)
+	_, err = io.ReadFull(r, body)
 	if err != nil {
 		return nil, fmt.Errorf("read body: %w", err)
 	}

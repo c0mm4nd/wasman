@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 
@@ -14,7 +15,7 @@ type FuncType struct {
 }
 
 // ReadFuncType will read a types.ReadFuncType from the io.Reader
-func ReadFuncType(r io.Reader) (*FuncType, error) {
+func ReadFuncType(r *bytes.Reader) (*FuncType, error) {
 	b := make([]byte, 1)
 	if _, err := io.ReadFull(r, b); err != nil {
 		return nil, fmt.Errorf("read leading byte: %w", err)

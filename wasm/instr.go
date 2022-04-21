@@ -10,7 +10,7 @@ type Frame struct {
 	PC         uint64
 	Func       *wasmFunc
 	Locals     []uint64
-	LabelStack *stacks.LabelStack
+	LabelStack *stacks.Stack[*stacks.Label]
 }
 
 // instructions are basic wasm instructions

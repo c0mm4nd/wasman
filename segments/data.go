@@ -1,6 +1,7 @@
 package segments
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 
@@ -19,7 +20,7 @@ type DataSegment struct {
 }
 
 // ReadDataSegment reads one DataSegment from the io.Reader
-func ReadDataSegment(r io.Reader) (*DataSegment, error) {
+func ReadDataSegment(r *bytes.Reader) (*DataSegment, error) {
 	d, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
 		return nil, fmt.Errorf("read memory index: %w", err)
