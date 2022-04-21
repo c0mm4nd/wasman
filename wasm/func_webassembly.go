@@ -1,6 +1,8 @@
 package wasm
 
 import (
+	"fmt"
+
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
 )
@@ -25,21 +27,37 @@ func (f *wasmFunc) getType() *types.FuncType {
 	return f.signature
 }
 
-func (f *wasmFunc) call(ins *Instance) error {
+func (f *wasmFunc) call(ins *Instance) (err error) {
 	al := len(f.signature.InputTypes)
 	locals := make([]uint64, f.NumLocal+uint32(al))
 	for i := 0; i < al; i++ {
 		locals[al-1-i] = ins.OperandStack.Pop()
 	}
 
+	prevPtr := ins.FrameStack.Ptr
+	if ins.Recover {
+		defer func() {
+			if v := recover(); v != nil {
+				ins.FrameStack.Ptr = prevPtr
+				var ok bool
+				err, ok = v.(error)
+				if !ok {
+					err = fmt.Errorf("runtime error: %v", v)
+				}
+			}
+		}()
+	}
+
 	prev := ins.Active
-	ins.Active = &Frame{
+	frame := &Frame{
 		Func:       f,
 		Locals:     locals,
 		LabelStack: stacks.NewLabelStack(),
 	}
+	ins.FrameStack.Push(frame)
+	ins.Active = frame
 
-	err := ins.execFunc()
+	err = ins.execFunc()
 	if err != nil {
 		return err
 	}

@@ -21,6 +21,7 @@ type ModuleConfig struct {
 	DisableFloatPoint bool
 	TollStation       tollstation.TollStation
 	CallDepthLimit    *uint64
+	Recover           bool // avoid panic inside vm
 }
 
 // LinkerConfig is the config applied to the wasman.Linker

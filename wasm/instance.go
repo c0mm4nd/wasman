@@ -32,6 +32,10 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 	ins := &Instance{
 		Module:       module,
 		OperandStack: stacks.NewOperandStack(),
+		FrameStack: &stacks.Stack[*Frame]{
+			Ptr:    -1,
+			Values: make([]*Frame, stacks.InitialLabelStackHeight),
+		},
 	}
 
 	if err := ins.buildIndexSpaces(externModules); err != nil {
