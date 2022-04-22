@@ -24,8 +24,10 @@ jobs:
           os: ubuntu-latest
           target: aarch64-unknown-linux-gnu
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v3
+        with:
+          go-version: '^1.18'
 
       - name: Analysis wasman
         run: go vet -v ./...
