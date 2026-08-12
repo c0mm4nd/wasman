@@ -9,8 +9,8 @@ Go 1.18+.
 
 ## Features
 
-- **Complete core semantics** — passes **100% of the executable assertions**
-  of the official WebAssembly core test suite (18k+ assertions; see
+- **Complete core semantics** — passes the official WebAssembly core test
+  suite with **zero failures and zero skips** (19k+ assertions; see
   [spectest/README.md](./spectest/README.md) for the details and how to run it)
 - **Full static validation** — strict binary decoding plus spec-conformant
   type checking of every function body at load time
@@ -157,6 +157,7 @@ then trap, misbehave, or (with `Recover` disabled) panic at run time. See
 The [spectest](./spectest) harness converts the official WebAssembly core test
 suite with `wast2json` and runs all of it against wasman — behavioral
 assertions and rejection assertions (`assert_invalid`, `assert_malformed`,
-`assert_unlinkable`, `assert_uninstantiable`) alike. Current status:
-**pass=18655 fail=0**; the only skips are text-format cases that would need a
-WAT parser. See [spectest/README.md](./spectest/README.md).
+`assert_unlinkable`, `assert_uninstantiable`) alike, including the
+text-format malformed cases via the `wat` text-format reader. Current
+status: **pass=19220 fail=0 skip=0**. See
+[spectest/README.md](./spectest/README.md).
