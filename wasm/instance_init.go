@@ -193,12 +193,13 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 
 func (ins *Instance) buildMemoryIndexSpace() error {
 	for _, d := range ins.Module.DataSection {
-		// note: MVP restricts the size of memory index spaces to 1
+		// note: the memory may be imported, so validate against the index space
+		// (which includes imported memories) rather than the local section.
 		if d.MemoryIndex >= uint32(len(ins.IndexSpace.Memories)) {
 			return fmt.Errorf("index out of range of index space")
-		} else if d.MemoryIndex >= uint32(len(ins.MemorySection)) {
-			return fmt.Errorf("index out of range of memory section")
 		}
+
+		memory := ins.IndexSpace.Memories[d.MemoryIndex]
 
 		rawOffset, err := ins.execExpr(d.OffsetExpression)
 		if err != nil {
@@ -211,11 +212,9 @@ func (ins *Instance) buildMemoryIndexSpace() error {
 		}
 
 		size := int(offset) + len(d.Init)
-		if ins.MemorySection[d.MemoryIndex].Max != nil && uint32(size) > *(ins.MemorySection[d.MemoryIndex].Max)*config.DefaultMemoryPageSize {
-			return fmt.Errorf("memory size out of limit %d * 64Ki", int(*(ins.MemorySection[d.MemoryIndex].Max)))
+		if memory.Max != nil && uint32(size) > *memory.Max*config.DefaultMemoryPageSize {
+			return fmt.Errorf("memory size out of limit %d * 64Ki", int(*memory.Max))
 		}
-
-		memory := ins.IndexSpace.Memories[d.MemoryIndex]
 		if size > len(memory.Value) {
 			next := make([]byte, size)
 			copy(next, memory.Value)

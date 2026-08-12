@@ -399,7 +399,8 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		for _, m := range []*Module{
 			{DataSection: []*segments.DataSegment{{MemoryIndex: 1}}, IndexSpace: new(IndexSpace)},
-			{DataSection: []*segments.DataSegment{{MemoryIndex: 0}}, IndexSpace: &IndexSpace{
+			// memory index past the end of the (imported+local) index space
+			{DataSection: []*segments.DataSegment{{MemoryIndex: 1}}, IndexSpace: &IndexSpace{
 				Memories: []*Memory{
 					{Value: []byte{}},
 				},
@@ -423,7 +424,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 				},
 				MemorySection: []*types.MemoryType{{Max: utils.Uint32Ptr(0)}},
 				IndexSpace: &IndexSpace{Memories: []*Memory{
-					{Value: []byte{}},
+					{MemoryType: types.MemoryType{Max: utils.Uint32Ptr(0)}, Value: []byte{}},
 				}},
 			},
 		} {
