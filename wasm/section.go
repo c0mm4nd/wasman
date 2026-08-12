@@ -208,18 +208,14 @@ func (m *Module) readSectionExports(r *bytes.Reader) error {
 }
 
 func (m *Module) readSectionStart(r *bytes.Reader) error {
-	vs, _, err := leb128decode.DecodeUint32(r)
+	// The start section is a single function index, not a vector.
+	// https://www.w3.org/TR/wasm-core-1/#start-section
+	idx, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
-		return fmt.Errorf("get size of vector: %w", err)
+		return fmt.Errorf("read start function index: %w", err)
 	}
 
-	m.StartSection = make([]uint32, vs)
-	for i := range m.StartSection {
-		m.StartSection[i], _, err = leb128decode.DecodeUint32(r)
-		if err != nil {
-			return fmt.Errorf("read function index: %w", err)
-		}
-	}
+	m.StartSection = []uint32{idx}
 
 	return nil
 }
