@@ -84,5 +84,10 @@ func NewModule(config config.ModuleConfig, r *bytes.Reader) (*Module, error) {
 		return nil, errors.New("data count and data section have inconsistent lengths")
 	}
 
+	// full static validation (type checking of all function bodies etc.)
+	if err := module.Validate(); err != nil {
+		return nil, err
+	}
+
 	return module, nil
 }
