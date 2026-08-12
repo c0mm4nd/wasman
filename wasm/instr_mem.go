@@ -10,7 +10,10 @@ import (
 // ErrPtrOutOfBounds will be throw when the pointer visiting a pos out of the range of memory
 var ErrPtrOutOfBounds = errors.New("pointer is out of bounds")
 
-func memoryBase(ins *Instance) (uint64, error) {
+// memoryBase decodes a load/store's align+offset immediates and returns the
+// effective address, bounds-checked for an access of the given width so that
+// partially out-of-range accesses trap instead of panicking.
+func memoryBase(ins *Instance, width uint64) (uint64, error) {
 	ins.Active.PC++
 	_, err := ins.fetchUint32() // ignore align
 	if err != nil {
@@ -22,8 +25,10 @@ func memoryBase(ins *Instance) (uint64, error) {
 		return 0, err
 	}
 
-	base := uint64(v) + ins.OperandStack.Pop()
-	if !(base < uint64(len(ins.Memory.Value))) {
+	// the address operand is an i32 interpreted as unsigned; masking to 32 bits
+	// also makes the base+width comparison below overflow-free.
+	base := uint64(v) + uint64(uint32(ins.OperandStack.Pop()))
+	if base+width > uint64(len(ins.Memory.Value)) {
 		return 0, ErrPtrOutOfBounds
 	}
 
@@ -31,7 +36,7 @@ func memoryBase(ins *Instance) (uint64, error) {
 }
 
 func i32Load(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 4)
 	if err != nil {
 		return err
 	}
@@ -42,7 +47,7 @@ func i32Load(ins *Instance) error {
 }
 
 func i64Load(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 8)
 	if err != nil {
 		return err
 	}
@@ -61,7 +66,7 @@ func f64Load(ins *Instance) error {
 }
 
 func i32Load8s(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 1)
 	if err != nil {
 		return err
 	}
@@ -72,7 +77,7 @@ func i32Load8s(ins *Instance) error {
 }
 
 func i32Load8u(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 1)
 	if err != nil {
 		return err
 	}
@@ -83,7 +88,7 @@ func i32Load8u(ins *Instance) error {
 }
 
 func i32Load16s(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 2)
 	if err != nil {
 		return err
 	}
@@ -94,7 +99,7 @@ func i32Load16s(ins *Instance) error {
 }
 
 func i32Load16u(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 2)
 	if err != nil {
 		return err
 	}
@@ -105,7 +110,7 @@ func i32Load16u(ins *Instance) error {
 }
 
 func i64Load8s(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 1)
 	if err != nil {
 		return err
 	}
@@ -116,7 +121,7 @@ func i64Load8s(ins *Instance) error {
 }
 
 func i64Load8u(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 1)
 	if err != nil {
 		return err
 	}
@@ -127,7 +132,7 @@ func i64Load8u(ins *Instance) error {
 }
 
 func i64Load16s(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 2)
 	if err != nil {
 		return err
 	}
@@ -138,7 +143,7 @@ func i64Load16s(ins *Instance) error {
 }
 
 func i64Load16u(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 2)
 	if err != nil {
 		return err
 	}
@@ -149,7 +154,7 @@ func i64Load16u(ins *Instance) error {
 }
 
 func i64Load32s(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 4)
 	if err != nil {
 		return err
 	}
@@ -160,7 +165,7 @@ func i64Load32s(ins *Instance) error {
 }
 
 func i64Load32u(ins *Instance) error {
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 4)
 	if err != nil {
 		return err
 	}
@@ -172,7 +177,7 @@ func i64Load32u(ins *Instance) error {
 
 func i32Store(ins *Instance) error {
 	val := ins.OperandStack.Pop()
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 4)
 	if err != nil {
 		return err
 	}
@@ -184,7 +189,7 @@ func i32Store(ins *Instance) error {
 
 func i64Store(ins *Instance) error {
 	val := ins.OperandStack.Pop()
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 8)
 	if err != nil {
 		return err
 	}
@@ -196,7 +201,7 @@ func i64Store(ins *Instance) error {
 
 func f32Store(ins *Instance) error {
 	val := ins.OperandStack.Pop()
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 4)
 	if err != nil {
 		return err
 	}
@@ -208,7 +213,7 @@ func f32Store(ins *Instance) error {
 
 func f64Store(ins *Instance) error {
 	v := ins.OperandStack.Pop()
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 8)
 	if err != nil {
 		return err
 	}
@@ -220,7 +225,7 @@ func f64Store(ins *Instance) error {
 
 func i32Store8(ins *Instance) error {
 	v := byte(ins.OperandStack.Pop())
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 1)
 	if err != nil {
 		return err
 	}
@@ -232,7 +237,7 @@ func i32Store8(ins *Instance) error {
 
 func i32Store16(ins *Instance) error {
 	v := uint16(ins.OperandStack.Pop())
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 2)
 	if err != nil {
 		return err
 	}
@@ -244,7 +249,7 @@ func i32Store16(ins *Instance) error {
 
 func i64Store8(ins *Instance) error {
 	v := byte(ins.OperandStack.Pop())
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 1)
 	if err != nil {
 		return err
 	}
@@ -256,7 +261,7 @@ func i64Store8(ins *Instance) error {
 
 func i64Store16(ins *Instance) error {
 	v := uint16(ins.OperandStack.Pop())
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 2)
 	if err != nil {
 		return err
 	}
@@ -268,7 +273,7 @@ func i64Store16(ins *Instance) error {
 
 func i64Store32(ins *Instance) error {
 	v := uint32(ins.OperandStack.Pop())
-	base, err := memoryBase(ins)
+	base, err := memoryBase(ins, 4)
 	if err != nil {
 		return err
 	}

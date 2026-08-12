@@ -146,7 +146,9 @@ func (ins *Instance) applyGlobalImport(externModule *Module, exportSegment *segm
 		return fmt.Errorf("cannot import mutable global")
 	}
 
-	ins.IndexSpace.Globals = append(externModule.IndexSpace.Globals, gb)
+	// append the imported global to THIS instance's index space; using the
+	// exporter's globals as the base would misplace every global index.
+	ins.IndexSpace.Globals = append(ins.IndexSpace.Globals, gb)
 	return nil
 }
 
@@ -236,6 +238,14 @@ func (ins *Instance) buildMemoryIndexSpace() error {
 }
 
 func (ins *Instance) buildTableIndexSpace() error {
+	// size every table to its declared minimum before applying element
+	// segments, so active segments are bounds-checked against the real size.
+	for _, table := range ins.IndexSpace.Tables {
+		if table.Limits != nil && int(table.Limits.Min) > len(table.Value) {
+			table.Value = append(table.Value, make([]*uint32, int(table.Limits.Min)-len(table.Value))...)
+		}
+	}
+
 	for _, elem := range ins.ElementsSection {
 		// passive/declarative segments are not applied at instantiation.
 		if elem.Passive {
@@ -259,22 +269,15 @@ func (ins *Instance) buildTableIndexSpace() error {
 			return fmt.Errorf("type assertion failed")
 		}
 
-		offset := int(offset32)
-		size := offset + len(elem.Init)
-		if table.Limits != nil && table.Limits.Max != nil && size > int(*table.Limits.Max) {
-			return fmt.Errorf("table size out of limit of %d", int(*table.Limits.Max))
+		// an active element segment must fit within the (min-sized) table,
+		// otherwise instantiation fails. offsets are unsigned.
+		offset := uint64(uint32(offset32))
+		if offset+uint64(len(elem.Init)) > uint64(len(table.Value)) {
+			return fmt.Errorf("element segment out of bounds")
 		}
-		if size > len(table.Value) {
-			next := make([]*uint32, size)
-			copy(next, table.Value)
-			for i := range elem.Init {
-				next[i+offset] = &elem.Init[i]
-			}
-			ins.IndexSpace.Tables[elem.TableIndex].Value = next
-		} else {
-			for i := range elem.Init {
-				table.Value[i+offset] = &elem.Init[i]
-			}
+
+		for i := range elem.Init {
+			table.Value[uint64(i)+offset] = &elem.Init[i]
 		}
 	}
 	return nil
