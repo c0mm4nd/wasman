@@ -455,7 +455,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 					},
 					MemorySection: []*types.MemoryType{{}},
 					IndexSpace: &IndexSpace{Memories: []*Memory{
-						{Value: []byte{}},
+						{Value: []byte{0x00, 0x00}},
 					}},
 				},
 				exp: []*Memory{{Value: []byte{0x01, 0x01}}},
@@ -511,7 +511,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 					},
 					MemorySection: []*types.MemoryType{{}},
 					IndexSpace: &IndexSpace{Memories: []*Memory{
-						{Value: []byte{0x00, 0x00, 0x00}},
+						{Value: []byte{0x00, 0x00, 0x00, 0x00}},
 					}},
 				},
 				exp: []*Memory{{Value: []byte{0x00, 0x00, 0x01, 0x01}}},

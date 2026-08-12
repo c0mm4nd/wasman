@@ -191,6 +191,15 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 }
 
 func (ins *Instance) buildMemoryIndexSpace() error {
+	// size every memory to its declared minimum before applying data segments,
+	// so that active segments are bounds-checked against the real memory size.
+	for _, memory := range ins.IndexSpace.Memories {
+		minBytes := int(memory.Min) * config.DefaultMemoryPageSize
+		if len(memory.Value) < minBytes {
+			memory.Value = append(memory.Value, make([]byte, minBytes-len(memory.Value))...)
+		}
+	}
+
 	for _, d := range ins.Module.DataSection {
 		// passive segments are not applied at instantiation (they are used later
 		// via memory.init).
@@ -215,18 +224,13 @@ func (ins *Instance) buildMemoryIndexSpace() error {
 			return fmt.Errorf("type assertion failed")
 		}
 
-		size := int(offset) + len(d.Init)
-		if memory.Max != nil && uint32(size) > *memory.Max*config.DefaultMemoryPageSize {
-			return fmt.Errorf("memory size out of limit %d * 64Ki", int(*memory.Max))
+		// an active data segment must fit within the (min-sized) memory,
+		// otherwise instantiation traps. addresses are unsigned.
+		off := uint64(uint32(offset))
+		if off+uint64(len(d.Init)) > uint64(len(memory.Value)) {
+			return fmt.Errorf("data segment out of bounds")
 		}
-		if size > len(memory.Value) {
-			next := make([]byte, size)
-			copy(next, memory.Value)
-			copy(next[offset:], d.Init)
-			ins.IndexSpace.Memories[d.MemoryIndex].Value = next
-		} else {
-			copy(memory.Value[offset:], d.Init)
-		}
+		copy(memory.Value[off:], d.Init)
 	}
 	return nil
 }
