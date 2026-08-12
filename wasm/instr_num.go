@@ -9,6 +9,25 @@ import (
 // ErrUndefined is a panic error
 var ErrUndefined = errors.New("undefined")
 
+// trapping float-to-int conversion errors
+var (
+	ErrInvalidConversionToInt = errors.New("invalid conversion to integer")
+	ErrIntegerOverflow        = errors.New("integer overflow")
+)
+
+// truncCheck truncates v and verifies the result lies in [lo, hi), trapping on
+// NaN, ±Inf or out-of-range values as required by the wasm iNN.trunc_fMM ops.
+func truncCheck(v float64, lo, hi float64) (float64, error) {
+	if math.IsNaN(v) {
+		return 0, ErrInvalidConversionToInt
+	}
+	t := math.Trunc(v)
+	if math.IsInf(t, 0) || t < lo || t >= hi {
+		return 0, ErrIntegerOverflow
+	}
+	return t, nil
+}
+
 func i32eqz(ins *Instance) error {
 	if ins.OperandStack.Pop() == 0 {
 		ins.OperandStack.Push(1)
@@ -213,7 +232,7 @@ func i64gts(ins *Instance) error {
 func i64gtu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
-	if v1 < v2 {
+	if v1 > v2 {
 		ins.OperandStack.Push(1)
 	} else {
 		ins.OperandStack.Push(0)
@@ -306,8 +325,8 @@ func f32lt(ins *Instance) error {
 }
 
 func f32gt(ins *Instance) error {
-	f1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	f2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
+	f1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	if f1 > f2 {
 		ins.OperandStack.Push(1)
 	} else {
@@ -665,7 +684,7 @@ func i64shru(ins *Instance) error {
 }
 
 func i64shrs(ins *Instance) error {
-	v2 := int64(ins.OperandStack.Pop())
+	v2 := ins.OperandStack.Pop()
 	v1 := int64(ins.OperandStack.Pop())
 	ins.OperandStack.Push(uint64(v1 >> (v2 % 64)))
 
@@ -726,8 +745,9 @@ func f32trunc(ins *Instance) error {
 
 func f32nearest(ins *Instance) error {
 	raw := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	v := math.Float64bits(float64(int32(raw + float32(math.Copysign(0.5, float64(raw))))))
-	ins.OperandStack.Push(v)
+	// wasm f32.nearest rounds to the nearest integer, ties to even
+	v := float32(math.RoundToEven(float64(raw)))
+	ins.OperandStack.Push(uint64(math.Float32bits(v)))
 
 	return nil
 }
@@ -780,15 +800,18 @@ func f32min(ins *Instance) error {
 func f32max(ins *Instance) error {
 	v2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	v1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.Push(uint64(math.Float32bits(float32(math.Min(float64(v1), float64(v2))))))
+	ins.OperandStack.Push(uint64(math.Float32bits(float32(math.Max(float64(v1), float64(v2))))))
 
 	return nil
 }
 
 func f32copysign(ins *Instance) error {
-	v2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	v1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.Push(uint64(math.Float32bits(float32(math.Copysign(float64(v1), float64(v2))))))
+	// pure bit operation: magnitude of v1 with the sign bit of v2. Going
+	// through float64 would canonicalize (mangle) NaN payloads.
+	const signMask uint32 = 1 << 31
+	v2 := uint32(ins.OperandStack.Pop())
+	v1 := uint32(ins.OperandStack.Pop())
+	ins.OperandStack.Push(uint64((v1 &^ signMask) | (v2 & signMask)))
 
 	return nil
 }
@@ -831,8 +854,8 @@ func f64trunc(ins *Instance) error {
 
 func f64nearest(ins *Instance) error {
 	raw := math.Float64frombits(ins.OperandStack.Pop())
-	v := math.Float64bits(float64(int64(raw + math.Copysign(0.5, raw))))
-	ins.OperandStack.Push(v)
+	// wasm f64.nearest rounds to the nearest integer, ties to even
+	ins.OperandStack.Push(math.Float64bits(math.RoundToEven(raw)))
 
 	return nil
 }
@@ -885,15 +908,17 @@ func f64min(ins *Instance) error {
 func f64max(ins *Instance) error {
 	v2 := math.Float64frombits(ins.OperandStack.Pop())
 	v1 := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.Push(math.Float64bits(math.Min(v1, v2)))
+	ins.OperandStack.Push(math.Float64bits(math.Max(v1, v2)))
 
 	return nil
 }
 
 func f64copysign(ins *Instance) error {
-	v2 := math.Float64frombits(ins.OperandStack.Pop())
-	v1 := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.Push(math.Float64bits(math.Copysign(v1, v2)))
+	// pure bit operation: magnitude of v1 with the sign bit of v2.
+	const signMask uint64 = 1 << 63
+	v2 := ins.OperandStack.Pop()
+	v1 := ins.OperandStack.Pop()
+	ins.OperandStack.Push((v1 &^ signMask) | (v2 & signMask))
 
 	return nil
 }
@@ -905,29 +930,45 @@ func i32wrapi64(ins *Instance) error {
 }
 
 func i32truncf32s(ins *Instance) error {
-	v := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.Push(uint64(int32(math.Trunc(float64(v)))))
+	v := float64(math.Float32frombits(uint32(ins.OperandStack.Pop())))
+	t, err := truncCheck(v, -2147483648.0, 2147483648.0) // [-2^31, 2^31)
+	if err != nil {
+		return err
+	}
+	ins.OperandStack.Push(uint64(uint32(int32(t))))
 
 	return nil
 }
 
 func i32truncf32u(ins *Instance) error {
-	v := math.Float32frombits(uint32(ins.OperandStack.Pop()))
-	ins.OperandStack.Push(uint64(uint32(math.Trunc(float64(v)))))
+	v := float64(math.Float32frombits(uint32(ins.OperandStack.Pop())))
+	t, err := truncCheck(v, 0.0, 4294967296.0) // [0, 2^32)
+	if err != nil {
+		return err
+	}
+	ins.OperandStack.Push(uint64(uint32(t)))
 
 	return nil
 }
 
 func i32truncf64s(ins *Instance) error {
 	v := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.Push(uint64(int32(math.Trunc(v))))
+	t, err := truncCheck(v, -2147483648.0, 2147483648.0) // [-2^31, 2^31)
+	if err != nil {
+		return err
+	}
+	ins.OperandStack.Push(uint64(uint32(int32(t))))
 
 	return nil
 }
 
 func i32truncf64u(ins *Instance) error {
 	v := math.Float64frombits(ins.OperandStack.Pop())
-	ins.OperandStack.Push(uint64(uint32(math.Trunc(v))))
+	t, err := truncCheck(v, 0.0, 4294967296.0) // [0, 2^32)
+	if err != nil {
+		return err
+	}
+	ins.OperandStack.Push(uint64(uint32(t)))
 
 	return nil
 }
@@ -947,29 +988,45 @@ func i64extendi32u(ins *Instance) error {
 }
 
 func i64truncf32s(ins *Instance) error {
-	v := math.Trunc(float64(math.Float32frombits(uint32(ins.OperandStack.Pop()))))
-	ins.OperandStack.Push(uint64(int64(v)))
+	v := float64(math.Float32frombits(uint32(ins.OperandStack.Pop())))
+	t, err := truncCheck(v, -9223372036854775808.0, 9223372036854775808.0) // [-2^63, 2^63)
+	if err != nil {
+		return err
+	}
+	ins.OperandStack.Push(uint64(int64(t)))
 
 	return nil
 }
 
 func i64truncf32u(ins *Instance) error {
-	v := math.Trunc(float64(math.Float32frombits(uint32(ins.OperandStack.Pop()))))
-	ins.OperandStack.Push(uint64(v))
+	v := float64(math.Float32frombits(uint32(ins.OperandStack.Pop())))
+	t, err := truncCheck(v, 0.0, 18446744073709551616.0) // [0, 2^64)
+	if err != nil {
+		return err
+	}
+	ins.OperandStack.Push(uint64(t))
 
 	return nil
 }
 
 func i64truncf64s(ins *Instance) error {
-	v := math.Trunc(math.Float64frombits(ins.OperandStack.Pop()))
-	ins.OperandStack.Push(uint64(int64(v)))
+	v := math.Float64frombits(ins.OperandStack.Pop())
+	t, err := truncCheck(v, -9223372036854775808.0, 9223372036854775808.0) // [-2^63, 2^63)
+	if err != nil {
+		return err
+	}
+	ins.OperandStack.Push(uint64(int64(t)))
 
 	return nil
 }
 
 func i64truncf64u(ins *Instance) error {
-	v := math.Trunc(math.Float64frombits(ins.OperandStack.Pop()))
-	ins.OperandStack.Push(uint64(v))
+	v := math.Float64frombits(ins.OperandStack.Pop())
+	t, err := truncCheck(v, 0.0, 18446744073709551616.0) // [0, 2^64)
+	if err != nil {
+		return err
+	}
+	ins.OperandStack.Push(uint64(t))
 
 	return nil
 }
@@ -1040,6 +1097,43 @@ func f64converti64u(ins *Instance) error {
 func f64promotef32(ins *Instance) error {
 	v := float64(math.Float32frombits(uint32(ins.OperandStack.Pop())))
 	ins.OperandStack.Push(math.Float64bits(v))
+
+	return nil
+}
+
+// sign-extension operators (wasm 2.0, opcodes 0xc0-0xc4)
+
+func i32extend8s(ins *Instance) error {
+	v := int32(int8(uint8(ins.OperandStack.Pop())))
+	ins.OperandStack.Push(uint64(uint32(v)))
+
+	return nil
+}
+
+func i32extend16s(ins *Instance) error {
+	v := int32(int16(uint16(ins.OperandStack.Pop())))
+	ins.OperandStack.Push(uint64(uint32(v)))
+
+	return nil
+}
+
+func i64extend8s(ins *Instance) error {
+	v := int64(int8(uint8(ins.OperandStack.Pop())))
+	ins.OperandStack.Push(uint64(v))
+
+	return nil
+}
+
+func i64extend16s(ins *Instance) error {
+	v := int64(int16(uint16(ins.OperandStack.Pop())))
+	ins.OperandStack.Push(uint64(v))
+
+	return nil
+}
+
+func i64extend32s(ins *Instance) error {
+	v := int64(int32(uint32(ins.OperandStack.Pop())))
+	ins.OperandStack.Push(uint64(v))
 
 	return nil
 }

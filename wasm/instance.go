@@ -25,6 +25,11 @@ type Instance struct {
 	Globals   []uint64
 
 	OperandStack *stacks.Stack[uint64]
+
+	// reader is reused across fetch* calls to avoid allocating a new
+	// bytes.Reader for every immediate-carrying instruction in the hot loop.
+	// The zero value is ready to use after a Reset.
+	reader bytes.Reader
 }
 
 // NewInstance will instantiate the module with extern modules
@@ -42,10 +47,14 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 		return nil, fmt.Errorf("build index space: %w", err)
 	}
 
-	// initializing memory
-	ins.Memory = ins.Module.IndexSpace.Memories[0]
-	if diff := uint64(ins.Module.MemorySection[0].Min)*uint64(config.DefaultMemoryPageSize) - uint64(len(ins.Memory.Value)); diff > 0 {
-		ins.Memory.Value = append(ins.Memory.Value, make([]byte, diff)...)
+	// initializing memory (a module is not required to define or import one)
+	if len(ins.Module.IndexSpace.Memories) > 0 {
+		ins.Memory = ins.Module.IndexSpace.Memories[0]
+		if len(ins.Module.MemorySection) > 0 {
+			if diff := uint64(ins.Module.MemorySection[0].Min)*uint64(config.DefaultMemoryPageSize) - uint64(len(ins.Memory.Value)); diff > 0 {
+				ins.Memory.Value = append(ins.Memory.Value, make([]byte, diff)...)
+			}
+		}
 	}
 
 	// initializing functions
@@ -90,8 +99,8 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 }
 
 func (ins *Instance) fetchInt32() (int32, error) {
-	ret, num, err := leb128decode.DecodeInt32(bytes.NewReader(
-		ins.Active.Func.body[ins.Active.PC:]))
+	ins.reader.Reset(ins.Active.Func.body[ins.Active.PC:])
+	ret, num, err := leb128decode.DecodeInt32(&ins.reader)
 	if err != nil {
 		return 0, err
 	}
@@ -101,8 +110,8 @@ func (ins *Instance) fetchInt32() (int32, error) {
 }
 
 func (ins *Instance) fetchUint32() (uint32, error) {
-	ret, num, err := leb128decode.DecodeUint32(bytes.NewReader(
-		ins.Active.Func.body[ins.Active.PC:]))
+	ins.reader.Reset(ins.Active.Func.body[ins.Active.PC:])
+	ret, num, err := leb128decode.DecodeUint32(&ins.reader)
 	if err != nil {
 		return 0, err
 	}
@@ -113,8 +122,8 @@ func (ins *Instance) fetchUint32() (uint32, error) {
 }
 
 func (ins *Instance) fetchInt64() (int64, error) {
-	ret, num, err := leb128decode.DecodeInt64(bytes.NewReader(
-		ins.Active.Func.body[ins.Active.PC:]))
+	ins.reader.Reset(ins.Active.Func.body[ins.Active.PC:])
+	ret, num, err := leb128decode.DecodeInt64(&ins.reader)
 	if err != nil {
 		return 0, err
 	}

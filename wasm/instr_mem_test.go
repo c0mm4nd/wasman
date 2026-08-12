@@ -580,7 +580,8 @@ func Test_memoryGrow(t *testing.T) {
 		vm := &Instance{
 			Active: &Frame{},
 			Memory: &Memory{
-				Value: make([]byte, config.DefaultMemoryPageSize*2),
+				MemoryType: types.MemoryType{Max: utils.Uint32Ptr(0)},
+				Value:      make([]byte, config.DefaultMemoryPageSize*2),
 			},
 			OperandStack: stacks.NewOperandStack(),
 			Module: &Module{

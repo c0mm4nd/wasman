@@ -1,11 +1,17 @@
 package wasm
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
 )
+
+// ErrCallStackExhausted is returned when the configured
+// ModuleConfig.CallDepthLimit is exceeded, mirroring a wasm "call stack
+// exhausted" trap instead of letting the Go stack overflow fatally.
+var ErrCallStackExhausted = errors.New("call stack exhausted")
 
 type wasmFunc struct {
 	signature *types.FuncType       // the shape of func (defined by inputs and outputs)
@@ -35,10 +41,21 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 	}
 
 	prevPtr := ins.FrameStack.Ptr
+	prev := ins.Active
+
+	// enforce the optional call-depth limit so runaway recursion traps as a
+	// wasm "call stack exhausted" instead of fatally overflowing the Go stack.
+	if limit := ins.Module.ModuleConfig.CallDepthLimit; limit != nil &&
+		uint64(prevPtr+1) >= *limit {
+		return ErrCallStackExhausted
+	}
+
 	if ins.Recover {
 		defer func() {
 			if v := recover(); v != nil {
+				// unwind the frame back to the caller so the instance stays usable
 				ins.FrameStack.Ptr = prevPtr
+				ins.Active = prev
 				var ok bool
 				err, ok = v.(error)
 				if !ok {
@@ -48,21 +65,30 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 		}()
 	}
 
-	prev := ins.Active
 	frame := &Frame{
 		Func:       f,
 		Locals:     locals,
 		LabelStack: stacks.NewLabelStack(),
 	}
+	// push the implicit label for the function body so that a `br` targeting the
+	// function scope (or an early `return`-style branch) unwinds correctly: its
+	// continuation is the end of the body and its arity is the result count.
+	frame.LabelStack.Push(&stacks.Label{
+		Arity:          len(f.signature.ReturnTypes),
+		Sp:             ins.OperandStack.Ptr,
+		ContinuationPC: uint64(len(f.body)),
+		EndPC:          uint64(len(f.body)),
+	})
 	ins.FrameStack.Push(frame)
 	ins.Active = frame
 
 	err = ins.execFunc()
-	if err != nil {
-		return err
-	}
 
+	// always pop this frame so the FrameStack does not grow unboundedly across
+	// sequential calls (and the caller frame is restored on both success and
+	// a returned trap error).
+	ins.FrameStack.Ptr = prevPtr
 	ins.Active = prev
 
-	return nil
+	return err
 }

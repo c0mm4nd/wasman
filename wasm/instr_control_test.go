@@ -26,11 +26,12 @@ func Test_block(t *testing.T) {
 		},
 		LabelStack: stacks.NewLabelStack(),
 	}
-	if block(&Instance{Active: ctx}) != nil {
+	if block(&Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}) != nil {
 		t.Fail()
 	}
 	if !reflect.DeepEqual(&stacks.Label{
 		Arity:          1,
+		Sp:             -1,
 		ContinuationPC: 100,
 		EndPC:          100,
 	}, ctx.LabelStack.Values[ctx.LabelStack.Ptr]) {
@@ -56,11 +57,12 @@ func Test_loop(t *testing.T) {
 		},
 		LabelStack: stacks.NewLabelStack(),
 	}
-	if loop(&Instance{Active: ctx}) != nil {
+	if loop(&Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}) != nil {
 		t.Fail()
 	}
 	if !reflect.DeepEqual(&stacks.Label{
-		Arity:          1,
+		Arity:          0,
+		Sp:             -1,
 		ContinuationPC: 0,
 		EndPC:          100,
 	}, ctx.LabelStack.Values[ctx.LabelStack.Ptr]) {
@@ -94,6 +96,7 @@ func Test_ifOp(t *testing.T) {
 		}
 		if !reflect.DeepEqual(&stacks.Label{
 			Arity:          1,
+			Sp:             -1,
 			ContinuationPC: 100,
 			EndPC:          100,
 		}, ctx.LabelStack.Values[ctx.LabelStack.Ptr]) {
@@ -126,6 +129,7 @@ func Test_ifOp(t *testing.T) {
 		}
 		if !reflect.DeepEqual(&stacks.Label{
 			Arity:          1,
+			Sp:             -1,
 			ContinuationPC: 100,
 			EndPC:          100,
 		}, ctx.LabelStack.Values[ctx.LabelStack.Ptr]) {

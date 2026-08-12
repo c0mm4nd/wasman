@@ -7,7 +7,12 @@ const (
 
 // Label acts as a signal on the workflow of the control instr
 type Label struct {
-	Arity          int
+	// Arity is the number of operand values kept when branching to this label
+	// (a block/if result count, or a loop's parameter count).
+	Arity int
+	// Sp is the operand stack pointer captured when the block was entered, so a
+	// branch can discard everything the block pushed and keep only Arity results.
+	Sp             int
 	EndPC          uint64
 	ContinuationPC uint64
 }

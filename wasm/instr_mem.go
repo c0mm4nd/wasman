@@ -66,13 +66,20 @@ func i32Load8s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(uint64(ins.Memory.Value[base]))
+	ins.OperandStack.Push(uint64(uint32(int32(int8(ins.Memory.Value[base])))))
 
 	return nil
 }
 
 func i32Load8u(ins *Instance) error {
-	return i32Load8s(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
+	ins.OperandStack.Push(uint64(ins.Memory.Value[base]))
+
+	return nil
 }
 
 func i32Load16s(ins *Instance) error {
@@ -81,16 +88,34 @@ func i32Load16s(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint16(ins.Memory.Value[base:])))
+	ins.OperandStack.Push(uint64(uint32(int32(int16(binary.LittleEndian.Uint16(ins.Memory.Value[base:]))))))
 
 	return nil
 }
 
 func i32Load16u(ins *Instance) error {
-	return i32Load16s(ins)
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
+	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint16(ins.Memory.Value[base:])))
+
+	return nil
 }
 
 func i64Load8s(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
+	ins.OperandStack.Push(uint64(int64(int8(ins.Memory.Value[base]))))
+
+	return nil
+}
+
+func i64Load8u(ins *Instance) error {
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -101,11 +126,18 @@ func i64Load8s(ins *Instance) error {
 	return nil
 }
 
-func i64Load8u(ins *Instance) error {
-	return i64Load8s(ins)
+func i64Load16s(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
+	ins.OperandStack.Push(uint64(int64(int16(binary.LittleEndian.Uint16(ins.Memory.Value[base:])))))
+
+	return nil
 }
 
-func i64Load16s(ins *Instance) error {
+func i64Load16u(ins *Instance) error {
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -116,11 +148,18 @@ func i64Load16s(ins *Instance) error {
 	return nil
 }
 
-func i64Load16u(ins *Instance) error {
-	return i64Load16s(ins)
+func i64Load32s(ins *Instance) error {
+	base, err := memoryBase(ins)
+	if err != nil {
+		return err
+	}
+
+	ins.OperandStack.Push(uint64(int64(int32(binary.LittleEndian.Uint32(ins.Memory.Value[base:])))))
+
+	return nil
 }
 
-func i64Load32s(ins *Instance) error {
+func i64Load32u(ins *Instance) error {
 	base, err := memoryBase(ins)
 	if err != nil {
 		return err
@@ -129,10 +168,6 @@ func i64Load32s(ins *Instance) error {
 	ins.OperandStack.Push(uint64(binary.LittleEndian.Uint32(ins.Memory.Value[base:])))
 
 	return nil
-}
-
-func i64Load32u(ins *Instance) error {
-	return i64Load32s(ins)
 }
 
 func i32Store(ins *Instance) error {
@@ -252,17 +287,27 @@ func memorySize(ins *Instance) error {
 
 func memoryGrow(ins *Instance) error {
 	ins.Active.PC++
-	n := uint32(ins.OperandStack.Pop())
+	n := uint64(uint32(ins.OperandStack.Pop()))
 
-	if ins.Module.MemorySection[0].Max != nil &&
-		uint64(n+uint32(len(ins.Memory.Value)/config.DefaultMemoryPageSize)) > uint64(*(ins.Module.MemorySection[0].Max)) {
-		v := int32(-1)
-		ins.OperandStack.Push(uint64(v))
+	current := uint64(len(ins.Memory.Value)) / config.DefaultMemoryPageSize
+
+	// the ceiling is the declared max, otherwise the architectural limit of
+	// 65536 pages (a wasm32 linear memory can be at most 4 GiB).
+	max := uint64(config.DefaultMemoryMaxPages)
+	if ins.Memory.Max != nil && uint64(*ins.Memory.Max) < max {
+		max = uint64(*ins.Memory.Max)
+	}
+
+	// uint64 math avoids the uint32 overflow that would let a huge n wrap
+	// under the limit; a failed grow returns -1 without allocating.
+	if current+n > max {
+		failed := int32(-1)
+		ins.OperandStack.Push(uint64(failed))
 
 		return nil
 	}
 
-	ins.OperandStack.Push(uint64(len(ins.Memory.Value)) / config.DefaultMemoryPageSize)
+	ins.OperandStack.Push(current)
 	ins.Memory.Value = append(ins.Memory.Value, make([]byte, n*config.DefaultMemoryPageSize)...)
 
 	return nil

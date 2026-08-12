@@ -38,6 +38,7 @@ func block(ins *Instance) error {
 	ctx.PC += block.BlockTypeBytes
 	ctx.LabelStack.Push(&stacks.Label{
 		Arity:          len(block.BlockType.ReturnTypes),
+		Sp:             ins.OperandStack.Ptr,
 		ContinuationPC: block.EndAt,
 		EndPC:          block.EndAt,
 	})
@@ -53,7 +54,10 @@ func loop(ins *Instance) error {
 	}
 	ctx.PC += block.BlockTypeBytes
 	ctx.LabelStack.Push(&stacks.Label{
-		Arity:          len(block.BlockType.ReturnTypes),
+		// branching to a loop targets its start; in the MVP a loop has no
+		// parameters, so no operand values are carried back.
+		Arity:          0,
+		Sp:             ins.OperandStack.Ptr,
 		ContinuationPC: block.StartAt - 1,
 		EndPC:          block.EndAt,
 	})
@@ -69,14 +73,22 @@ func ifOp(ins *Instance) error {
 	}
 	ctx.PC += block.BlockTypeBytes
 
-	if ins.OperandStack.Pop() == 0 && // means false, turn to else codes
-		block.ElseAt > block.StartAt {
-		// enter else
-		ins.Active.PC = block.ElseAt
+	if ins.OperandStack.Pop() == 0 { // condition is false
+		if block.ElseAt > block.StartAt {
+			// enter the else branch (a label is still needed so its matching
+			// end can unwind the operand stack)
+			ins.Active.PC = block.ElseAt
+		} else {
+			// no else branch: skip the whole if, including its end. Nothing was
+			// pushed, so there is no label to pop.
+			ins.Active.PC = block.EndAt
+			return nil
+		}
 	}
 
 	ctx.LabelStack.Push(&stacks.Label{
 		Arity:          len(block.BlockType.ReturnTypes),
+		Sp:             ins.OperandStack.Ptr,
 		ContinuationPC: block.EndAt,
 		EndPC:          block.EndAt,
 	})
@@ -110,15 +122,28 @@ func br(ins *Instance) error {
 }
 
 func branchAt(ins *Instance, index uint32) error {
-	var l *stacks.Label
-
-	for i := uint32(0); i < index+1; i++ {
-		l = ins.Active.LabelStack.Pop()
-	}
-
-	if l == nil {
+	ls := ins.Active.LabelStack
+	if ls.Ptr < int(index) {
 		return ErrLabelNotFound
 	}
+
+	var l *stacks.Label
+	for i := uint32(0); i < index+1; i++ {
+		l = ls.Pop()
+	}
+
+	// Unwind the operand stack to the target label's height, preserving the top
+	// Arity result values. This discards everything the branched-out blocks
+	// pushed, which is what makes br/br_if/br_table carry the right values.
+	os := ins.OperandStack
+	if l.Arity > 0 {
+		src := os.Ptr - l.Arity + 1
+		dst := l.Sp + 1
+		if dst != src {
+			copy(os.Values[dst:dst+l.Arity], os.Values[src:src+l.Arity])
+		}
+	}
+	os.Ptr = l.Sp + l.Arity
 
 	ins.Active.PC = l.ContinuationPC
 

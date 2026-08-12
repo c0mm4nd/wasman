@@ -17,6 +17,7 @@ var (
 	ErrExportedFuncNotFound = errors.New("exported func is not found")
 	ErrFuncIndexOutOfRange  = errors.New("function index out of range")
 	ErrInvalidArgNum        = errors.New("invalid number of arguments")
+	ErrUnknownOpcode        = errors.New("unknown opcode")
 )
 
 func (ins *Instance) execExpr(expression *expr.Expression) (v interface{}, err error) {
@@ -61,7 +62,11 @@ func (ins *Instance) execFunc() error {
 	for ; int(ins.Active.PC) < len(ins.Active.Func.body); ins.Active.PC++ {
 		opByte := ins.Active.Func.body[ins.Active.PC]
 		op := expr.OpCode(opByte)
-		err := instructions[op](ins)
+		instr := instructions[op]
+		if instr == nil {
+			return fmt.Errorf("%w: %#x", ErrUnknownOpcode, opByte)
+		}
+		err := instr(ins)
 		if err != nil {
 			return err
 		}
