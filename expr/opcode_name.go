@@ -208,6 +208,8 @@ func GetOpCodeName(op OpCode) string {
 			OpCodeNull:   "Null",
 			OpCodeIsNull: "IsNull",
 			OpCodeFunc:   "Func",
+
+			OpCodeMiscPrefix: "MiscPrefix",
 		}
 
 	}

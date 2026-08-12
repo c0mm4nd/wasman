@@ -356,6 +356,14 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 				pc++
 			}
 			continue
+		} else if rawOc == 0xfc { // misc prefix (saturating trunc, bulk memory, ...)
+			pc++
+			_, l, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
+			if err != nil {
+				return nil, fmt.Errorf("read misc subopcode: %w", err)
+			}
+			pc += l - 1
+			continue
 		} else if rawOc == 0x0e { // br_table
 			pc++
 			r := bytes.NewReader(body[pc:])

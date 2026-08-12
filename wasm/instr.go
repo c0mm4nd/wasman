@@ -193,4 +193,6 @@ var instructions = [256]func(ins *Instance) error{
 	expr.OpCodeI64Extend8S:  i64extend8s,
 	expr.OpCodeI64Extend16S: i64extend16s,
 	expr.OpCodeI64Extend32S: i64extend32s,
+
+	expr.OpCodeMiscPrefix: miscPrefix,
 }

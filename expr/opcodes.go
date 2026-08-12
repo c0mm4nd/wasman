@@ -208,5 +208,21 @@ const (
 	OpCodeIsNull OpCode = 0xd1
 	OpCodeFunc   OpCode = 0xd2
 
-	// TODO: 0xfc
+	// OpCodeMiscPrefix (0xfc) introduces the second-byte "misc" opcodes such as
+	// the saturating truncation and bulk-memory operations. The actual op is a
+	// LEB128 uint32 immediately following this prefix byte.
+	OpCodeMiscPrefix OpCode = 0xfc
+)
+
+// Misc (0xfc-prefixed) sub-opcodes. The sub-opcode is encoded as a LEB128
+// uint32 following the 0xfc prefix byte.
+const (
+	OpCodeMiscI32TruncSatF32S uint32 = 0
+	OpCodeMiscI32TruncSatF32U uint32 = 1
+	OpCodeMiscI32TruncSatF64S uint32 = 2
+	OpCodeMiscI32TruncSatF64U uint32 = 3
+	OpCodeMiscI64TruncSatF32S uint32 = 4
+	OpCodeMiscI64TruncSatF32U uint32 = 5
+	OpCodeMiscI64TruncSatF64S uint32 = 6
+	OpCodeMiscI64TruncSatF64U uint32 = 7
 )

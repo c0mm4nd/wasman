@@ -47,20 +47,22 @@ instead of hanging the test binary.
 
 ## Current status
 
-wasman targets the WebAssembly **MVP**. Against the current testsuite it passes
-~**96.1%** of executed behavioral assertions (`pass=15359 fail=629` at the time
-of writing). Excluding the `conversions` suite — which is blocked in its
-entirety by one post-MVP feature (see below) — only ~100 behavioral assertions
-fail. The remaining failures are almost entirely **post-MVP** features that
-modern testsuite files mix into the core suite and that wasman does not
-implement, notably:
+wasman started as a WebAssembly **MVP** interpreter and is incrementally taking
+on post-MVP features. Against the current testsuite it passes ~**99.4%** of
+executed behavioral assertions (`pass=15884 fail=103` at the time of writing).
 
-- non-trapping float→int (`trunc_sat`, `0xFC` prefix) — blocks all of
-  `conversions` (~527 asserts on its own)
+Post-MVP features already implemented:
+
+- sign-extension operators (`i32/i64.extend{8,16,32}_s`)
+- non-trapping float→int (`trunc_sat`, `0xFC` prefix)
+
+The remaining failures are post-MVP features not yet implemented, notably:
+
 - bulk-memory / multi-memory data segments (`data`, parts of `token`)
 - reference types (`select` with a type, typed `ref.null`) — blocks conversion
   of `elem`, `select`, `table`, `br_if`, `memory`, `globals`, …
 - multi-value block/loop/if signatures (`fac-ssa`, parts of `if`)
+- module-level validation (`assert_invalid` / `assert_malformed`, `binary*`)
 - specific NaN payloads from float arithmetic (`f32`, `f64`)
 
 Suites that fail to convert with `wast2json` (post-MVP syntax) are simply
