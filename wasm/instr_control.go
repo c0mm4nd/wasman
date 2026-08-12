@@ -230,10 +230,10 @@ func callIndirect(ins *Instance) error {
 
 	expType := ins.Module.TypeSection[typeIndex]
 
-	if tableIndex >= uint32(len(ins.Module.IndexSpace.Tables)) {
+	if tableIndex >= uint32(len(ins.IndexSpace.Tables)) {
 		return ErrTableIndexOutOfRange
 	}
-	table := ins.Module.IndexSpace.Tables[tableIndex]
+	table := ins.IndexSpace.Tables[tableIndex]
 
 	elemIndex := ins.OperandStack.Pop()
 	if elemIndex >= uint64(len(table.Value)) {

@@ -17,6 +17,12 @@ import (
 type Instance struct {
 	*Module
 
+	// IndexSpace is this INSTANCE's own view of its index spaces. It shadows
+	// the embedded Module's field: instantiating the same *Module twice must
+	// not let the second instance's spaces leak into the first (the Module
+	// keeps a copy of the most recent instantiation for import resolution).
+	IndexSpace *IndexSpace
+
 	Active     *Frame
 	FrameStack *stacks.Stack[*Frame]
 
@@ -50,8 +56,8 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 	}
 
 	// initializing memory (a module is not required to define or import one)
-	if len(ins.Module.IndexSpace.Memories) > 0 {
-		ins.Memory = ins.Module.IndexSpace.Memories[0]
+	if len(ins.IndexSpace.Memories) > 0 {
+		ins.Memory = ins.IndexSpace.Memories[0]
 		if len(ins.Module.MemorySection) > 0 {
 			if diff := uint64(ins.Module.MemorySection[0].Min)*uint64(config.DefaultMemoryPageSize) - uint64(len(ins.Memory.Value)); diff > 0 {
 				ins.Memory.Value = append(ins.Memory.Value, make([]byte, diff)...)
@@ -60,8 +66,8 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 	}
 
 	// initializing functions
-	ins.Functions = make([]fn, len(ins.Module.IndexSpace.Functions))
-	for i, f := range ins.Module.IndexSpace.Functions {
+	ins.Functions = make([]fn, len(ins.IndexSpace.Functions))
+	for i, f := range ins.IndexSpace.Functions {
 		if wasmFn, ok := f.(*HostFunc); ok {
 			wasmFn.function = wasmFn.Generator(ins)
 			ins.Functions[i] = wasmFn
@@ -72,8 +78,8 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 
 	// initialize globals: collect the shared storage cells (imported globals
 	// keep aliasing the exporter's cell)
-	ins.Globals = make([]*uint64, len(ins.Module.IndexSpace.Globals))
-	for i, raw := range ins.Module.IndexSpace.Globals {
+	ins.Globals = make([]*uint64, len(ins.IndexSpace.Globals))
+	for i, raw := range ins.IndexSpace.Globals {
 		ins.Globals[i] = raw.ensureCell()
 	}
 

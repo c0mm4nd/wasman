@@ -20,7 +20,7 @@ func TestInstance_executeConstExpression(t *testing.T) {
 			{OpCode: expr.OpCodeGlobalGet, Data: []byte{0x2}},
 		} {
 			m := &Module{IndexSpace: new(IndexSpace)}
-			ins := &Instance{Module: m}
+			ins := &Instance{Module: m, IndexSpace: m.IndexSpace}
 			_, err := ins.execExpr(expression)
 			if err == nil {
 				t.Log(err)
@@ -109,7 +109,7 @@ func TestModule_resolveImports(t *testing.T) {
 				},
 			},
 		} {
-			ins := &Instance{Module: c.module}
+			ins := &Instance{Module: c.module, IndexSpace: c.module.IndexSpace}
 			err := ins.resolveImports(c.externModules)
 			if err == nil {
 				t.Fail()
@@ -142,7 +142,7 @@ func TestModule_resolveImports(t *testing.T) {
 			},
 		}
 
-		ins := &Instance{Module: m}
+		ins := &Instance{Module: m, IndexSpace: m.IndexSpace}
 		err := ins.resolveImports(ems)
 		if err != nil {
 			t.Fail()
@@ -165,7 +165,7 @@ func TestModule_applyFunctionImport(t *testing.T) {
 				signature: &types.FuncType{ReturnTypes: []types.ValueType{types.ValueTypeF64}}},
 		}}}
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{}}
-		ins := &Instance{Module: m}
+		ins := &Instance{Module: m, IndexSpace: m.IndexSpace}
 		err := ins.applyFunctionImport(is, em, es)
 		if err != nil {
 			t.Fail()
@@ -221,7 +221,7 @@ func TestModule_applyFunctionImport(t *testing.T) {
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
 		} {
-			err := (&Instance{Module: &c.module}).applyFunctionImport(c.importSegment, c.exportedModule, c.exportedSegment)
+			err := (&Instance{Module: &c.module, IndexSpace: c.module.IndexSpace}).applyFunctionImport(c.importSegment, c.exportedModule, c.exportedSegment)
 			if err == nil {
 				t.Fail()
 			}
@@ -269,7 +269,7 @@ func TestModule_applyTableImport(t *testing.T) {
 		}
 
 		m := &Module{IndexSpace: new(IndexSpace)}
-		ins := &Instance{Module: m}
+		ins := &Instance{Module: m, IndexSpace: m.IndexSpace}
 		err := ins.applyTableImport(anyTable, em, es)
 		if err != nil {
 			t.Fail()
@@ -313,7 +313,7 @@ func TestModule_applyMemoryImport(t *testing.T) {
 			IndexSpace: &IndexSpace{Memories: []*Memory{{Value: []byte{0x01}}}},
 		}
 		m := &Module{IndexSpace: new(IndexSpace)}
-		ins := &Instance{Module: m}
+		ins := &Instance{Module: m, IndexSpace: m.IndexSpace}
 		err := ins.applyMemoryImport(anyMem, em, es)
 		if err != nil {
 			t.Fail()
@@ -368,7 +368,7 @@ func TestModule_applyGlobalImport(t *testing.T) {
 		}
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{}}
 
-		ins := &Instance{Module: m}
+		ins := &Instance{Module: m, IndexSpace: m.IndexSpace}
 		err := ins.applyGlobalImport(anyGlobal, em, es)
 		if err != nil {
 			t.Fail()
@@ -392,7 +392,7 @@ func TestModule_buildGlobalIndexSpace(t *testing.T) {
 		},
 		IndexSpace: new(IndexSpace),
 	}
-	ins := &Instance{Module: m}
+	ins := &Instance{Module: m, IndexSpace: m.IndexSpace}
 	err := ins.buildGlobalIndexSpace()
 	if err != nil {
 		t.Fail()
@@ -414,7 +414,7 @@ func TestModule_buildFunctionIndexSpace(t *testing.T) {
 				TypeSection:     []*types.FuncType{{}},
 				IndexSpace:      new(IndexSpace)},
 		} {
-			if (&Instance{Module: m}).buildFunctionIndexSpace() == nil {
+			if (&Instance{Module: m, IndexSpace: m.IndexSpace}).buildFunctionIndexSpace() == nil {
 				t.Fail()
 			}
 		}
@@ -427,7 +427,7 @@ func TestModule_buildFunctionIndexSpace(t *testing.T) {
 			CodeSection:     []*segments.CodeSegment{{Body: []byte{0x01}}},
 			IndexSpace:      new(IndexSpace),
 		}
-		ins := &Instance{Module: m}
+		ins := &Instance{Module: m, IndexSpace: m.IndexSpace}
 		if ins.buildFunctionIndexSpace() != nil {
 			t.Fail()
 		}
@@ -474,7 +474,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 				}},
 			},
 		} {
-			ins := &Instance{Module: m}
+			ins := &Instance{Module: m, IndexSpace: m.IndexSpace}
 			err := ins.buildMemoryIndexSpace()
 			if err == nil {
 				t.Fail()
@@ -601,7 +601,7 @@ func TestModule_buildMemoryIndexSpace(t *testing.T) {
 				exp: []*Memory{{Value: []byte{}}, {Value: []byte{0x00, 0x01, 0x01, 0x00}}},
 			},
 		} {
-			ins := &Instance{Module: c.m}
+			ins := &Instance{Module: c.m, IndexSpace: c.m.IndexSpace}
 			err := ins.buildMemoryIndexSpace()
 			if err != nil {
 				t.Fail()
@@ -651,7 +651,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				}},
 			},
 		} {
-			err := (&Instance{Module: m}).buildTableIndexSpace()
+			err := (&Instance{Module: m, IndexSpace: m.IndexSpace}).buildTableIndexSpace()
 			if err == nil {
 				t.Fail()
 			}
@@ -749,7 +749,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				exp: []fn{nil, f1, nil},
 			},
 		} {
-			ins := &Instance{Module: c.m}
+			ins := &Instance{Module: c.m, IndexSpace: c.m.IndexSpace}
 			err := ins.buildTableIndexSpace()
 			if err != nil {
 				t.Fail()
@@ -793,7 +793,7 @@ func TestModule_readBlockType(t *testing.T) {
 	}
 
 	m := &Module{TypeSection: []*types.FuncType{{}, {InputTypes: []types.ValueType{types.ValueTypeI32}}}}
-	actual, num, err := (&Instance{Module: m}).readBlockType(bytes.NewReader([]byte{0x01}))
+	actual, num, err := (&Instance{Module: m, IndexSpace: m.IndexSpace}).readBlockType(bytes.NewReader([]byte{0x01}))
 	if err != nil {
 		t.Fail()
 	}
@@ -1061,7 +1061,7 @@ func TestModule_parseBlocks(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			actual, err := (&Instance{Module: m}).parseBlocks(c.body)
+			actual, err := (&Instance{Module: m, IndexSpace: m.IndexSpace}).parseBlocks(c.body)
 			if err != nil {
 				t.Fail()
 			}

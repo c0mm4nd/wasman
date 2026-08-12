@@ -15,14 +15,14 @@ import (
 type sectionID byte
 
 const (
-	sectionIDCustom   sectionID = 0
-	sectionIDType     sectionID = 1
-	sectionIDImport   sectionID = 2
-	sectionIDFunction sectionID = 3
-	sectionIDTable    sectionID = 4
-	sectionIDMemory   sectionID = 5
-	sectionIDGlobal   sectionID = 6
-	sectionIDExport   sectionID = 7
+	sectionIDCustom    sectionID = 0
+	sectionIDType      sectionID = 1
+	sectionIDImport    sectionID = 2
+	sectionIDFunction  sectionID = 3
+	sectionIDTable     sectionID = 4
+	sectionIDMemory    sectionID = 5
+	sectionIDGlobal    sectionID = 6
+	sectionIDExport    sectionID = 7
 	sectionIDStart     sectionID = 8
 	sectionIDElement   sectionID = 9
 	sectionIDCode      sectionID = 10
@@ -323,7 +323,7 @@ func (m *Module) readSectionCodes(r *bytes.Reader) error {
 		return fmt.Errorf("get size of vector: %w", err)
 	}
 
-	m.CodeSection = make([]*segments.CodeSegment, vs)	
+	m.CodeSection = make([]*segments.CodeSegment, vs)
 	for i := range m.CodeSection {
 		m.CodeSection[i], err = segments.ReadCodeSegment(r)
 		if err != nil {

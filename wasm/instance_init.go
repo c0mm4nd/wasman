@@ -63,6 +63,12 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 	ins.applyElemSegments(elemPlans)
 	ins.applyDataSegments(dataPlans)
 
+	// publish this instantiation's spaces on the Module so other modules can
+	// import from it (the Module hands out its most recent instantiation);
+	// this instance keeps its OWN pointer, so a later re-instantiation of the
+	// same Module cannot corrupt it.
+	ins.Module.IndexSpace = ins.IndexSpace
+
 	return nil
 }
 
@@ -71,6 +77,12 @@ func (ins *Instance) resolveImports(externModules map[string]*Module) error {
 		em, ok := externModules[is.Module]
 		if !ok {
 			return fmt.Errorf("failed to resolve import of module name %s", is.Module)
+		}
+
+		// an extern module must have been instantiated (or host-defined) before
+		// anything can import from it; failing that is a link error, not a panic
+		if em.IndexSpace == nil {
+			return fmt.Errorf("module %q has not been instantiated", is.Module)
 		}
 
 		es, ok := em.ExportSection[is.Name]
