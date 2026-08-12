@@ -50,6 +50,7 @@ func (l *Linker) Define(modName string, mod *Module) {
 // the Instance's fields like memory
 //
 // e.g. when we wanna add toll after calling the host func f
+//
 //	func ExampleFuncGenerator_addToll() {
 //		var linker = wasman.NewLinker()
 //		var f = func() {fmt.Println("wasm")}
@@ -64,6 +65,7 @@ func (l *Linker) Define(modName string, mod *Module) {
 //	}
 //
 // e.g. when we wanna manipulate memory
+//
 //	func ExampleFuncGenerator_addToll() {
 //		var linker = wasman.NewLinker()
 //

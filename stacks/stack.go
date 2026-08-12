@@ -32,4 +32,3 @@ func (s *Stack[T]) Drop() {
 func (s *Stack[T]) Peek() T {
 	return s.Values[s.Ptr]
 }
-
