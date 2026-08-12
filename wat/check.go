@@ -336,7 +336,15 @@ func (c *checker) parseTypeuse(items []node, named bool) (funcSig, []string, int
 		if err != nil {
 			return funcSig{}, nil, 0, err
 		}
-		if idx >= 0 { // numeric index in range, or resolved id
+		if idx < 0 && ti[0].atom.kind == tokNum {
+			// a numeric type index: resolve it here (in range) so an inline
+			// signature can be matched against the definition; an out-of-range
+			// index is left for the (binary) validator, not this grammar check
+			if n, perr := parseUint(ti[0].atom.text, 32); perr == nil && int(n) < len(c.types) {
+				idx = int(n)
+			}
+		}
+		if idx >= 0 { // resolved id, or numeric index in range
 			declared = &c.types[idx]
 		}
 		consumed++
@@ -742,6 +750,12 @@ func (c *checker) checkElem(items []node) error {
 	// declarative segments: (elem declare func $f ...)
 	if len(items) > 0 && !items[0].isList() && items[0].atom.text == "declare" {
 		return c.checkElemTail(items[1:])
+	}
+	// passive segments: (elem func $f ...) or (elem funcref (ref.func $f) ...)
+	// — no table index and no offset expression
+	if len(items) > 0 && !items[0].isList() &&
+		(items[0].atom.text == "func" || items[0].atom.text == "funcref") {
+		return c.checkElemTail(items)
 	}
 	// optional (table x) — or, in the legacy abbreviation, a bare table index
 	if len(items) > 0 && items[0].head() == "table" {
