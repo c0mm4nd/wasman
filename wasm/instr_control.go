@@ -37,8 +37,10 @@ func block(ins *Instance) error {
 
 	ctx.PC += block.BlockTypeBytes
 	ctx.LabelStack.Push(&stacks.Label{
-		Arity:          len(block.BlockType.ReturnTypes),
-		Sp:             ins.OperandStack.Ptr,
+		Arity: len(block.BlockType.ReturnTypes),
+		// Sp is captured below the block's parameters so a forward branch keeps
+		// the result values (multi-value: a block may take parameters).
+		Sp:             ins.OperandStack.Ptr - len(block.BlockType.InputTypes),
 		ContinuationPC: block.EndAt,
 		EndPC:          block.EndAt,
 	})
@@ -54,10 +56,10 @@ func loop(ins *Instance) error {
 	}
 	ctx.PC += block.BlockTypeBytes
 	ctx.LabelStack.Push(&stacks.Label{
-		// branching to a loop targets its start; in the MVP a loop has no
-		// parameters, so no operand values are carried back.
-		Arity:          0,
-		Sp:             ins.OperandStack.Ptr,
+		// branching to a loop targets its start, carrying back the loop's
+		// parameters (0 in the MVP, non-zero with multi-value loops).
+		Arity:          len(block.BlockType.InputTypes),
+		Sp:             ins.OperandStack.Ptr - len(block.BlockType.InputTypes),
 		ContinuationPC: block.StartAt - 1,
 		EndPC:          block.EndAt,
 	})
@@ -88,7 +90,7 @@ func ifOp(ins *Instance) error {
 
 	ctx.LabelStack.Push(&stacks.Label{
 		Arity:          len(block.BlockType.ReturnTypes),
-		Sp:             ins.OperandStack.Ptr,
+		Sp:             ins.OperandStack.Ptr - len(block.BlockType.InputTypes),
 		ContinuationPC: block.EndAt,
 		EndPC:          block.EndAt,
 	})
