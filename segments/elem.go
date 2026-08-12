@@ -23,15 +23,11 @@ type ElemSegment struct {
 
 // ReadElemSegment reads one ElemSegment from the io.Reader.
 //
-// It supports the bulk-memory / reference-types flags encoding for the funcref
-// element kind:
-//
-//	flag 0: active, table 0            -> offset expr, funcidx vec
-//	flag 1: passive                    -> elemkind, funcidx vec
-//	flag 2: active, explicit tableidx  -> tableidx, offset expr, elemkind, funcidx vec
-//	flag 3: declarative                -> elemkind, funcidx vec
-//
-// The MVP encoding (a bare table index of 0) is identical to flag 0.
+// It supports the full bulk-memory / reference-types flags encoding (flags 0-7):
+// active/passive/declarative segments, an explicit table index, and element
+// lists given either as function indices or as constant expressions
+// (ref.func / ref.null). The MVP encoding (a bare table index of 0) is
+// identical to flag 0.
 func ReadElemSegment(r *bytes.Reader) (*ElemSegment, error) {
 	flag, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
@@ -39,27 +35,46 @@ func ReadElemSegment(r *bytes.Reader) (*ElemSegment, error) {
 	}
 
 	seg := &ElemSegment{}
-	var needOffset, needElemKind bool
+	var needOffset, needTableIdx, needKind, exprElems bool
 	switch flag {
-	case 0x00: // active, table 0
+	case 0x00: // active, table 0, funcidx vec
 		needOffset = true
-	case 0x01: // passive
+	case 0x01: // passive, funcidx vec
 		seg.Passive = true
-		needElemKind = true
-	case 0x02: // active, explicit table index
+		needKind = true
+	case 0x02: // active, explicit tableidx, funcidx vec
+		needTableIdx = true
+		needOffset = true
+		needKind = true
+	case 0x03: // declarative, funcidx vec
+		seg.Passive = true
+		needKind = true
+	case 0x04: // active, table 0, expr vec
+		needOffset = true
+		exprElems = true
+	case 0x05: // passive, reftype, expr vec
+		seg.Passive = true
+		needKind = true
+		exprElems = true
+	case 0x06: // active, explicit tableidx, reftype, expr vec
+		needTableIdx = true
+		needOffset = true
+		needKind = true
+		exprElems = true
+	case 0x07: // declarative, reftype, expr vec
+		seg.Passive = true
+		needKind = true
+		exprElems = true
+	default:
+		return nil, fmt.Errorf("invalid element segment flag: %d", flag)
+	}
+
+	if needTableIdx {
 		ti, _, err := leb128decode.DecodeUint32(r)
 		if err != nil {
 			return nil, fmt.Errorf("read table index: %w", err)
 		}
 		seg.TableIndex = ti
-		needOffset = true
-		needElemKind = true
-	case 0x03: // declarative
-		seg.Passive = true
-		needElemKind = true
-	default:
-		// flags 4-7 use reftype expression element lists (reference types)
-		return nil, fmt.Errorf("unsupported element segment flag: %d", flag)
 	}
 
 	if needOffset {
@@ -75,13 +90,14 @@ func ReadElemSegment(r *bytes.Reader) (*ElemSegment, error) {
 		seg.OffsetExpr = expression
 	}
 
-	if needElemKind {
-		ek, err := r.ReadByte()
+	if needKind {
+		// elemkind (0x00 for funcidx lists) or reftype (0x70 funcref for expr lists)
+		k, err := r.ReadByte()
 		if err != nil {
-			return nil, fmt.Errorf("read elemkind: %w", err)
+			return nil, fmt.Errorf("read elemkind/reftype: %w", err)
 		}
-		if ek != 0x00 { // 0x00 == funcref
-			return nil, fmt.Errorf("unsupported elemkind: %#x", ek)
+		if k != 0x00 && k != 0x70 {
+			return nil, fmt.Errorf("unsupported elemkind/reftype: %#x", k)
 		}
 	}
 
@@ -92,13 +108,55 @@ func ReadElemSegment(r *bytes.Reader) (*ElemSegment, error) {
 
 	init := make([]uint32, vs)
 	for i := range init {
-		fIDx, _, err := leb128decode.DecodeUint32(r)
-		if err != nil {
-			return nil, fmt.Errorf("read function index: %w", err)
+		if exprElems {
+			idx, err := readElemExpr(r)
+			if err != nil {
+				return nil, fmt.Errorf("read element expression: %w", err)
+			}
+			init[i] = idx
+		} else {
+			fIDx, _, err := leb128decode.DecodeUint32(r)
+			if err != nil {
+				return nil, fmt.Errorf("read function index: %w", err)
+			}
+			init[i] = fIDx
 		}
-		init[i] = fIDx
 	}
 	seg.Init = init
 
 	return seg, nil
+}
+
+// readElemExpr reads a single element expression (ref.func idx end, or
+// ref.null t end) and returns the referenced function index (0 for a null
+// reference, which only appears in passive/declarative segments here).
+func readElemExpr(r *bytes.Reader) (uint32, error) {
+	b, err := r.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+
+	var idx uint32
+	switch expr.OpCode(b) {
+	case expr.OpCodeFunc: // ref.func
+		idx, _, err = leb128decode.DecodeUint32(r)
+		if err != nil {
+			return 0, fmt.Errorf("read ref.func index: %w", err)
+		}
+	case expr.OpCodeNull: // ref.null <reftype>
+		if _, err := r.ReadByte(); err != nil {
+			return 0, fmt.Errorf("read ref.null type: %w", err)
+		}
+	default:
+		return 0, fmt.Errorf("unsupported element expression opcode: %#x", b)
+	}
+
+	end, err := r.ReadByte()
+	if err != nil {
+		return 0, fmt.Errorf("read element expression end: %w", err)
+	}
+	if expr.OpCode(end) != expr.OpCodeEnd {
+		return 0, fmt.Errorf("element expression not terminated: %#x", end)
+	}
+	return idx, nil
 }
