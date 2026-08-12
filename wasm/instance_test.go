@@ -575,7 +575,8 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				IndexSpace:      new(IndexSpace),
 			},
 			{
-				ElementsSection: []*segments.ElemSegment{{TableIndex: 0}},
+				// table index past the end of the (imported+local) index space
+				ElementsSection: []*segments.ElemSegment{{TableIndex: 1}},
 				IndexSpace: &IndexSpace{Tables: []*Table{
 					{Value: []*uint32{}},
 				}},
@@ -600,7 +601,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 					Max: utils.Uint32Ptr(1),
 				}}},
 				IndexSpace: &IndexSpace{Tables: []*Table{
-					{Value: []*uint32{}},
+					{TableType: types.TableType{Limits: &types.Limits{Max: utils.Uint32Ptr(1)}}, Value: []*uint32{}},
 				}},
 			},
 		} {

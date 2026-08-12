@@ -234,13 +234,17 @@ func (ins *Instance) buildMemoryIndexSpace() error {
 
 func (ins *Instance) buildTableIndexSpace() error {
 	for _, elem := range ins.ElementsSection {
-		// note: MVP restricts the size of memory index spaces to 1
+		// passive/declarative segments are not applied at instantiation.
+		if elem.Passive {
+			continue
+		}
+		// note: the table may be imported, so validate against the index space
+		// (which includes imported tables) rather than the local section.
 		if elem.TableIndex >= uint32(len(ins.IndexSpace.Tables)) {
 			return fmt.Errorf("index out of range of index space")
-		} else if elem.TableIndex >= uint32(len(ins.TableSection)) {
-			// this is just in case since we could assume len(SecTables) == len(indexSpace.Table)
-			return fmt.Errorf("index out of range of table section")
 		}
+
+		table := ins.IndexSpace.Tables[elem.TableIndex]
 
 		rawOffset, err := ins.execExpr(elem.OffsetExpr)
 		if err != nil {
@@ -254,12 +258,9 @@ func (ins *Instance) buildTableIndexSpace() error {
 
 		offset := int(offset32)
 		size := offset + len(elem.Init)
-		if ins.TableSection[elem.TableIndex].Limits.Max != nil &&
-			size > int(*(ins.TableSection[elem.TableIndex].Limits.Max)) {
-			return fmt.Errorf("table size out of limit of %d", int(*(ins.TableSection[elem.TableIndex].Limits.Max)))
+		if table.Limits != nil && table.Limits.Max != nil && size > int(*table.Limits.Max) {
+			return fmt.Errorf("table size out of limit of %d", int(*table.Limits.Max))
 		}
-
-		table := ins.IndexSpace.Tables[elem.TableIndex]
 		if size > len(table.Value) {
 			next := make([]*uint32, size)
 			copy(next, table.Value)

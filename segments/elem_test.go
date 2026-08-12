@@ -16,9 +16,10 @@ func TestReadElementSegment(t *testing.T) {
 		exp   *segments.ElemSegment
 	}{
 		{
-			bytes: []byte{0xa, 0x41, 0x1, 0x0b, 0x02, 0x05, 0x07},
+			// flag 0: active, table 0, offset expr, funcidx vec
+			bytes: []byte{0x00, 0x41, 0x1, 0x0b, 0x02, 0x05, 0x07},
 			exp: &segments.ElemSegment{
-				TableIndex: 10,
+				TableIndex: 0,
 				OffsetExpr: &expr.Expression{
 					OpCode: expr.OpCodeI32Const,
 					Data:   []byte{0x01},
@@ -27,7 +28,8 @@ func TestReadElementSegment(t *testing.T) {
 			},
 		},
 		{
-			bytes: []byte{0x3, 0x41, 0x04, 0x0b, 0x01, 0x0a},
+			// flag 2: active, explicit tableidx 3, offset expr, elemkind, funcidx vec
+			bytes: []byte{0x02, 0x03, 0x41, 0x04, 0x0b, 0x00, 0x01, 0x0a},
 			exp: &segments.ElemSegment{
 				TableIndex: 3,
 				OffsetExpr: &expr.Expression{
