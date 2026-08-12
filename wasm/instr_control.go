@@ -240,12 +240,13 @@ func callIndirect(ins *Instance) error {
 		return ErrTableIndexOutOfRange
 	}
 
-	te := table.Value[elemIndex]
-	if te == nil {
+	// table slots hold resolved function references (possibly from another
+	// module sharing this table); nil means uninitialized/null.
+	f := table.Value[elemIndex]
+	if f == nil {
 		return ErrTableInstanceNotInitialized
 	}
 
-	f := ins.Functions[*te]
 	ft := f.getType()
 	if !types.HasSameSignature(ft.InputTypes, expType.InputTypes) ||
 		!types.HasSameSignature(ft.ReturnTypes, expType.ReturnTypes) {

@@ -45,7 +45,7 @@ func getGlobal(ins *Instance) error {
 		return err
 	}
 
-	ins.OperandStack.Push(ins.Globals[id])
+	ins.OperandStack.Push(*ins.Globals[id])
 
 	return nil
 }
@@ -57,7 +57,7 @@ func setGlobal(ins *Instance) error {
 		return err
 	}
 
-	ins.Globals[id] = ins.OperandStack.Pop()
+	*ins.Globals[id] = ins.OperandStack.Pop()
 
 	return nil
 }

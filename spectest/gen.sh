@@ -75,4 +75,59 @@ for name in "${names[@]}"; do
 	fi
 done
 
+# ---------------------------------------------------------------------------
+# Legacy suites: several suites in the current testsuite use post-MVP syntax
+# that wast2json cannot convert (reference-types text syntax etc.), so their
+# coverage would be silently lost. Fetch those from a pinned pre-reference-
+# types revision (2020-05-29) instead. Two documented patches are applied:
+#   - elem.wast: strip (duplicate) element segment names, which modern wabt
+#     rejects (a pure text-syntax issue, no semantic change)
+#   - imports.wast: drop the single `assert_invalid "multiple tables"` for
+#     two locally-defined tables — wasman intentionally supports multi-table
+#     (the modern call_indirect suite requires it), so that MVP-era
+#     restriction no longer applies
+# ---------------------------------------------------------------------------
+LEGACY_REF="13ca8ae7e29bdf13bcfaabfd10e415b98d3103d1"
+LEGACY_BASE="https://raw.githubusercontent.com/WebAssembly/testsuite/${LEGACY_REF}"
+
+# name[:remote-file] pairs (global.wast was later renamed globals.wast)
+LEGACY=(
+	align br_if br_table elem exports func globals:global imports linking
+	local_tee memory memory_grow select unreached-invalid
+)
+
+if [ ${#names[@]} -eq ${#ALL[@]} ]; then # only on a full run
+	for entry in "${LEGACY[@]}"; do
+		name="${entry%%:*}"
+		remote="${entry#*:}"
+		[ "$remote" = "$entry" ] && remote="$name"
+		# skip if the modern suite already converted
+		[ -f "$OUT/$name/$name.json" ] && continue
+		dir="$OUT/$name"
+		mkdir -p "$dir"
+		wast="$dir/$name.wast"
+		echo "==> $name (legacy)"
+		ok=0
+		for attempt in 1 2 3; do
+			if curl -sSf --max-time 30 "$LEGACY_BASE/$remote.wast" -o "$wast"; then ok=1; break; fi
+			sleep 1
+		done
+		if [ "$ok" -ne 1 ]; then
+			echo "    download failed for $name (skipping)" >&2
+			continue
+		fi
+		case "$name" in
+		elem)
+			perl -pi -e 's/\(elem \$\w+ /(elem /g' "$wast"
+			;;
+		imports)
+			perl -0pi -e 's/\(assert_invalid\n  \(module \(table 10 funcref\) \(table 10 funcref\)\)\n  "multiple tables"\n\)\n//' "$wast"
+			;;
+		esac
+		if ! wast2json --no-check "$wast" -o "$dir/$name.json" 2>"$dir/gen.err"; then
+			echo "    wast2json failed for $name (see $dir/gen.err)" >&2
+		fi
+	done
+fi
+
 echo "done -> $OUT"

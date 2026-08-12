@@ -18,6 +18,12 @@ type wasmFunc struct {
 	NumLocal  uint32                // index id in local
 	body      []byte                // body
 	Blocks    map[uint64]*funcBlock // instr blocks inside the func
+
+	// owner is the instance this function was defined in. A call coming from a
+	// different instance (an imported function) must execute against the
+	// owner's module state — its functions, globals, memory and tables — not
+	// the caller's.
+	owner *Instance
 }
 
 type funcBlock struct {
@@ -34,6 +40,12 @@ func (f *wasmFunc) getType() *types.FuncType {
 }
 
 func (f *wasmFunc) call(ins *Instance) (err error) {
+	// a cross-instance call (imported function) runs in its owner's context,
+	// with the argument/result values ferried between the two operand stacks.
+	if f.owner != nil && f.owner != ins {
+		return f.callCross(ins)
+	}
+
 	al := len(f.signature.InputTypes)
 	locals := make([]uint64, f.NumLocal+uint32(al))
 	for i := 0; i < al; i++ {
@@ -91,4 +103,36 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 	ins.Active = prev
 
 	return err
+}
+
+// callCross executes f inside its owning instance while the call came from
+// another instance: arguments are moved from the caller's operand stack to the
+// owner's, the function runs entirely in the owner's module state, and the
+// results are moved back.
+func (f *wasmFunc) callCross(caller *Instance) error {
+	owner := f.owner
+
+	n := len(f.signature.InputTypes)
+	args := make([]uint64, n)
+	for i := n - 1; i >= 0; i-- {
+		args[i] = caller.OperandStack.Pop()
+	}
+	for _, a := range args {
+		owner.OperandStack.Push(a)
+	}
+
+	if err := f.call(owner); err != nil {
+		return err
+	}
+
+	m := len(f.signature.ReturnTypes)
+	rets := make([]uint64, m)
+	for i := m - 1; i >= 0; i-- {
+		rets[i] = owner.OperandStack.Pop()
+	}
+	for _, r := range rets {
+		caller.OperandStack.Push(r)
+	}
+
+	return nil
 }

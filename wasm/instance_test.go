@@ -230,10 +230,29 @@ func TestModule_applyFunctionImport(t *testing.T) {
 }
 
 func TestModule_applyTableImport(t *testing.T) {
+	anyTable := &segments.ImportSegment{Desc: &segments.ImportDesc{Kind: segments.KindTable}}
+
 	t.Run("error", func(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{Index: 10}}
 		em := &Module{IndexSpace: new(IndexSpace)}
-		err := (&Instance{Module: &Module{}}).applyTableImport(em, es)
+		err := (&Instance{Module: &Module{}}).applyTableImport(anyTable, em, es)
+		if err == nil {
+			t.Fail()
+		}
+	})
+
+	t.Run("incompatible limits", func(t *testing.T) {
+		es := &segments.ExportSegment{Desc: &segments.ExportDesc{}}
+		em := &Module{
+			IndexSpace: &IndexSpace{Tables: []*Table{
+				{TableType: types.TableType{Limits: &types.Limits{Min: 1}}, Value: []fn{}},
+			}},
+		}
+		is := &segments.ImportSegment{Desc: &segments.ImportDesc{
+			Kind:         segments.KindTable,
+			TableTypePtr: &types.TableType{Limits: &types.Limits{Min: 5}}, // wants at least 5
+		}}
+		err := (&Instance{Module: &Module{IndexSpace: new(IndexSpace)}}).applyTableImport(is, em, es)
 		if err == nil {
 			t.Fail()
 		}
@@ -242,30 +261,47 @@ func TestModule_applyTableImport(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{}}
 
-		var exp uint32 = 10
+		exp := &dummyFunc{}
 		em := &Module{
 			IndexSpace: &IndexSpace{Tables: []*Table{
-				{Value: []*uint32{&exp}},
+				{Value: []fn{exp}},
 			}},
 		}
 
 		m := &Module{IndexSpace: new(IndexSpace)}
 		ins := &Instance{Module: m}
-		err := ins.applyTableImport(em, es)
+		err := ins.applyTableImport(anyTable, em, es)
 		if err != nil {
 			t.Fail()
 		}
-		if *ins.Module.IndexSpace.Tables[0].Value[0] != exp {
+		if ins.Module.IndexSpace.Tables[0].Value[0] != fn(exp) {
 			t.Fail()
 		}
 	})
 }
 
 func TestModule_applyMemoryImport(t *testing.T) {
+	anyMem := &segments.ImportSegment{Desc: &segments.ImportDesc{Kind: segments.KindMem}}
+
 	t.Run("error", func(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{Index: 10}}
 		em := &Module{IndexSpace: new(IndexSpace)}
-		err := (&Instance{Module: &Module{}}).applyMemoryImport(em, es)
+		err := (&Instance{Module: &Module{}}).applyMemoryImport(anyMem, em, es)
+		if err == nil {
+			t.Fail()
+		}
+	})
+
+	t.Run("incompatible limits", func(t *testing.T) {
+		es := &segments.ExportSegment{Desc: &segments.ExportDesc{}}
+		em := &Module{
+			IndexSpace: &IndexSpace{Memories: []*Memory{{MemoryType: types.MemoryType{Min: 1}, Value: []byte{}}}},
+		}
+		is := &segments.ImportSegment{Desc: &segments.ImportDesc{
+			Kind:       segments.KindMem,
+			MemTypePtr: &types.MemoryType{Min: 2}, // wants at least 2 pages
+		}}
+		err := (&Instance{Module: &Module{IndexSpace: new(IndexSpace)}}).applyMemoryImport(is, em, es)
 		if err == nil {
 			t.Fail()
 		}
@@ -278,7 +314,7 @@ func TestModule_applyMemoryImport(t *testing.T) {
 		}
 		m := &Module{IndexSpace: new(IndexSpace)}
 		ins := &Instance{Module: m}
-		err := ins.applyMemoryImport(em, es)
+		err := ins.applyMemoryImport(anyMem, em, es)
 		if err != nil {
 			t.Fail()
 		}
@@ -289,25 +325,35 @@ func TestModule_applyMemoryImport(t *testing.T) {
 }
 
 func TestModule_applyGlobalImport(t *testing.T) {
+	anyGlobal := &segments.ImportSegment{Desc: &segments.ImportDesc{Kind: segments.KindGlobal}}
+
 	t.Run("error", func(t *testing.T) {
 		for _, c := range []struct {
+			importSegment   *segments.ImportSegment
 			exportedModule  *Module
 			exportedSegment *segments.ExportSegment
 		}{
 			{
+				importSegment:   anyGlobal,
 				exportedModule:  &Module{IndexSpace: new(IndexSpace)},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{Index: 10}},
 			},
 			{
+				// importer wants an immutable i32 but the exporter provides a mutable one
+				importSegment: &segments.ImportSegment{Desc: &segments.ImportDesc{
+					Kind:          segments.KindGlobal,
+					GlobalTypePtr: &types.GlobalType{ValType: types.ValueTypeI32, Mutable: false},
+				}},
 				exportedModule: &Module{IndexSpace: &IndexSpace{Globals: []*Global{{
 					GlobalType: &types.GlobalType{
+						ValType: types.ValueTypeI32,
 						Mutable: true,
 					},
 				}}}},
 				exportedSegment: &segments.ExportSegment{Desc: &segments.ExportDesc{}},
 			},
 		} {
-			if (&Instance{Module: &Module{}}).applyGlobalImport(c.exportedModule, c.exportedSegment) == nil {
+			if (&Instance{Module: &Module{}}).applyGlobalImport(c.importSegment, c.exportedModule, c.exportedSegment) == nil {
 				t.Fail()
 			}
 		}
@@ -323,7 +369,7 @@ func TestModule_applyGlobalImport(t *testing.T) {
 		es := &segments.ExportSegment{Desc: &segments.ExportDesc{}}
 
 		ins := &Instance{Module: m}
-		err := ins.applyGlobalImport(em, es)
+		err := ins.applyGlobalImport(anyGlobal, em, es)
 		if err != nil {
 			t.Fail()
 		}
@@ -578,14 +624,14 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				// table index past the end of the (imported+local) index space
 				ElementsSection: []*segments.ElemSegment{{TableIndex: 1}},
 				IndexSpace: &IndexSpace{Tables: []*Table{
-					{Value: []*uint32{}},
+					{Value: []fn{}},
 				}},
 			},
 			{
 				ElementsSection: []*segments.ElemSegment{{TableIndex: 0, OffsetExpr: &expr.Expression{}}},
 				TableSection:    []*types.TableType{{}},
 				IndexSpace: &IndexSpace{Tables: []*Table{
-					{Value: []*uint32{}},
+					{Value: []fn{}},
 				}},
 			},
 			{
@@ -601,7 +647,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 					Max: utils.Uint32Ptr(1),
 				}}},
 				IndexSpace: &IndexSpace{Tables: []*Table{
-					{TableType: types.TableType{Limits: &types.Limits{Max: utils.Uint32Ptr(1)}}, Value: []*uint32{}},
+					{TableType: types.TableType{Limits: &types.Limits{Max: utils.Uint32Ptr(1)}}, Value: []fn{}},
 				}},
 			},
 		} {
@@ -614,9 +660,13 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 	})
 
 	t.Run("ok", func(t *testing.T) {
+		// table slots resolve element indices to function references
+		f0, f1 := &dummyFunc{}, &dummyFunc{}
+		funcs := []fn{f0, f1}
+
 		for _, c := range []struct {
 			m   *Module
-			exp []*Table
+			exp []fn
 		}{
 			{
 				// the table is pre-sized to its declared minimum
@@ -630,13 +680,14 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 						Init: []uint32{0x1, 0x1},
 					}},
 					TableSection: []*types.TableType{{Limits: &types.Limits{Min: 2}}},
-					IndexSpace: &IndexSpace{Tables: []*Table{
-						{TableType: types.TableType{Limits: &types.Limits{Min: 2}}, Value: []*uint32{}},
-					}},
+					IndexSpace: &IndexSpace{
+						Functions: funcs,
+						Tables: []*Table{
+							{TableType: types.TableType{Limits: &types.Limits{Min: 2}}, Value: []fn{}},
+						},
+					},
 				},
-				exp: []*Table{
-					{Value: []*uint32{utils.Uint32Ptr(0x01), utils.Uint32Ptr(0x01)}},
-				},
+				exp: []fn{f1, f1},
 			},
 			{
 				m: &Module{
@@ -650,13 +701,12 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 					}},
 					TableSection: []*types.TableType{{Limits: &types.Limits{}}},
 					IndexSpace: &IndexSpace{
+						Functions: funcs,
 						Tables: []*Table{
-							{Value: []*uint32{utils.Uint32Ptr(0x0), utils.Uint32Ptr(0x0)}}},
+							{Value: []fn{f0, f0}}},
 					},
 				},
-				exp: []*Table{
-					{Value: []*uint32{utils.Uint32Ptr(0x01), utils.Uint32Ptr(0x01)}},
-				},
+				exp: []fn{f1, f1},
 			},
 			{
 				m: &Module{
@@ -670,14 +720,13 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 					}},
 					TableSection: []*types.TableType{{Limits: &types.Limits{}}},
 					IndexSpace: &IndexSpace{
+						Functions: funcs,
 						Tables: []*Table{
-							{Value: []*uint32{nil, utils.Uint32Ptr(0x0), utils.Uint32Ptr(0x0)}},
+							{Value: []fn{nil, f0, f0}},
 						},
 					},
 				},
-				exp: []*Table{
-					{Value: []*uint32{nil, utils.Uint32Ptr(0x01), utils.Uint32Ptr(0x01)}},
-				},
+				exp: []fn{nil, f1, f1},
 			},
 			{
 				m: &Module{
@@ -691,14 +740,13 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 					}},
 					TableSection: []*types.TableType{{Limits: &types.Limits{}}},
 					IndexSpace: &IndexSpace{
+						Functions: funcs,
 						Tables: []*Table{
-							{Value: []*uint32{nil, nil, nil}},
+							{Value: []fn{nil, nil, nil}},
 						},
 					},
 				},
-				exp: []*Table{
-					{Value: []*uint32{nil, utils.Uint32Ptr(0x01), nil}},
-				},
+				exp: []fn{nil, f1, nil},
 			},
 		} {
 			ins := &Instance{Module: c.m}
@@ -706,24 +754,16 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 			if err != nil {
 				t.Fail()
 			}
-			if len(ins.Module.IndexSpace.Tables) != len(c.exp) {
+			if len(ins.Module.IndexSpace.Tables) != 1 {
 				t.Fail()
 			}
-			for i, actualTable := range ins.Module.IndexSpace.Tables {
-				expTable := c.exp[i]
-				if len(actualTable.Value) != len(expTable.Value) {
+			actual := ins.Module.IndexSpace.Tables[0].Value
+			if len(actual) != len(c.exp) {
+				t.Fail()
+			}
+			for i, exp := range c.exp {
+				if actual[i] != exp {
 					t.Fail()
-				}
-				for i, exp := range expTable.Value {
-					if exp == nil {
-						if actualTable.Value[i] != nil {
-							t.Fail()
-						}
-					} else {
-						if *actualTable.Value[i] != *exp {
-							t.Fail()
-						}
-					}
 				}
 			}
 		}

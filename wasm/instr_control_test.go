@@ -4,8 +4,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/c0mm4nd/wasman/utils"
-
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
@@ -271,7 +269,7 @@ func Test_callIndirect(t *testing.T) {
 			TypeSection: []*types.FuncType{nil, {}},
 			IndexSpace: &IndexSpace{
 				Tables: []*Table{
-					{Value: []*uint32{nil, utils.Uint32Ptr(1)}},
+					{Value: []fn{nil, df}},
 				},
 			},
 		},

@@ -26,7 +26,7 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 		for i := base; i < len(ins.TableSection); i++ {
 			ins.IndexSpace.Tables = append(ins.IndexSpace.Tables, &Table{
 				TableType: *ins.TableSection[i],
-				Value:     []*uint32{},
+				Value:     []fn{},
 			})
 		}
 	}
@@ -47,12 +47,21 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 	if err := ins.buildFunctionIndexSpace(); err != nil {
 		return fmt.Errorf("build function index space: %w", err)
 	}
-	if err := ins.buildTableIndexSpace(); err != nil {
+
+	// segment application is all-or-nothing: bounds-check every active element
+	// AND data segment first, so a failing instantiation (link error) leaves
+	// shared (imported) tables and memories untouched.
+	ins.sizeTablesAndMemories()
+	elemPlans, err := ins.planElemSegments()
+	if err != nil {
 		return fmt.Errorf("build table index space: %w", err)
 	}
-	if err := ins.buildMemoryIndexSpace(); err != nil {
+	dataPlans, err := ins.planDataSegments()
+	if err != nil {
 		return fmt.Errorf("build memory index space: %w", err)
 	}
+	ins.applyElemSegments(elemPlans)
+	ins.applyDataSegments(dataPlans)
 
 	return nil
 }
@@ -78,15 +87,15 @@ func (ins *Instance) resolveImports(externModules map[string]*Module) error {
 				return fmt.Errorf("applyFunctionImport failed: %w", err)
 			}
 		case 0x01: // table
-			if err := ins.applyTableImport(em, es); err != nil {
+			if err := ins.applyTableImport(is, em, es); err != nil {
 				return fmt.Errorf("applyTableImport failed: %w", err)
 			}
 		case 0x02: // memory
-			if err := ins.applyMemoryImport(em, es); err != nil {
+			if err := ins.applyMemoryImport(is, em, es); err != nil {
 				return fmt.Errorf("applyMemoryImport: %w", err)
 			}
 		case 0x03: // global
-			if err := ins.applyGlobalImport(em, es); err != nil {
+			if err := ins.applyGlobalImport(is, em, es); err != nil {
 				return fmt.Errorf("applyGlobalImport: %w", err)
 			}
 		default:
@@ -116,38 +125,77 @@ func (ins *Instance) applyFunctionImport(importSeg *segments.ImportSegment, exte
 	return nil
 }
 
-func (ins *Instance) applyTableImport(externModule *Module, exportSeg *segments.ExportSegment) error {
+// limitsCompatible reports whether the provided (exporter's) limits satisfy
+// the required (importer's declared) limits:
+// provided.Min >= required.Min and provided.Max <= required.Max (if required).
+func limitsCompatible(provided, required *types.Limits) bool {
+	var pMin, rMin uint32
+	var pMax, rMax *uint32
+	if provided != nil {
+		pMin, pMax = provided.Min, provided.Max
+	}
+	if required != nil {
+		rMin, rMax = required.Min, required.Max
+	}
+	if pMin < rMin {
+		return false
+	}
+	if rMax != nil && (pMax == nil || *pMax > *rMax) {
+		return false
+	}
+	return true
+}
+
+func (ins *Instance) applyTableImport(importSeg *segments.ImportSegment, externModule *Module, exportSeg *segments.ExportSegment) error {
 	if exportSeg.Desc.Index >= uint32(len(externModule.IndexSpace.Tables)) {
 		return fmt.Errorf("exported index out of range")
 	}
 
-	// note: MVP restricts the size of table index spaces to 1
-	ins.IndexSpace.Tables = append(ins.IndexSpace.Tables, externModule.IndexSpace.Tables[exportSeg.Desc.Index])
+	table := externModule.IndexSpace.Tables[exportSeg.Desc.Index]
+	if want := importSeg.Desc.TableTypePtr; want != nil {
+		if !limitsCompatible(table.Limits, want.Limits) {
+			return fmt.Errorf("incompatible import type: table limits mismatch")
+		}
+	}
+
+	ins.IndexSpace.Tables = append(ins.IndexSpace.Tables, table)
 	return nil
 }
 
-func (ins *Instance) applyMemoryImport(externModule *Module, exportSegment *segments.ExportSegment) error {
+func (ins *Instance) applyMemoryImport(importSeg *segments.ImportSegment, externModule *Module, exportSegment *segments.ExportSegment) error {
 	if exportSegment.Desc.Index >= uint32(len(externModule.IndexSpace.Memories)) {
 		return fmt.Errorf("exported index out of range")
 	}
 
-	// note: MVP restricts the size of memory index spaces to 1
-	ins.IndexSpace.Memories = append(ins.IndexSpace.Memories, externModule.IndexSpace.Memories[exportSegment.Desc.Index])
+	memory := externModule.IndexSpace.Memories[exportSegment.Desc.Index]
+	if want := importSeg.Desc.MemTypePtr; want != nil {
+		if !limitsCompatible(&memory.MemoryType, want) {
+			return fmt.Errorf("incompatible import type: memory limits mismatch")
+		}
+	}
+
+	// note: multi-memory is not supported, so this is memory 0
+	ins.IndexSpace.Memories = append(ins.IndexSpace.Memories, memory)
 	return nil
 }
 
-func (ins *Instance) applyGlobalImport(externModule *Module, exportSegment *segments.ExportSegment) error {
+func (ins *Instance) applyGlobalImport(importSeg *segments.ImportSegment, externModule *Module, exportSegment *segments.ExportSegment) error {
 	if exportSegment.Desc.Index >= uint32(len(externModule.IndexSpace.Globals)) {
 		return fmt.Errorf("exported index out of range")
 	}
 
 	gb := externModule.IndexSpace.Globals[exportSegment.Desc.Index]
-	if gb.GlobalType.Mutable {
-		return fmt.Errorf("cannot import mutable global")
+	if want := importSeg.Desc.GlobalTypePtr; want != nil {
+		if gb.GlobalType == nil ||
+			gb.GlobalType.ValType != want.ValType ||
+			gb.GlobalType.Mutable != want.Mutable {
+			return fmt.Errorf("incompatible import type: global type mismatch")
+		}
 	}
 
 	// append the imported global to THIS instance's index space; using the
 	// exporter's globals as the base would misplace every global index.
+	// mutable globals share the exporter's storage cell.
 	ins.IndexSpace.Globals = append(ins.IndexSpace.Globals, gb)
 	return nil
 }
@@ -178,6 +226,7 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 			signature: ins.TypeSection[typeIndex],
 			body:      ins.CodeSection[codeIndex].Body,
 			NumLocal:  ins.CodeSection[codeIndex].NumLocals,
+			owner:     ins,
 		}
 
 		brs, err := ins.parseBlocks(f.body)
@@ -192,16 +241,102 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 	return nil
 }
 
-func (ins *Instance) buildMemoryIndexSpace() error {
-	// size every memory to its declared minimum before applying data segments,
-	// so that active segments are bounds-checked against the real memory size.
+// sizeTablesAndMemories grows every table and memory to its declared minimum,
+// so active segments are bounds-checked against the real initial size.
+func (ins *Instance) sizeTablesAndMemories() {
+	for _, table := range ins.IndexSpace.Tables {
+		if table.Limits != nil && int(table.Limits.Min) > len(table.Value) {
+			table.Value = append(table.Value, make([]fn, int(table.Limits.Min)-len(table.Value))...)
+		}
+	}
 	for _, memory := range ins.IndexSpace.Memories {
 		minBytes := int(memory.Min) * config.DefaultMemoryPageSize
 		if len(memory.Value) < minBytes {
 			memory.Value = append(memory.Value, make([]byte, minBytes-len(memory.Value))...)
 		}
 	}
+}
 
+// elemPlan is a bounds-checked, resolved active element segment ready to apply.
+type elemPlan struct {
+	table  *Table
+	offset uint64
+	funcs  []fn // nil entry = null reference (slot untouched)
+}
+
+// dataPlan is a bounds-checked active data segment ready to apply.
+type dataPlan struct {
+	memory *Memory
+	offset uint64
+	init   []byte
+}
+
+// planElemSegments bounds-checks and resolves every active element segment
+// without touching any table, so a failing segment leaves the store unchanged.
+func (ins *Instance) planElemSegments() ([]elemPlan, error) {
+	var plans []elemPlan
+	for _, elem := range ins.ElementsSection {
+		// passive/declarative segments are not applied at instantiation.
+		if elem.Passive {
+			continue
+		}
+		// note: the table may be imported, so validate against the index space
+		// (which includes imported tables) rather than the local section.
+		if elem.TableIndex >= uint32(len(ins.IndexSpace.Tables)) {
+			return nil, fmt.Errorf("index out of range of index space")
+		}
+
+		table := ins.IndexSpace.Tables[elem.TableIndex]
+
+		rawOffset, err := ins.execExpr(elem.OffsetExpr)
+		if err != nil {
+			return nil, fmt.Errorf("calculate offset: %w", err)
+		}
+
+		offset32, ok := rawOffset.(int32)
+		if !ok {
+			return nil, fmt.Errorf("type assertion failed")
+		}
+
+		// an active element segment must fit within the (min-sized) table,
+		// otherwise instantiation fails. offsets are unsigned.
+		offset := uint64(uint32(offset32))
+		if offset+uint64(len(elem.Init)) > uint64(len(table.Value)) {
+			return nil, fmt.Errorf("element segment out of bounds")
+		}
+
+		// resolve function references up front: on a shared (imported) table a
+		// raw index would later be re-resolved in the calling module's function
+		// index space, which is wrong across modules.
+		funcs := make([]fn, len(elem.Init))
+		for i, fi := range elem.Init {
+			if fi == segments.NullElem {
+				continue // a null reference leaves the slot uninitialized
+			}
+			if int(fi) >= len(ins.IndexSpace.Functions) {
+				return nil, fmt.Errorf("element function index out of range")
+			}
+			funcs[i] = ins.IndexSpace.Functions[fi]
+		}
+
+		plans = append(plans, elemPlan{table: table, offset: offset, funcs: funcs})
+	}
+	return plans, nil
+}
+
+func (ins *Instance) applyElemSegments(plans []elemPlan) {
+	for _, p := range plans {
+		for i, f := range p.funcs {
+			if f != nil {
+				p.table.Value[uint64(i)+p.offset] = f
+			}
+		}
+	}
+}
+
+// planDataSegments bounds-checks every active data segment without writing.
+func (ins *Instance) planDataSegments() ([]dataPlan, error) {
+	var plans []dataPlan
 	for _, d := range ins.Module.DataSection {
 		// passive segments are not applied at instantiation (they are used later
 		// via memory.init).
@@ -211,79 +346,61 @@ func (ins *Instance) buildMemoryIndexSpace() error {
 		// note: the memory may be imported, so validate against the index space
 		// (which includes imported memories) rather than the local section.
 		if d.MemoryIndex >= uint32(len(ins.IndexSpace.Memories)) {
-			return fmt.Errorf("index out of range of index space")
+			return nil, fmt.Errorf("index out of range of index space")
 		}
 
 		memory := ins.IndexSpace.Memories[d.MemoryIndex]
 
 		rawOffset, err := ins.execExpr(d.OffsetExpression)
 		if err != nil {
-			return fmt.Errorf("calculate offset: %w", err)
+			return nil, fmt.Errorf("calculate offset: %w", err)
 		}
 
 		offset, ok := rawOffset.(int32)
 		if !ok {
-			return fmt.Errorf("type assertion failed")
+			return nil, fmt.Errorf("type assertion failed")
 		}
 
 		// an active data segment must fit within the (min-sized) memory,
 		// otherwise instantiation traps. addresses are unsigned.
 		off := uint64(uint32(offset))
 		if off+uint64(len(d.Init)) > uint64(len(memory.Value)) {
-			return fmt.Errorf("data segment out of bounds")
+			return nil, fmt.Errorf("data segment out of bounds")
 		}
-		copy(memory.Value[off:], d.Init)
+
+		plans = append(plans, dataPlan{memory: memory, offset: off, init: d.Init})
 	}
+	return plans, nil
+}
+
+func (ins *Instance) applyDataSegments(plans []dataPlan) {
+	for _, p := range plans {
+		copy(p.memory.Value[p.offset:], p.init)
+	}
+}
+
+// buildMemoryIndexSpace sizes memories and applies the data segments; kept as
+// a self-contained helper (buildIndexSpaces uses the split plan/apply flow so
+// element and data segments are checked together before either is applied).
+func (ins *Instance) buildMemoryIndexSpace() error {
+	ins.sizeTablesAndMemories()
+	plans, err := ins.planDataSegments()
+	if err != nil {
+		return err
+	}
+	ins.applyDataSegments(plans)
 	return nil
 }
 
+// buildTableIndexSpace sizes tables and applies the element segments; see
+// buildMemoryIndexSpace for why buildIndexSpaces uses the split flow instead.
 func (ins *Instance) buildTableIndexSpace() error {
-	// size every table to its declared minimum before applying element
-	// segments, so active segments are bounds-checked against the real size.
-	for _, table := range ins.IndexSpace.Tables {
-		if table.Limits != nil && int(table.Limits.Min) > len(table.Value) {
-			table.Value = append(table.Value, make([]*uint32, int(table.Limits.Min)-len(table.Value))...)
-		}
+	ins.sizeTablesAndMemories()
+	plans, err := ins.planElemSegments()
+	if err != nil {
+		return err
 	}
-
-	for _, elem := range ins.ElementsSection {
-		// passive/declarative segments are not applied at instantiation.
-		if elem.Passive {
-			continue
-		}
-		// note: the table may be imported, so validate against the index space
-		// (which includes imported tables) rather than the local section.
-		if elem.TableIndex >= uint32(len(ins.IndexSpace.Tables)) {
-			return fmt.Errorf("index out of range of index space")
-		}
-
-		table := ins.IndexSpace.Tables[elem.TableIndex]
-
-		rawOffset, err := ins.execExpr(elem.OffsetExpr)
-		if err != nil {
-			return fmt.Errorf("calculate offset: %w", err)
-		}
-
-		offset32, ok := rawOffset.(int32)
-		if !ok {
-			return fmt.Errorf("type assertion failed")
-		}
-
-		// an active element segment must fit within the (min-sized) table,
-		// otherwise instantiation fails. offsets are unsigned.
-		offset := uint64(uint32(offset32))
-		if offset+uint64(len(elem.Init)) > uint64(len(table.Value)) {
-			return fmt.Errorf("element segment out of bounds")
-		}
-
-		for i := range elem.Init {
-			if elem.Init[i] == segments.NullElem {
-				// a null reference leaves the slot uninitialized
-				continue
-			}
-			table.Value[uint64(i)+offset] = &elem.Init[i]
-		}
-	}
+	ins.applyElemSegments(plans)
 	return nil
 }
 

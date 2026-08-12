@@ -277,6 +277,10 @@ func (m *Module) readSectionExports(r *bytes.Reader) error {
 			return fmt.Errorf("read export: %w", err)
 		}
 
+		// export names must be unique; the map would silently drop duplicates
+		if _, ok := m.ExportSection[expDesc.Name]; ok {
+			return fmt.Errorf("duplicate export name: %q", expDesc.Name)
+		}
 		m.ExportSection[expDesc.Name] = expDesc
 	}
 

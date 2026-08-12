@@ -92,12 +92,9 @@ func TestSpec(t *testing.T) {
 		t.Skipf("no testdata: run ./gen.sh to generate the suite (%v)", err)
 	}
 
-	specMod, err := loadModule(filepath.Join(root, "spectest.wasm"))
-	if err != nil {
-		t.Fatalf("load host spectest module: %v (run ./gen.sh)", err)
-	}
-	if _, err := wasman.NewInstance(specMod, nil); err != nil {
-		t.Fatalf("instantiate host spectest module: %v", err)
+	specPath := filepath.Join(root, "spectest.wasm")
+	if _, err := os.Stat(specPath); err != nil {
+		t.Fatalf("host spectest module missing: %v (run ./gen.sh)", err)
 	}
 
 	var names []string
@@ -116,6 +113,17 @@ func TestSpec(t *testing.T) {
 			continue // no manifest (wast2json failed for this suite)
 		}
 		t.Run(name, func(t *testing.T) {
+			// each .wast script runs in a fresh store: instantiate a FRESH host
+			// spectest module per manifest so mutations of its shared memory /
+			// table / globals cannot leak between suites.
+			specMod, err := loadModule(specPath)
+			if err != nil {
+				t.Fatalf("load host spectest module: %v", err)
+			}
+			if _, err := wasman.NewInstance(specMod, nil); err != nil {
+				t.Fatalf("instantiate host spectest module: %v", err)
+			}
+
 			res := runManifest(t, filepath.Join(root, name), jsonPath, specMod)
 			grand.add(res)
 			t.Logf("%-22s pass=%-5d fail=%-5d skip=%-5d", name, res.pass, res.fail, res.skip)
@@ -355,7 +363,7 @@ func readGlobal(ins *wasman.Instance, field string) (uint64, error) {
 	if idx >= len(ins.Globals) {
 		return 0, fmt.Errorf("global %q index out of range", field)
 	}
-	return ins.Globals[idx], nil
+	return *ins.Globals[idx], nil
 }
 
 func loadModule(path string) (*wasman.Module, error) {

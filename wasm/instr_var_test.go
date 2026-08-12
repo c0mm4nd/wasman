@@ -87,10 +87,15 @@ func Test_getGlobal(t *testing.T) {
 	}
 
 	exp := uint64(1)
-	globals := []uint64{0, 0, 0, 0, 0, exp}
+	cells := make([]uint64, 6)
+	cells[5] = exp
+	globals := make([]*uint64, 6)
+	for i := range cells {
+		globals[i] = &cells[i]
+	}
 
 	vm := &Instance{
-		Active:      ctx,
+		Active:       ctx,
 		OperandStack: stacks.NewOperandStack(),
 		Globals:      globals,
 	}
@@ -117,12 +122,17 @@ func Test_setGlobal(t *testing.T) {
 	st := stacks.NewOperandStack()
 	st.Push(exp)
 
-	vm := &Instance{Active: ctx, OperandStack: st, Globals: []uint64{0, 0, 0, 0, 0, 0}}
+	cells := make([]uint64, 6)
+	globals := make([]*uint64, 6)
+	for i := range cells {
+		globals[i] = &cells[i]
+	}
+	vm := &Instance{Active: ctx, OperandStack: st, Globals: globals}
 	err := setGlobal(vm)
 	if err != nil {
 		t.Fail()
 	}
-	if vm.Globals[5] != exp {
+	if *vm.Globals[5] != exp {
 		t.Fail()
 	}
 	if vm.OperandStack.Ptr != -1 {

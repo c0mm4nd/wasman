@@ -185,8 +185,11 @@ func (l *Linker) DefineGlobal(modName, globalName string, global interface{}) er
 	return nil
 }
 
-// DefineTable will defined an external table for the main module
-func (l *Linker) DefineTable(modName, tableName string, table []*uint32) error {
+// DefineTable will define an external table with `size` (initially
+// uninitialized) slots for the main module. Note: table slots hold resolved
+// function references, so a host cannot pre-fill them with raw function
+// indices; they are populated by the wasm modules' element segments.
+func (l *Linker) DefineTable(modName, tableName string, size uint32) error {
 	mod, exists := l.Modules[modName]
 	if !exists {
 		mod = &Module{IndexSpace: new(wasm.IndexSpace), ExportSection: map[string]*segments.ExportSegment{}}
@@ -206,8 +209,8 @@ func (l *Linker) DefineTable(modName, tableName string, table []*uint32) error {
 	}
 
 	mod.IndexSpace.Tables = append(mod.IndexSpace.Tables, &wasm.Table{
-		TableType: *mod.TableSection[0],
-		Value:     table,
+		TableType: types.TableType{Limits: &types.Limits{Min: size}},
+		Value:     make([]wasm.Fn, size),
 	})
 
 	return nil

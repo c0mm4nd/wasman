@@ -22,7 +22,9 @@ type Instance struct {
 
 	Functions []fn
 	Memory    *Memory
-	Globals   []uint64
+	// Globals points at the runtime storage cells of the instance's globals;
+	// imported globals alias the exporter's cells (shared mutation).
+	Globals []*uint64
 
 	OperandStack *stacks.Stack[uint64]
 
@@ -68,19 +70,11 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 		}
 	}
 
-	// initialize global
-	ins.Globals = make([]uint64, len(ins.Module.IndexSpace.Globals))
+	// initialize globals: collect the shared storage cells (imported globals
+	// keep aliasing the exporter's cell)
+	ins.Globals = make([]*uint64, len(ins.Module.IndexSpace.Globals))
 	for i, raw := range ins.Module.IndexSpace.Globals {
-		switch v := raw.Val.(type) {
-		case int32:
-			ins.Globals[i] = uint64(v)
-		case int64:
-			ins.Globals[i] = uint64(v)
-		case float32:
-			ins.Globals[i] = uint64(math.Float32bits(v))
-		case float64:
-			ins.Globals[i] = math.Float64bits(v)
-		}
+		ins.Globals[i] = raw.ensureCell()
 	}
 
 	// exec start functions

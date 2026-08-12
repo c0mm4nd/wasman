@@ -49,13 +49,19 @@ instead of hanging the test binary.
 
 ## Current status
 
-wasman passes **100% of every executable assertion** in the converted core
-suite: `pass=17357 fail=0` at the time of writing. That includes all
-behavioral assertions *and* all rejection assertions (`assert_invalid`,
-binary `assert_malformed`, `assert_unlinkable`, `assert_uninstantiable`).
-The only skips (472) are `assert_malformed` cases whose payload is
-WebAssembly *text* — exercising those needs a WAT parser, which is out of
-scope for a binary engine.
+wasman passes **100% of every executable assertion** in the suite:
+`pass=18655 fail=0` at the time of writing, across all 68 converted suites —
+including `linking`, `imports`, `elem`, `exports` and `globals` (cross-module
+semantics). That covers all behavioral assertions *and* all rejection
+assertions (`assert_invalid`, binary `assert_malformed`, `assert_unlinkable`,
+`assert_uninstantiable`). The only skips (565) are `assert_malformed` cases
+whose payload is WebAssembly *text* — exercising those needs a WAT parser,
+which is out of scope for a binary engine.
+
+Suites whose current text syntax wast2json cannot convert are fetched from a
+pinned pre-reference-types testsuite revision instead (see the "legacy suites"
+section of `gen.sh`, including its two documented patches), so no suite's
+coverage is silently dropped.
 
 Post-MVP features implemented along the way:
 
@@ -67,16 +73,28 @@ Post-MVP features implemented along the way:
 - multi-table (element segments per table, `call_indirect` table index)
 - multi-value block/loop/if signatures (type-index block types + branch arity)
 - extended constant expressions (`i32/i64` add/sub/mul over constants)
+- mutable-globals cross-module sharing (imported globals alias the exporter's
+  storage cell)
 - the `DataCount` section (cross-checked against the data section)
+
+Cross-module (linking) semantics:
+
+- imported functions execute in their defining module's state (functions,
+  globals, memory, tables), with values ferried between operand stacks
+- table slots hold resolved function references, so shared tables dispatch
+  into the defining module correctly
+- segment application is all-or-nothing: every active element and data
+  segment is bounds-checked before any is applied, so a failed instantiation
+  leaves imported tables/memories untouched
+- import compatibility is checked at link time (function signatures, global
+  type+mutability, table/memory limits)
 
 Validation subsystem (`wasm/validate.go` + strict decoding):
 
 - full function-body type checking per the spec appendix algorithm (typed
   operand stack + control frames, polymorphic unreachable handling)
 - constant-expression typing, global mutability, index-space bounds,
-  limits checks, start-function signature, load/store alignment
+  limits checks, start-function signature, load/store alignment,
+  duplicate export names, at most one memory
 - strict section framing (exact sizes, ordering, uniqueness, EOF handling)
   and UTF-8 validation of all names
-
-Suites that fail to convert with `wast2json` (post-MVP syntax) are simply
-skipped by `gen.sh` and reported.

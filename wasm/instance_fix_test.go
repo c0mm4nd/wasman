@@ -59,9 +59,12 @@ func Test_applyGlobalImport_indexSpace(t *testing.T) {
 
 	importer := &Instance{Module: &Module{IndexSpace: &IndexSpace{}}}
 	// import the exporter's global #1 -> must become the importer's global #0
-	err := importer.applyGlobalImport(exporter, &segments.ExportSegment{
-		Desc: &segments.ExportDesc{Kind: segments.KindGlobal, Index: 1},
-	})
+	err := importer.applyGlobalImport(
+		&segments.ImportSegment{Desc: &segments.ImportDesc{Kind: segments.KindGlobal}},
+		exporter,
+		&segments.ExportSegment{
+			Desc: &segments.ExportDesc{Kind: segments.KindGlobal, Index: 1},
+		})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +104,7 @@ func Test_elemSegment_outOfBounds(t *testing.T) {
 		}},
 		TableSection: []*types.TableType{{Limits: &types.Limits{Min: 1}}},
 		IndexSpace: &IndexSpace{Tables: []*Table{
-			{TableType: types.TableType{Limits: &types.Limits{Min: 1}}, Value: []*uint32{}},
+			{TableType: types.TableType{Limits: &types.Limits{Min: 1}}, Value: []fn{}},
 		}},
 	}
 	if err := (&Instance{Module: m}).buildTableIndexSpace(); err == nil {

@@ -56,6 +56,12 @@ func (m *Module) Validate() error {
 	numTables += len(m.TableSection)
 	numMemories += len(m.MemorySection)
 
+	// multiple tables are supported (reference types), but multi-memory is not
+	// implemented: loads/stores always target memory 0.
+	if numMemories > 1 {
+		return fmt.Errorf("%w: multiple memories are not supported", ErrInvalidModule)
+	}
+
 	// limits
 	for _, mem := range m.MemorySection {
 		if mem.Min > maxMemoryPages {

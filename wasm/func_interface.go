@@ -17,3 +17,8 @@ type fn interface {
 	getType() *types.FuncType
 	call(ins *Instance) error
 }
+
+// Fn is the exported alias of the function-instance interface, so external
+// packages can reference table slots (e.g. sizing a Table's Value). Its
+// implementations live in this package.
+type Fn = fn
