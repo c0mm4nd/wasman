@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"unicode/utf8"
 
 	"github.com/c0mm4nd/wasman/leb128decode"
 )
@@ -64,7 +65,8 @@ func ReadValueTypes(r io.Reader, num uint32) ([]ValueType, error) {
 	return ret, nil
 }
 
-// ReadNameValue will read a name string from the io.Reader
+// ReadNameValue will read a name string from the io.Reader.
+// Per the spec, names are byte vectors that must be valid UTF-8.
 func ReadNameValue(r *bytes.Reader) (string, error) {
 	vs, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
@@ -74,6 +76,10 @@ func ReadNameValue(r *bytes.Reader) (string, error) {
 	buf := make([]byte, vs)
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return "", fmt.Errorf("read bytes of name: %w", err)
+	}
+
+	if !utf8.Valid(buf) {
+		return "", fmt.Errorf("name is not valid UTF-8")
 	}
 
 	return string(buf), nil

@@ -242,9 +242,24 @@ func (r *runner) exec(t *testing.T, c command, res *tally) {
 			res.pass++
 		}
 
-	case "assert_invalid", "assert_malformed":
-		// wasman has no validator / strict decoder; not meaningfully testable.
-		res.skip++
+	case "assert_malformed":
+		// text-format modules can't be exercised (no wat decoder)
+		if c.ModuleType == "text" {
+			res.skip++
+			return
+		}
+		if _, _, err := r.instantiate(c.Filename); err == nil {
+			fail(t, res, "line %d: %q expected malformed rejection", c.Line, c.Filename)
+		} else {
+			res.pass++
+		}
+
+	case "assert_invalid":
+		if _, _, err := r.instantiate(c.Filename); err == nil {
+			fail(t, res, "line %d: %q expected invalid rejection", c.Line, c.Filename)
+		} else {
+			res.pass++
+		}
 
 	default:
 		res.skip++

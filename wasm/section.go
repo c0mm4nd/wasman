@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"unicode/utf8"
 
 	"github.com/c0mm4nd/wasman/leb128decode"
 	"github.com/c0mm4nd/wasman/segments"
@@ -52,9 +53,7 @@ func (m *Module) readSection(r *bytes.Reader) error {
 
 	switch sectionID(b[0]) {
 	case sectionIDCustom:
-		// Custom section is ignored here: https://www.w3.org/TR/wasm-core-1/#custom-section
-		bb := make([]byte, ss)
-		_, err = io.ReadFull(r, bb)
+		err = m.readSectionCustom(r, ss)
 	case sectionIDType:
 		err = m.readSectionTypes(r)
 	case sectionIDImport:
@@ -88,6 +87,32 @@ func (m *Module) readSection(r *bytes.Reader) error {
 	if err != nil {
 		return fmt.Errorf("read section for %d: %w", sectionID(b[0]), err)
 	}
+	return nil
+}
+
+// readSectionCustom consumes a custom section, validating that its name field
+// is well-formed (in-bounds length, valid UTF-8) as the spec requires. The
+// payload itself is opaque and ignored.
+// https://www.w3.org/TR/wasm-core-1/#custom-section
+func (m *Module) readSectionCustom(r *bytes.Reader, size uint32) error {
+	body := make([]byte, size)
+	if _, err := io.ReadFull(r, body); err != nil {
+		return fmt.Errorf("read custom section body: %w", err)
+	}
+
+	br := bytes.NewReader(body)
+	nameLen, l, err := leb128decode.DecodeUint32(br)
+	if err != nil {
+		return fmt.Errorf("read custom section name length: %w", err)
+	}
+	if uint64(nameLen)+l > uint64(size) {
+		return fmt.Errorf("custom section name length out of bounds")
+	}
+	name := body[l : uint64(l)+uint64(nameLen)]
+	if !utf8.Valid(name) {
+		return fmt.Errorf("custom section name is not valid UTF-8")
+	}
+
 	return nil
 }
 
