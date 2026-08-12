@@ -48,22 +48,31 @@ instead of hanging the test binary.
 ## Current status
 
 wasman started as a WebAssembly **MVP** interpreter and is incrementally taking
-on post-MVP features. Against the current testsuite it passes ~**99.4%** of
-executed behavioral assertions (`pass=15884 fail=103` at the time of writing).
+on post-MVP features. Against the current testsuite it passes ~**99.94%** of
+executed behavioral assertions (`pass=15933 fail=9` at the time of writing).
 
 Post-MVP features already implemented:
 
 - sign-extension operators (`i32/i64.extend{8,16,32}_s`)
 - non-trapping float→int (`trunc_sat`, `0xFC` prefix)
+- bulk-memory data/element segment flags encoding (active / passive /
+  declarative / explicit index); passive segments are parsed but not applied
+- multi-table (element segments per table, `call_indirect` table index)
+- the `DataCount` section (consumed and ignored)
 
-The remaining failures are post-MVP features not yet implemented, notably:
+The last handful of failures each need a distinct, still-unimplemented proposal:
 
-- bulk-memory / multi-memory data segments (`data`, parts of `token`)
-- reference types (`select` with a type, typed `ref.null`) — blocks conversion
-  of `elem`, `select`, `table`, `br_if`, `memory`, `globals`, …
-- multi-value block/loop/if signatures (`fac-ssa`, parts of `if`)
-- module-level validation (`assert_invalid` / `assert_malformed`, `binary*`)
-- specific NaN payloads from float arithmetic (`f32`, `f64`)
+- extended constant expressions — `(data (i32.add (i32.const 0) (i32.const 42)))`
+  (`data`, 4 asserts)
+- multi-value block/loop/if signatures — `(loop (param i64 i64) (result i64))`
+  (`fac`, 2 asserts)
+- reference types: typed element expression lists (`ref.func`/`ref.null` in
+  element segments) (`binary`, 2 asserts)
+- trapping out-of-bounds active data segments at instantiation (`data`, 1 assert)
+
+Reaching a literal 100% also requires a module validator, since the suite's
+`assert_invalid` / `assert_malformed` commands assert that a *bad* module is
+rejected — wasman currently accepts and runs, so those are reported as skips.
 
 Suites that fail to convert with `wast2json` (post-MVP syntax) are simply
 skipped by `gen.sh` and reported.
