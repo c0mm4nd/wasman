@@ -30,28 +30,66 @@ const (
 	sectionIDDataCount sectionID = 12
 )
 
-func (m *Module) readSections(r *bytes.Reader) error {
-	for {
-		if err := m.readSection(r); errors.Is(err, io.EOF) {
-			return nil
-		} else if err != nil {
-			return err
-		}
-	}
+// sectionOrder gives the mandatory ordering rank of the non-custom sections;
+// they must appear at most once, in strictly increasing rank. Note the
+// DataCount section is ordered between Element and Code.
+var sectionOrder = map[sectionID]int{
+	sectionIDType:      1,
+	sectionIDImport:    2,
+	sectionIDFunction:  3,
+	sectionIDTable:     4,
+	sectionIDMemory:    5,
+	sectionIDGlobal:    6,
+	sectionIDExport:    7,
+	sectionIDStart:     8,
+	sectionIDElement:   9,
+	sectionIDDataCount: 10,
+	sectionIDCode:      11,
+	sectionIDData:      12,
 }
 
-func (m *Module) readSection(r *bytes.Reader) error {
-	b := make([]byte, 1)
-	if _, err := io.ReadFull(r, b); err != nil {
-		return fmt.Errorf("read section id: %w", err)
+func (m *Module) readSections(r *bytes.Reader) error {
+	prevRank := 0
+	for r.Len() > 0 {
+		rank, err := m.readSection(r, prevRank)
+		if err != nil {
+			return err
+		}
+		if rank > 0 {
+			prevRank = rank
+		}
+	}
+	return nil
+}
+
+func (m *Module) readSection(r *bytes.Reader, prevRank int) (int, error) {
+	id, err := r.ReadByte()
+	if err != nil {
+		return 0, fmt.Errorf("read section id: %w", err)
 	}
 
 	ss, _, err := leb128decode.DecodeUint32(r)
 	if err != nil {
-		return fmt.Errorf("get size of section for id=%d: %w", sectionID(b[0]), err)
+		return 0, fmt.Errorf("get size of section for id=%d: %w", sectionID(id), err)
+	}
+	if uint64(ss) > uint64(r.Len()) {
+		return 0, fmt.Errorf("section for %d: size %d out of bounds (unexpected end)", sectionID(id), ss)
 	}
 
-	switch sectionID(b[0]) {
+	rank := 0
+	if sectionID(id) != sectionIDCustom {
+		var ok bool
+		rank, ok = sectionOrder[sectionID(id)]
+		if !ok {
+			return 0, errors.New("invalid section id")
+		}
+		if rank <= prevRank {
+			return 0, fmt.Errorf("section for %d: out of order or duplicated", sectionID(id))
+		}
+	}
+
+	before := r.Len()
+	switch sectionID(id) {
 	case sectionIDCustom:
 		err = m.readSectionCustom(r, ss)
 	case sectionIDType:
@@ -77,17 +115,25 @@ func (m *Module) readSection(r *bytes.Reader) error {
 	case sectionIDData:
 		err = m.readSectionData(r)
 	case sectionIDDataCount:
-		// The bulk-memory data count section is an optimization hint (the number
-		// of data segments); we don't need it, so consume and ignore it.
-		_, _, err = leb128decode.DecodeUint32(r)
-	default:
-		err = errors.New("invalid section id")
+		// The bulk-memory data count section: the number of data segments,
+		// cross-checked against the data section after all sections are read.
+		var dc uint32
+		dc, _, err = leb128decode.DecodeUint32(r)
+		if err == nil {
+			m.DataCountSection = &dc
+		}
 	}
 
 	if err != nil {
-		return fmt.Errorf("read section for %d: %w", sectionID(b[0]), err)
+		return 0, fmt.Errorf("read section for %d: %w", sectionID(id), err)
 	}
-	return nil
+
+	// the declared section size must exactly frame its content
+	if consumed := before - r.Len(); consumed != int(ss) {
+		return 0, fmt.Errorf("section for %d: size mismatch (declared %d, consumed %d)", sectionID(id), ss, consumed)
+	}
+
+	return rank, nil
 }
 
 // readSectionCustom consumes a custom section, validating that its name field

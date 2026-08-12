@@ -39,6 +39,9 @@ type Module struct {
 	ElementsSection []*segments.ElemSegment
 	CodeSection     []*segments.CodeSegment
 	DataSection     []*segments.DataSegment
+	// DataCountSection holds the value of the bulk-memory data count section,
+	// if present; it must then match the number of data segments.
+	DataCountSection *uint32
 
 	// index spaces
 	IndexSpace *IndexSpace
@@ -71,6 +74,14 @@ func NewModule(config config.ModuleConfig, r *bytes.Reader) (*Module, error) {
 
 	if err := module.readSections(r); err != nil {
 		return nil, fmt.Errorf("readSections failed: %w", err)
+	}
+
+	// cross-section consistency checks
+	if len(module.FunctionSection) != len(module.CodeSection) {
+		return nil, errors.New("function and code section have inconsistent lengths")
+	}
+	if module.DataCountSection != nil && int(*module.DataCountSection) != len(module.DataSection) {
+		return nil, errors.New("data count and data section have inconsistent lengths")
 	}
 
 	return module, nil

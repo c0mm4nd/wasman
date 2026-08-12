@@ -371,9 +371,13 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 			continue
 		} else if rawOc == 0xfc { // misc prefix (saturating trunc, bulk memory, ...)
 			pc++
-			_, l, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
+			sub, l, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read misc subopcode: %w", err)
+			}
+			if sub > expr.OpCodeMiscI64TruncSatF64U {
+				// bulk-memory ops (memory.init, data.drop, ...) are not implemented
+				return nil, fmt.Errorf("unknown misc instruction: 0xfc %d", sub)
 			}
 			pc += l - 1
 			continue
@@ -414,12 +418,24 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 			})
 			pc += l
 		case expr.OpCodeElse:
+			if len(stack) == 0 {
+				return nil, fmt.Errorf("else outside of an if block")
+			}
 			stack[len(stack)-1].ElseAt = pc
 		case expr.OpCodeEnd:
+			if len(stack) == 0 {
+				continue // the end of the function body itself
+			}
 			bl := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			bl.EndAt = pc
 			ret[bl.StartAt] = bl
+		default:
+			// every remaining opcode is a plain single-byte instruction; it must
+			// exist in the dispatch table, otherwise the binary is malformed.
+			if instructions[expr.OpCode(rawOc)] == nil {
+				return nil, fmt.Errorf("illegal opcode: %#x", rawOc)
+			}
 		}
 	}
 

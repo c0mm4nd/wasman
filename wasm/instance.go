@@ -89,6 +89,12 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 			return nil, ErrFuncIndexOutOfRange
 		}
 
+		// a start function must take no parameters and return nothing
+		ft := ins.Functions[id].getType()
+		if len(ft.InputTypes) != 0 || len(ft.ReturnTypes) != 0 {
+			return nil, fmt.Errorf("invalid start function signature: must be [] -> []")
+		}
+
 		err := ins.Functions[id].call(ins)
 		if err != nil {
 			return nil, err

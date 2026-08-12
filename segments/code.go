@@ -32,7 +32,7 @@ func ReadCodeSegment(r *bytes.Reader) (*CodeSegment, error) {
 		return nil, io.EOF
 	}
 
-	var numLocals uint32
+	var numLocals uint64
 	var n uint32
 	for i := uint32(0); i < ls; i++ {
 		n, bytesRead, err = leb128decode.DecodeUint32(r)
@@ -42,7 +42,10 @@ func ReadCodeSegment(r *bytes.Reader) (*CodeSegment, error) {
 		} else if remaining < 0 {
 			return nil, io.EOF
 		}
-		numLocals += n
+		numLocals += uint64(n)
+		if numLocals > 0xFFFFFFFF { // the total number of locals must fit in u32
+			return nil, fmt.Errorf("too many locals: %d", numLocals)
+		}
 
 		if _, err := r.ReadByte(); err != nil {
 			return nil, fmt.Errorf("read type of local") // TODO: save read localType
@@ -62,6 +65,6 @@ func ReadCodeSegment(r *bytes.Reader) (*CodeSegment, error) {
 
 	return &CodeSegment{
 		Body:      body[:len(body)-1],
-		NumLocals: numLocals,
+		NumLocals: uint32(numLocals),
 	}, nil
 }
