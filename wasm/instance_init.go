@@ -193,6 +193,11 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 
 func (ins *Instance) buildMemoryIndexSpace() error {
 	for _, d := range ins.Module.DataSection {
+		// passive segments are not applied at instantiation (they are used later
+		// via memory.init).
+		if d.Passive {
+			continue
+		}
 		// note: the memory may be imported, so validate against the index space
 		// (which includes imported memories) rather than the local section.
 		if d.MemoryIndex >= uint32(len(ins.IndexSpace.Memories)) {
