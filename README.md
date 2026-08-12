@@ -61,6 +61,20 @@ main.main()
 
 They are in [examples folder](./examples)
 
+## Validation
+
+`wasman.NewModule` performs **full static validation** (strict binary decoding
+plus spec-conformant type checking of every function body) and rejects
+malformed or invalid modules with an error. Modules that older wasman versions
+loaded permissively may now be refused — that is intentional. If you must load
+a trusted-but-nonconforming module, set `config.ModuleConfig{SkipValidation:
+true}` and be aware that invalid code can then trap, misbehave, or (with
+`Recover` disabled) panic at run time.
+
+wasman passes 100% of the executable assertions of the official WebAssembly
+core test suite; see [spectest/README.md](./spectest/README.md) for details
+and how to run it.
+
 ## TODOs
 
 - add more complex examples

@@ -85,8 +85,10 @@ func NewModule(config config.ModuleConfig, r *bytes.Reader) (*Module, error) {
 	}
 
 	// full static validation (type checking of all function bodies etc.)
-	if err := module.Validate(); err != nil {
-		return nil, err
+	if !config.SkipValidation {
+		if err := module.Validate(); err != nil {
+			return nil, err
+		}
 	}
 
 	return module, nil

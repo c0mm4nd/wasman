@@ -29,6 +29,11 @@ type ModuleConfig struct {
 	TollStation       tollstation.TollStation
 	CallDepthLimit    *uint64
 	Recover           bool // avoid panic inside vm
+	// SkipValidation disables the full static validation (type checking etc.)
+	// that NewModule performs after decoding. Only use it for trusted modules
+	// that a strict validator would reject; invalid code may then trap, return
+	// wrong results or (with Recover disabled) panic at run time.
+	SkipValidation bool
 }
 
 // LinkerConfig is the config applied to the wasman.Linker

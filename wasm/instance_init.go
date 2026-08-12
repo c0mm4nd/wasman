@@ -277,6 +277,10 @@ func (ins *Instance) buildTableIndexSpace() error {
 		}
 
 		for i := range elem.Init {
+			if elem.Init[i] == segments.NullElem {
+				// a null reference leaves the slot uninitialized
+				continue
+			}
 			table.Value[uint64(i)+offset] = &elem.Init[i]
 		}
 	}

@@ -121,6 +121,9 @@ func (m *Module) Validate() error {
 			}
 		}
 		for _, fi := range e.Init {
+			if fi == segments.NullElem {
+				continue // a null reference initializes nothing
+			}
 			if int(fi) >= len(funcs) {
 				return fmt.Errorf("%w: element segment function index out of range", ErrInvalidModule)
 			}
@@ -205,7 +208,7 @@ func validateConstExpr(e *expr.Expression, want types.ValueType, globals []*type
 			return fmt.Errorf("non-constant opcode %#x", e.OpCode)
 		}
 		if got != want {
-			return fmt.Errorf("constant expression type mismatch: got %#x want %#x", got, want)
+			return fmt.Errorf("constant expression type mismatch: got %v want %v", got, want)
 		}
 		return nil
 	}
@@ -319,7 +322,7 @@ func (v *funcValidator) popExpect(want types.ValueType) error {
 		return err
 	}
 	if got != want && got != vtUnknown && want != vtUnknown {
-		return fmt.Errorf("type mismatch: got %#x want %#x", got, want)
+		return fmt.Errorf("type mismatch: got %v want %v", got, want)
 	}
 	return nil
 }

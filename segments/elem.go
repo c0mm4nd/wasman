@@ -8,6 +8,13 @@ import (
 	"github.com/c0mm4nd/wasman/leb128decode"
 )
 
+// NullElem is the sentinel stored in ElemSegment.Init for a null reference
+// (`ref.null` in an expression-style element list). A table slot initialized
+// with it stays uninitialized, so call_indirect on it traps. The value can
+// never collide with a real function index: a module cannot define 2^32
+// functions.
+const NullElem = ^uint32(0)
+
 // ElemSegment is one unit of the wasm.Module's ElementsSection, initializing
 // a subrange of a table, at a given offset, from a static vector of elements.
 //
@@ -15,7 +22,8 @@ import (
 type ElemSegment struct {
 	TableIndex uint32
 	OffsetExpr *expr.Expression
-	Init       []uint32
+	// Init holds function indices; a NullElem entry represents a null reference.
+	Init []uint32
 	// Passive marks a passive or declarative element segment: it is not applied
 	// to a table at instantiation (it would be used later via table.init).
 	Passive bool
@@ -128,8 +136,8 @@ func ReadElemSegment(r *bytes.Reader) (*ElemSegment, error) {
 }
 
 // readElemExpr reads a single element expression (ref.func idx end, or
-// ref.null t end) and returns the referenced function index (0 for a null
-// reference, which only appears in passive/declarative segments here).
+// ref.null t end) and returns the referenced function index, or NullElem for
+// a null reference.
 func readElemExpr(r *bytes.Reader) (uint32, error) {
 	b, err := r.ReadByte()
 	if err != nil {
@@ -147,6 +155,10 @@ func readElemExpr(r *bytes.Reader) (uint32, error) {
 		if _, err := r.ReadByte(); err != nil {
 			return 0, fmt.Errorf("read ref.null type: %w", err)
 		}
+		// a null reference must stay null: the table slot remains uninitialized
+		// so a call_indirect hitting it traps (folding it to function index 0
+		// would silently call function 0 instead).
+		idx = NullElem
 	default:
 		return 0, fmt.Errorf("unsupported element expression opcode: %#x", b)
 	}

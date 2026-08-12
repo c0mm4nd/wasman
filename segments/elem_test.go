@@ -51,3 +51,31 @@ func TestReadElementSegment(t *testing.T) {
 		})
 	}
 }
+
+func TestReadElemSegment_refNull(t *testing.T) {
+	// flag 5: passive, reftype funcref, expr vec: [ref.null func end, ref.func 2 end]
+	buf := []byte{
+		0x05,             // flag
+		0x70,             // reftype funcref
+		0x02,             // vec len
+		0xd0, 0x70, 0x0b, // ref.null func, end
+		0xd2, 0x02, 0x0b, // ref.func 2, end
+	}
+	seg, err := segments.ReadElemSegment(bytes.NewReader(buf))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !seg.Passive {
+		t.Error("flag 5 must be passive")
+	}
+	if len(seg.Init) != 2 {
+		t.Fatalf("Init len=%d want 2", len(seg.Init))
+	}
+	// a null reference must NOT be folded into function index 0
+	if seg.Init[0] != segments.NullElem {
+		t.Errorf("Init[0]=%#x want NullElem", seg.Init[0])
+	}
+	if seg.Init[1] != 2 {
+		t.Errorf("Init[1]=%d want 2", seg.Init[1])
+	}
+}
