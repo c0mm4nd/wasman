@@ -226,7 +226,13 @@ func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []ui
 		return nil, nil, err
 	}
 
+	// an invalid body run with SkipValidation may return fewer values than its
+	// signature promises; make that a clean error instead of a stack underflow
 	ret := make([]uint64, len(f.getType().ReturnTypes))
+	if ins.OperandStack.Ptr-baseSp < len(ret) {
+		ins.OperandStack.Ptr = baseSp
+		return nil, nil, fmt.Errorf("function %q returned too few values", name)
+	}
 	for i := range ret {
 		ret[len(ret)-1-i] = ins.OperandStack.Pop()
 	}
