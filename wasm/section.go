@@ -22,10 +22,11 @@ const (
 	sectionIDMemory   sectionID = 5
 	sectionIDGlobal   sectionID = 6
 	sectionIDExport   sectionID = 7
-	sectionIDStart    sectionID = 8
-	sectionIDElement  sectionID = 9
-	sectionIDCode     sectionID = 10
-	sectionIDData     sectionID = 11
+	sectionIDStart     sectionID = 8
+	sectionIDElement   sectionID = 9
+	sectionIDCode      sectionID = 10
+	sectionIDData      sectionID = 11
+	sectionIDDataCount sectionID = 12
 )
 
 func (m *Module) readSections(r *bytes.Reader) error {
@@ -76,6 +77,10 @@ func (m *Module) readSection(r *bytes.Reader) error {
 		err = m.readSectionCodes(r)
 	case sectionIDData:
 		err = m.readSectionData(r)
+	case sectionIDDataCount:
+		// The bulk-memory data count section is an optimization hint (the number
+		// of data segments); we don't need it, so consume and ignore it.
+		_, _, err = leb128decode.DecodeUint32(r)
 	default:
 		err = errors.New("invalid section id")
 	}

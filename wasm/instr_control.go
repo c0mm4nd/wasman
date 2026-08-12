@@ -214,20 +214,31 @@ func call(ins *Instance) error {
 
 func callIndirect(ins *Instance) error {
 	ins.Active.PC++
-	index, err := ins.fetchUint32()
+	typeIndex, err := ins.fetchUint32()
 	if err != nil {
 		return err
 	}
 
-	expType := ins.Module.TypeSection[index]
+	// the table index immediate (0 in the MVP, may be non-zero with multi-table)
+	ins.Active.PC++
+	tableIndex, err := ins.fetchUint32()
+	if err != nil {
+		return err
+	}
 
-	tableIndex := ins.OperandStack.Pop()
-	// note: mvp limits the size of table index space to 1
-	if tableIndex >= uint64(len(ins.Module.IndexSpace.Tables[0].Value)) {
+	expType := ins.Module.TypeSection[typeIndex]
+
+	if tableIndex >= uint32(len(ins.Module.IndexSpace.Tables)) {
+		return ErrTableIndexOutOfRange
+	}
+	table := ins.Module.IndexSpace.Tables[tableIndex]
+
+	elemIndex := ins.OperandStack.Pop()
+	if elemIndex >= uint64(len(table.Value)) {
 		return ErrTableIndexOutOfRange
 	}
 
-	te := ins.Module.IndexSpace.Tables[0].Value[tableIndex]
+	te := table.Value[elemIndex]
 	if te == nil {
 		return ErrTableInstanceNotInitialized
 	}
@@ -239,12 +250,5 @@ func callIndirect(ins *Instance) error {
 		return ErrFuncSignMismatch
 	}
 
-	err = f.call(ins)
-	if err != nil {
-		return err
-	}
-
-	ins.Active.PC++ // skip 0x00
-
-	return nil
+	return f.call(ins)
 }

@@ -20,23 +20,22 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 		return fmt.Errorf("resolve imports: %w", err)
 	}
 
-	// fill in the gap between the definition and imported ones in index spaces
-	// note: MVP restricts the size of memory index spaces to 1
-	if diff := len(ins.TableSection) - len(ins.IndexSpace.Tables); diff > 0 {
-		for i := 0; i < diff; i++ {
+	// append the locally-defined tables after any imported ones. base is
+	// captured before the loop because appending mutates the slice length.
+	if base := len(ins.IndexSpace.Tables); len(ins.TableSection) > base {
+		for i := base; i < len(ins.TableSection); i++ {
 			ins.IndexSpace.Tables = append(ins.IndexSpace.Tables, &Table{
-				TableType: *ins.TableSection[i+len(ins.IndexSpace.Tables)],
+				TableType: *ins.TableSection[i],
 				Value:     []*uint32{},
 			})
 		}
 	}
 
-	// fill in the gap between the definition and imported ones in index spaces
-	// note: MVP restricts the size of memory index spaces to 1
-	if diff := len(ins.MemorySection) - len(ins.IndexSpace.Memories); diff > 0 {
-		for i := 0; i < diff; i++ {
+	// append the locally-defined memories after any imported ones.
+	if base := len(ins.IndexSpace.Memories); len(ins.MemorySection) > base {
+		for i := base; i < len(ins.MemorySection); i++ {
 			ins.IndexSpace.Memories = append(ins.IndexSpace.Memories, &Memory{
-				MemoryType: *ins.MemorySection[i+len(ins.IndexSpace.Memories)],
+				MemoryType: *ins.MemorySection[i],
 				Value:      []byte{},
 			})
 		}
@@ -357,8 +356,13 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 				return nil, fmt.Errorf("read immediate: %w", err)
 			}
 			pc += l - 1
-			if rawOc == 0x11 { // if call_indirect
+			if rawOc == 0x11 { // call_indirect has a second immediate: the table index
 				pc++
+				_, l2, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
+				if err != nil {
+					return nil, fmt.Errorf("read call_indirect table index: %w", err)
+				}
+				pc += l2 - 1
 			}
 			continue
 		} else if rawOc == 0xfc { // misc prefix (saturating trunc, bulk memory, ...)
