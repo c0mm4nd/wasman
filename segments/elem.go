@@ -30,8 +30,10 @@ func ReadElemSegment(r *bytes.Reader) (*ElemSegment, error) {
 		return nil, fmt.Errorf("read expr for offset: %w", err)
 	}
 
-	if expression.OpCode != expr.OpCodeI32Const {
-		return nil, fmt.Errorf("offset expression must be i32.const but go %#x", expression.OpCode)
+	// an offset is a constant expression: i32.const or global.get of an
+	// (imported, immutable) i32 global.
+	if expression.OpCode != expr.OpCodeI32Const && expression.OpCode != expr.OpCodeGlobalGet {
+		return nil, fmt.Errorf("offset expression must be i32.const or global.get but got %#x", expression.OpCode)
 	}
 
 	vs, _, err := leb128decode.DecodeUint32(r)

@@ -792,6 +792,10 @@ func f32div(ins *Instance) error {
 func f32min(ins *Instance) error {
 	v2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	v1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
+	if v1 != v1 || v2 != v2 { // wasm min/max propagate a canonical NaN
+		ins.OperandStack.Push(0x7fc00000)
+		return nil
+	}
 	ins.OperandStack.Push(uint64(math.Float32bits(float32(math.Min(float64(v1), float64(v2))))))
 
 	return nil
@@ -800,6 +804,10 @@ func f32min(ins *Instance) error {
 func f32max(ins *Instance) error {
 	v2 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
 	v1 := math.Float32frombits(uint32(ins.OperandStack.Pop()))
+	if v1 != v1 || v2 != v2 { // wasm min/max propagate a canonical NaN
+		ins.OperandStack.Push(0x7fc00000)
+		return nil
+	}
 	ins.OperandStack.Push(uint64(math.Float32bits(float32(math.Max(float64(v1), float64(v2))))))
 
 	return nil
@@ -900,6 +908,10 @@ func f64div(ins *Instance) error {
 func f64min(ins *Instance) error {
 	v2 := math.Float64frombits(ins.OperandStack.Pop())
 	v1 := math.Float64frombits(ins.OperandStack.Pop())
+	if v1 != v1 || v2 != v2 { // wasm min/max propagate a canonical NaN
+		ins.OperandStack.Push(0x7ff8000000000000)
+		return nil
+	}
 	ins.OperandStack.Push(math.Float64bits(math.Min(v1, v2)))
 
 	return nil
@@ -908,6 +920,10 @@ func f64min(ins *Instance) error {
 func f64max(ins *Instance) error {
 	v2 := math.Float64frombits(ins.OperandStack.Pop())
 	v1 := math.Float64frombits(ins.OperandStack.Pop())
+	if v1 != v1 || v2 != v2 { // wasm min/max propagate a canonical NaN
+		ins.OperandStack.Push(0x7ff8000000000000)
+		return nil
+	}
 	ins.OperandStack.Push(math.Float64bits(math.Max(v1, v2)))
 
 	return nil
