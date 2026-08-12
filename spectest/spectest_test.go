@@ -6,12 +6,14 @@
 // populate ./testdata, then `go test ./spectest`. If testdata is absent the
 // test skips itself so CI without wabt stays green.
 //
-// Command coverage:
+// Command coverage — every command is executed, nothing is skipped:
 //   - module / register / action / get       : executed
 //   - assert_return                           : executed, values compared
 //   - assert_trap / assert_exhaustion         : executed, a trap is required
 //   - assert_unlinkable / _uninstantiable     : executed, an error is required
-//   - assert_invalid / assert_malformed       : skipped (wasman has no validator)
+//   - assert_invalid / assert_malformed       : executed, the module must be
+//     rejected (binary payloads by the decoder+validator, text payloads by
+//     the wat reader; see TestWatPositiveControls for the honesty guard)
 package spectest
 
 import (
@@ -29,6 +31,7 @@ import (
 	"github.com/c0mm4nd/wasman"
 	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/segments"
+	"github.com/c0mm4nd/wasman/wat"
 )
 
 // callDepthLimit keeps runaway recursion from fatally overflowing the Go
@@ -251,9 +254,18 @@ func (r *runner) exec(t *testing.T, c command, res *tally) {
 		}
 
 	case "assert_malformed":
-		// text-format modules can't be exercised (no wat decoder)
+		// text-format payloads go through the wat reader, binary ones through
+		// the module decoder; both must be rejected
 		if c.ModuleType == "text" {
-			res.skip++
+			src, err := os.ReadFile(filepath.Join(r.dir, c.Filename))
+			if err != nil {
+				t.Fatalf("read %s: %v", c.Filename, err)
+			}
+			if wat.ValidateText(src) == nil {
+				fail(t, res, "line %d: %q expected malformed rejection (text)", c.Line, c.Filename)
+			} else {
+				res.pass++
+			}
 			return
 		}
 		if _, _, err := r.instantiate(c.Filename); err == nil {
@@ -263,6 +275,18 @@ func (r *runner) exec(t *testing.T, c command, res *tally) {
 		}
 
 	case "assert_invalid":
+		if strings.HasSuffix(c.Filename, ".wat") {
+			src, err := os.ReadFile(filepath.Join(r.dir, c.Filename))
+			if err != nil {
+				t.Fatalf("read %s: %v", c.Filename, err)
+			}
+			if wat.ValidateText(src) == nil {
+				fail(t, res, "line %d: %q expected invalid rejection (text)", c.Line, c.Filename)
+			} else {
+				res.pass++
+			}
+			return
+		}
 		if _, _, err := r.instantiate(c.Filename); err == nil {
 			fail(t, res, "line %d: %q expected invalid rejection", c.Line, c.Filename)
 		} else {
@@ -495,4 +519,39 @@ func bitsToFloat(bits uint64, width int) string {
 		return strings.TrimSpace(fmt.Sprintf("%v", math.Float32frombits(uint32(bits))))
 	}
 	return strings.TrimSpace(fmt.Sprintf("%v", math.Float64frombits(bits)))
+}
+
+// TestWatPositiveControls guards the wat reader against becoming a
+// reject-everything sham: every valid module TEXT in the suite's .wast
+// scripts (the same modules whose binary forms pass the behavioral asserts)
+// must be accepted by the text checker, as must the host spectest module.
+func TestWatPositiveControls(t *testing.T) {
+	wasts, _ := filepath.Glob(filepath.Join("testdata", "*", "*.wast"))
+	if len(wasts) == 0 {
+		t.Skip("no testdata: run ./gen.sh to generate the suite")
+	}
+	sort.Strings(wasts)
+
+	total := 0
+	for _, f := range wasts {
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		n, err := wat.ScriptModules(src)
+		if err != nil {
+			t.Errorf("%s: valid module text rejected: %v", f, err)
+		}
+		total += n
+	}
+	if total == 0 {
+		t.Fatal("no modules checked: positive control is vacuous")
+	}
+
+	if src, err := os.ReadFile("spectest.wat"); err == nil {
+		if err := wat.ValidateText(src); err != nil {
+			t.Errorf("spectest.wat rejected: %v", err)
+		}
+	}
+	t.Logf("wat positive controls: %d valid module texts accepted across %d scripts", total, len(wasts))
 }

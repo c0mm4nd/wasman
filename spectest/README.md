@@ -41,7 +41,7 @@ SPECTEST_STRICT=1 go test ./spectest
 | `assert_unlinkable` / `assert_uninstantiable` | executed, an error is required    |
 | `assert_invalid`                          | executed, the module must be rejected |
 | `assert_malformed` (binary)               | executed, the module must be rejected |
-| `assert_malformed` (text)                 | skipped — needs a WAT parser          |
+| `assert_malformed` (text)                 | executed, rejected by the wat reader  |
 
 NaN results are compared per spec (`nan:canonical` / `nan:arithmetic`). Each
 invoke runs under a watchdog so a VM infinite-loop is reported as a failure
@@ -49,14 +49,15 @@ instead of hanging the test binary.
 
 ## Current status
 
-wasman passes **100% of every executable assertion** in the suite:
-`pass=18655 fail=0` at the time of writing, across all 68 converted suites —
-including `linking`, `imports`, `elem`, `exports` and `globals` (cross-module
-semantics). That covers all behavioral assertions *and* all rejection
-assertions (`assert_invalid`, binary `assert_malformed`, `assert_unlinkable`,
-`assert_uninstantiable`). The only skips (565) are `assert_malformed` cases
-whose payload is WebAssembly *text* — exercising those needs a WAT parser,
-which is out of scope for a binary engine.
+wasman passes **every assertion in the suite with zero skips**:
+`pass=19220 fail=0 skip=0` at the time of writing, across all 68 converted
+suites — behavioral assertions, rejection assertions (`assert_invalid`,
+`assert_malformed`, `assert_unlinkable`, `assert_uninstantiable`) and the
+text-format malformed cases alike. The latter are exercised by the `wat`
+package: a spec-conformant text-format reader (lexer, S-expression parser and
+module grammar checker). To keep it honest, `TestWatPositiveControls`
+requires the reader to ACCEPT all 800+ valid module texts appearing in the
+suite scripts, so it cannot degenerate into rejecting everything.
 
 Suites whose current text syntax wast2json cannot convert are fetched from a
 pinned pre-reference-types testsuite revision instead (see the "legacy suites"
