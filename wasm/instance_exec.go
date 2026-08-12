@@ -105,12 +105,17 @@ func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []ui
 		return nil, nil, ErrInvalidArgNum
 	}
 
+	// on any error, restore the operand stack to its pre-call height so a
+	// trapped call leaves the instance reusable with no leaked values
+	baseSp := ins.OperandStack.Ptr
+
 	for i := range args {
 		ins.OperandStack.Push(args[i])
 	}
 
 	err = f.call(ins)
 	if err != nil {
+		ins.OperandStack.Ptr = baseSp
 		return nil, nil, err
 	}
 

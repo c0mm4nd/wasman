@@ -269,10 +269,10 @@ func Test_callIndirect(t *testing.T) {
 		Functions: []fn{nil, df},
 		Module: &Module{
 			TypeSection: []*types.FuncType{nil, {}},
-			IndexSpace: &IndexSpace{
-				Tables: []*Table{
-					{Value: []*uint32{nil, utils.Uint32Ptr(1)}},
-				},
+		},
+		IndexSpace: &IndexSpace{
+			Tables: []*Table{
+				{Value: []*uint32{nil, utils.Uint32Ptr(1)}},
 			},
 		},
 		OperandStack: stacks.NewOperandStack(),

@@ -57,7 +57,7 @@ func Test_applyGlobalImport_indexSpace(t *testing.T) {
 		},
 	}
 
-	importer := &Instance{Module: &Module{IndexSpace: &IndexSpace{}}}
+	importer := &Instance{Module: &Module{}, IndexSpace: &IndexSpace{}}
 	// import the exporter's global #1 -> must become the importer's global #0
 	err := importer.applyGlobalImport(exporter, &segments.ExportSegment{
 		Desc: &segments.ExportDesc{Kind: segments.KindGlobal, Index: 1},
@@ -104,7 +104,65 @@ func Test_elemSegment_outOfBounds(t *testing.T) {
 			{TableType: types.TableType{Limits: &types.Limits{Min: 1}}, Value: []*uint32{}},
 		}},
 	}
-	if err := (&Instance{Module: m}).buildTableIndexSpace(); err == nil {
+	if err := (&Instance{Module: m, IndexSpace: m.IndexSpace}).buildTableIndexSpace(); err == nil {
 		t.Error("expected an out-of-bounds error for the element segment")
+	}
+}
+
+// Test_trapStackRollback checks a trapped call leaves the operand stack at its
+// pre-call height (repeated traps must not grow the stack unboundedly).
+func Test_trapStackRollback(t *testing.T) {
+	// body: unreachable
+	f := &wasmFunc{
+		signature: &types.FuncType{},
+		body:      []byte{0x00},
+		Blocks:    map[uint64]*funcBlock{},
+	}
+	ins := &Instance{
+		Module:       &Module{},
+		OperandStack: stacks.NewOperandStack(),
+		FrameStack: &stacks.Stack[*Frame]{
+			Ptr:    -1,
+			Values: make([]*Frame, stacks.InitialLabelStackHeight),
+		},
+	}
+	for i := 0; i < 5; i++ {
+		if err := f.call(ins); err == nil {
+			t.Fatal("expected a trap")
+		}
+		if ins.OperandStack.Ptr != -1 {
+			t.Fatalf("iteration %d: operand stack leaked, Ptr=%d want -1", i, ins.OperandStack.Ptr)
+		}
+	}
+}
+
+// Test_resolveImports_uninstantiated checks importing from a module that was
+// never instantiated is a clean link error, not a nil-pointer panic.
+func Test_resolveImports_uninstantiated(t *testing.T) {
+	importer := &Instance{
+		Module: &Module{
+			ImportSection: []*segments.ImportSegment{
+				{Module: "a", Name: "b", Desc: &segments.ImportDesc{Kind: segments.KindFunction}},
+			},
+		},
+		IndexSpace: &IndexSpace{},
+	}
+	// the extern module has an ExportSection but was never instantiated
+	// (IndexSpace == nil, as NewModule leaves it)
+	extern := &Module{
+		ExportSection: map[string]*segments.ExportSegment{
+			"b": {Name: "b", Desc: &segments.ExportDesc{Kind: segments.KindFunction}},
+		},
+	}
+	err := func() (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("panicked instead of returning a link error: %v", r)
+			}
+		}()
+		return importer.resolveImports(map[string]*Module{"a": extern})
+	}()
+	if err == nil {
+		t.Error("expected a link error for the uninstantiated extern module")
 	}
 }

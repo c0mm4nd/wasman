@@ -42,6 +42,9 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 
 	prevPtr := ins.FrameStack.Ptr
 	prev := ins.Active
+	// the operand stack height after consuming the arguments; a trap unwinds
+	// back to it so values pushed by the failing body do not leak
+	baseSp := ins.OperandStack.Ptr
 
 	// enforce the optional call-depth limit so runaway recursion traps as a
 	// wasm "call stack exhausted" instead of fatally overflowing the Go stack.
@@ -56,6 +59,7 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 				// unwind the frame back to the caller so the instance stays usable
 				ins.FrameStack.Ptr = prevPtr
 				ins.Active = prev
+				ins.OperandStack.Ptr = baseSp
 				var ok bool
 				err, ok = v.(error)
 				if !ok {
@@ -89,6 +93,12 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 	// a returned trap error).
 	ins.FrameStack.Ptr = prevPtr
 	ins.Active = prev
+
+	// a trap discards whatever the failing body left on the operand stack, so
+	// repeated traps on a long-lived instance cannot grow the stack unboundedly
+	if err != nil {
+		ins.OperandStack.Ptr = baseSp
+	}
 
 	return err
 }

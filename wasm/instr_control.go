@@ -223,11 +223,11 @@ func callIndirect(ins *Instance) error {
 
 	tableIndex := ins.OperandStack.Pop()
 	// note: mvp limits the size of table index space to 1
-	if tableIndex >= uint64(len(ins.Module.IndexSpace.Tables[0].Value)) {
+	if tableIndex >= uint64(len(ins.IndexSpace.Tables[0].Value)) {
 		return ErrTableIndexOutOfRange
 	}
 
-	te := ins.Module.IndexSpace.Tables[0].Value[tableIndex]
+	te := ins.IndexSpace.Tables[0].Value[tableIndex]
 	if te == nil {
 		return ErrTableInstanceNotInitialized
 	}
