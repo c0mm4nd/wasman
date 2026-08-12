@@ -574,7 +574,8 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 				IndexSpace:      new(IndexSpace),
 			},
 			{
-				ElementsSection: []*segments.ElemSegment{{TableIndex: 0}},
+				// table index past the end of the index space
+				ElementsSection: []*segments.ElemSegment{{TableIndex: 1}},
 				IndexSpace: &IndexSpace{Tables: []*Table{
 					{Value: []*uint32{}},
 				}},
@@ -617,6 +618,7 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 			exp []*Table
 		}{
 			{
+				// the table is pre-sized to its declared minimum
 				m: &Module{
 					ElementsSection: []*segments.ElemSegment{{
 						TableIndex: 0,
@@ -626,9 +628,9 @@ func TestModule_buildTableIndexSpace(t *testing.T) {
 						},
 						Init: []uint32{0x1, 0x1},
 					}},
-					TableSection: []*types.TableType{{Limits: &types.Limits{}}},
+					TableSection: []*types.TableType{{Limits: &types.Limits{Min: 2}}},
 					IndexSpace: &IndexSpace{Tables: []*Table{
-						{Value: []*uint32{}},
+						{TableType: types.TableType{Limits: &types.Limits{Min: 2}}, Value: []*uint32{}},
 					}},
 				},
 				exp: []*Table{

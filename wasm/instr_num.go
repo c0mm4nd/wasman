@@ -29,7 +29,9 @@ func truncCheck(v float64, lo, hi float64) (float64, error) {
 }
 
 func i32eqz(ins *Instance) error {
-	if ins.OperandStack.Pop() == 0 {
+	// compare only the low 32 bits: the interpreter's 64-bit representation of
+	// an i32 is not normalized (some ops sign-extend, others zero-extend)
+	if uint32(ins.OperandStack.Pop()) == 0 {
 		ins.OperandStack.Push(1)
 	} else {
 		ins.OperandStack.Push(0)
@@ -41,7 +43,7 @@ func i32eqz(ins *Instance) error {
 func i32eq(ins *Instance) error {
 	v1 := ins.OperandStack.Pop()
 	v2 := ins.OperandStack.Pop()
-	if v1 == v2 {
+	if uint32(v1) == uint32(v2) {
 		ins.OperandStack.Push(1)
 	} else {
 		ins.OperandStack.Push(0)
@@ -53,7 +55,7 @@ func i32eq(ins *Instance) error {
 func i32ne(ins *Instance) error {
 	v1 := ins.OperandStack.Pop()
 	v2 := ins.OperandStack.Pop()
-	if v1 != v2 {
+	if uint32(v1) != uint32(v2) {
 		ins.OperandStack.Push(1)
 	} else {
 		ins.OperandStack.Push(0)
@@ -484,6 +486,9 @@ func i32divs(ins *Instance) error {
 func i32divu(ins *Instance) error {
 	v2 := uint32(ins.OperandStack.Pop())
 	v1 := uint32(ins.OperandStack.Pop())
+	if v2 == 0 {
+		return ErrUndefined
+	}
 	ins.OperandStack.Push(uint64(v1 / v2))
 
 	return nil
@@ -492,6 +497,9 @@ func i32divu(ins *Instance) error {
 func i32rems(ins *Instance) error {
 	v2 := int32(ins.OperandStack.Pop())
 	v1 := int32(ins.OperandStack.Pop())
+	if v2 == 0 {
+		return ErrUndefined
+	}
 	ins.OperandStack.Push(uint64(v1 % v2))
 
 	return nil
@@ -500,6 +508,9 @@ func i32rems(ins *Instance) error {
 func i32remu(ins *Instance) error {
 	v2 := uint32(ins.OperandStack.Pop())
 	v1 := uint32(ins.OperandStack.Pop())
+	if v2 == 0 {
+		return ErrUndefined
+	}
 	ins.OperandStack.Push(uint64(v1 % v2))
 
 	return nil
@@ -622,6 +633,9 @@ func i64divs(ins *Instance) error {
 func i64divu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
+	if v2 == 0 {
+		return ErrUndefined
+	}
 	ins.OperandStack.Push(v1 / v2)
 
 	return nil
@@ -630,6 +644,9 @@ func i64divu(ins *Instance) error {
 func i64rems(ins *Instance) error {
 	v2 := int64(ins.OperandStack.Pop())
 	v1 := int64(ins.OperandStack.Pop())
+	if v2 == 0 {
+		return ErrUndefined
+	}
 	ins.OperandStack.Push(uint64(v1 % v2))
 
 	return nil
@@ -638,6 +655,9 @@ func i64rems(ins *Instance) error {
 func i64remu(ins *Instance) error {
 	v2 := ins.OperandStack.Pop()
 	v1 := ins.OperandStack.Pop()
+	if v2 == 0 {
+		return ErrUndefined
+	}
 	ins.OperandStack.Push(v1 % v2)
 
 	return nil

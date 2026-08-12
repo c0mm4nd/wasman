@@ -223,3 +223,73 @@ func Test_f64nearest(t *testing.T) {
 		}
 	}
 }
+
+// Test_i32eq_mixedRepresentation guards against comparing the full 64-bit
+// stack slots: the interpreter's i32 representation is not normalized (some
+// ops sign-extend, others zero-extend), so i32.eq/ne/eqz must compare only
+// the low 32 bits.
+func Test_i32eq_mixedRepresentation(t *testing.T) {
+	minusOne := int32(-1)
+	signExt := uint64(minusOne) // 0xFFFFFFFF_FFFFFFFF (e.g. from i32.const -1)
+	zeroExt := uint64(uint32(0xFFFFFFFF))
+
+	vm := newNumVM()
+	vm.OperandStack.Push(signExt)
+	vm.OperandStack.Push(zeroExt)
+	if err := i32eq(vm); err != nil {
+		t.Fatal(err)
+	}
+	if got := vm.OperandStack.Pop(); got != 1 {
+		t.Errorf("i32.eq(sign-ext -1, zero-ext -1)=%d want 1", got)
+	}
+
+	vm = newNumVM()
+	vm.OperandStack.Push(signExt)
+	vm.OperandStack.Push(zeroExt)
+	if err := i32ne(vm); err != nil {
+		t.Fatal(err)
+	}
+	if got := vm.OperandStack.Pop(); got != 0 {
+		t.Errorf("i32.ne(sign-ext -1, zero-ext -1)=%d want 0", got)
+	}
+
+	// eqz must also ignore garbage above bit 31
+	vm = newNumVM()
+	vm.OperandStack.Push(uint64(0xFFFFFFFF_00000000))
+	if err := i32eqz(vm); err != nil {
+		t.Fatal(err)
+	}
+	if got := vm.OperandStack.Pop(); got != 1 {
+		t.Errorf("i32.eqz(high-bits-only)=%d want 1", got)
+	}
+}
+
+// Test_divRemByZero checks div/rem by zero return a trap error instead of
+// panicking the host (which is fatal when Recover is disabled).
+func Test_divRemByZero(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		fn   func(*Instance) error
+	}{
+		{"i32.div_u", i32divu},
+		{"i64.div_u", i64divu},
+		{"i32.rem_s", i32rems},
+		{"i32.rem_u", i32remu},
+		{"i64.rem_s", i64rems},
+		{"i64.rem_u", i64remu},
+	} {
+		vm := newNumVM()
+		vm.OperandStack.Push(1) // dividend
+		vm.OperandStack.Push(0) // divisor
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Errorf("%s: panicked on divide by zero: %v", tt.name, r)
+				}
+			}()
+			if err := tt.fn(vm); err == nil {
+				t.Errorf("%s: expected a trap error on divide by zero", tt.name)
+			}
+		}()
+	}
+}
