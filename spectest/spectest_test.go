@@ -85,7 +85,9 @@ type runner struct {
 	lastMod *wasman.Module
 	byName  map[string]*wasman.Instance
 	modByNm map[string]*wasman.Module
-	extern  map[string]*wasman.Module // import-name -> registered module
+	// extern is the import-resolution map handed to every instantiation,
+	// seeded with the host spectest module and extended by register commands
+	extern map[string]*wasman.Module
 }
 
 func TestSpec(t *testing.T) {
@@ -160,7 +162,7 @@ func runManifest(t *testing.T, dir, jsonPath string, specMod *wasman.Module) tal
 		spectest: specMod,
 		byName:   map[string]*wasman.Instance{},
 		modByNm:  map[string]*wasman.Module{},
-		extern:   map[string]*wasman.Module{},
+		extern:   map[string]*wasman.Module{"spectest": specMod},
 	}
 
 	var res tally
@@ -168,14 +170,6 @@ func runManifest(t *testing.T, dir, jsonPath string, specMod *wasman.Module) tal
 		r.exec(t, c, &res)
 	}
 	return res
-}
-
-func (r *runner) externModules() map[string]*wasman.Module {
-	ex := map[string]*wasman.Module{"spectest": r.spectest}
-	for k, v := range r.extern {
-		ex[k] = v
-	}
-	return ex
 }
 
 // strict makes behavioral mismatches fail the test (for regression gating in
@@ -253,42 +247,25 @@ func (r *runner) exec(t *testing.T, c command, res *tally) {
 			res.pass++
 		}
 
-	case "assert_malformed":
-		// text-format payloads go through the wat reader, binary ones through
-		// the module decoder; both must be rejected
-		if c.ModuleType == "text" {
+	case "assert_malformed", "assert_invalid":
+		// text payloads (either flagged or left as .wat by wast2json) go
+		// through the wat reader, binary ones through the module decoder;
+		// the module must be rejected either way
+		kind := strings.TrimPrefix(c.Type, "assert_")
+		if c.ModuleType == "text" || strings.HasSuffix(c.Filename, ".wat") {
 			src, err := os.ReadFile(filepath.Join(r.dir, c.Filename))
 			if err != nil {
 				t.Fatalf("read %s: %v", c.Filename, err)
 			}
 			if wat.ValidateText(src) == nil {
-				fail(t, res, "line %d: %q expected malformed rejection (text)", c.Line, c.Filename)
+				fail(t, res, "line %d: %q expected %s rejection (text)", c.Line, c.Filename, kind)
 			} else {
 				res.pass++
 			}
 			return
 		}
 		if _, _, err := r.instantiate(c.Filename); err == nil {
-			fail(t, res, "line %d: %q expected malformed rejection", c.Line, c.Filename)
-		} else {
-			res.pass++
-		}
-
-	case "assert_invalid":
-		if strings.HasSuffix(c.Filename, ".wat") {
-			src, err := os.ReadFile(filepath.Join(r.dir, c.Filename))
-			if err != nil {
-				t.Fatalf("read %s: %v", c.Filename, err)
-			}
-			if wat.ValidateText(src) == nil {
-				fail(t, res, "line %d: %q expected invalid rejection (text)", c.Line, c.Filename)
-			} else {
-				res.pass++
-			}
-			return
-		}
-		if _, _, err := r.instantiate(c.Filename); err == nil {
-			fail(t, res, "line %d: %q expected invalid rejection", c.Line, c.Filename)
+			fail(t, res, "line %d: %q expected %s rejection", c.Line, c.Filename, kind)
 		} else {
 			res.pass++
 		}
@@ -312,7 +289,7 @@ func (r *runner) instantiate(filename string) (mod *wasman.Module, ins *wasman.I
 	if err != nil {
 		return nil, nil, err
 	}
-	ins, err = wasman.NewInstance(mod, r.externModules())
+	ins, err = wasman.NewInstance(mod, r.extern)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -331,10 +308,14 @@ func (r *runner) runAction(a *action) ([]uint64, error) {
 		got, err := r.runActionSync(a)
 		ch <- result{got, err}
 	}()
+	// a stoppable timer: time.After would leave a live timer in the runtime
+	// heap for the full timeout on every one of the suite's ~19k actions
+	timer := time.NewTimer(actionTimeout)
+	defer timer.Stop()
 	select {
 	case res := <-ch:
 		return res.got, res.err
-	case <-time.After(actionTimeout):
+	case <-timer.C:
 		return nil, fmt.Errorf("timeout after %s (possible infinite loop)", actionTimeout)
 	}
 }

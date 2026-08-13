@@ -110,9 +110,18 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 	// repeated traps on a long-lived instance cannot grow the stack unboundedly
 	if err != nil {
 		ins.OperandStack.Ptr = baseSp
+		return err
 	}
 
-	return err
+	// a successful body must leave its declared results; an invalid body run
+	// with SkipValidation may not, which would underflow every caller's pops
+	// (callCross, internal call sites, CallExportedFunc)
+	if ins.OperandStack.Ptr-baseSp < len(f.signature.ReturnTypes) {
+		ins.OperandStack.Ptr = baseSp
+		return fmt.Errorf("function returned too few values")
+	}
+
+	return nil
 }
 
 // callCross executes f inside its owning instance while the call came from

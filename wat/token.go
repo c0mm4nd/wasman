@@ -185,6 +185,28 @@ func lexString(src []byte, i int) (raw string, decoded []byte, next int, err err
 	n := len(src)
 	j := i + 1
 	start := j
+
+	// fast path: an escape-free string decodes to its own source bytes, so the
+	// per-byte decoding loop (and its allocations) can be skipped entirely
+	for j < n {
+		c := src[j]
+		if c == '\\' {
+			break
+		}
+		if c == '"' {
+			return string(src[start:j]), src[start:j], j + 1, nil
+		}
+		if c < 0x20 || c == 0x7f {
+			return "", nil, 0, fmt.Errorf("illegal control character %#x in string", c)
+		}
+		j++
+	}
+	if j >= n {
+		return "", nil, 0, errUnterminatedString
+	}
+
+	// slow path: escapes present — restart with full decoding
+	decoded = append(decoded, src[start:j]...)
 	for {
 		if j >= n {
 			return "", nil, 0, errUnterminatedString

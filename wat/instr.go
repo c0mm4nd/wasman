@@ -22,7 +22,6 @@ const (
 	immConstI64
 	immConstF32
 	immConstF64
-	immMemOpt // memory.size / memory.grow (optional memidx)
 )
 
 type instrInfo struct {
@@ -82,8 +81,8 @@ func buildInstrTable() map[string]instrInfo {
 	mem("i64.store8", 1)
 	mem("i64.store16", 2)
 	mem("i64.store32", 4)
-	t["memory.size"] = instrInfo{imm: immMemOpt}
-	t["memory.grow"] = instrInfo{imm: immMemOpt}
+	// note: the optional memory-index immediate (multi-memory) is unsupported
+	none("memory.size", "memory.grow")
 
 	// constants
 	t["i32.const"] = instrInfo{imm: immConstI32}
@@ -142,20 +141,6 @@ func (ctx *instrCtx) resolveLabel(t *token) error {
 	return fmt.Errorf("expected label, got %q", t.text)
 }
 
-func (ctx *instrCtx) resolveLocal(t *token) error {
-	switch t.kind {
-	case tokNum:
-		_, err := parseUint(t.text, 32)
-		return err
-	case tokID:
-		if ctx.locals == nil || !ctx.locals[t.text] {
-			return fmt.Errorf("unknown local %s", t.text)
-		}
-		return nil
-	}
-	return fmt.Errorf("expected local index, got %q", t.text)
-}
-
 // checkInstrSeq validates a mixed sequence of plain instructions (atoms) and
 // folded instructions (lists).
 func (c *checker) checkInstrSeq(items []node, ctx *instrCtx) error {
@@ -197,16 +182,12 @@ func (c *checker) checkOneInstr(items []node, i int, ctx *instrCtx) (int, error)
 	if !ok {
 		return 0, fmt.Errorf("unknown operator %q", t.text)
 	}
-	n, err := c.checkImmediates(items, i+1, info, ctx, false)
-	if err != nil {
-		return 0, err
-	}
-	return n, nil
+	return c.checkImmediates(items, i+1, info, ctx)
 }
 
-// checkImmediates consumes an instruction's immediates starting at items[i].
-// In folded mode the immediates live inside the folded list.
-func (c *checker) checkImmediates(items []node, i int, info instrInfo, ctx *instrCtx, folded bool) (int, error) {
+// checkImmediates consumes an instruction's immediates starting at items[i]
+// (for a folded instruction, the immediates live inside the folded list).
+func (c *checker) checkImmediates(items []node, i int, info instrInfo, ctx *instrCtx) (int, error) {
 	atom := func(j int) *token {
 		if j < len(items) && !items[j].isList() {
 			return items[j].atom
@@ -255,7 +236,7 @@ func (c *checker) checkImmediates(items []node, i int, info instrInfo, ctx *inst
 		if t == nil {
 			return 0, errors.New("expected local index")
 		}
-		return i + 1, ctx.resolveLocal(t)
+		return i + 1, checkIdxAtom(t, ctx.locals, "local")
 
 	case immGlobal:
 		t := atom(i)
@@ -273,19 +254,11 @@ func (c *checker) checkImmediates(items []node, i int, info instrInfo, ctx *inst
 			i++
 		}
 		// typeuse lists follow (they are lists even in plain form)
-		end := i
-		for end < len(items) && items[end].isList() {
-			h := items[end].head()
-			if h == "type" || h == "param" || h == "result" {
-				end++
-			} else {
-				break
-			}
-		}
-		if _, _, _, err := c.parseTypeuse(items[i:end], false); err != nil {
+		_, consumed, err := c.parseTypeuse(items[i:], false)
+		if err != nil {
 			return 0, err
 		}
-		return end, nil
+		return i + consumed, nil
 
 	case immMemarg:
 		if t := atom(i); t != nil && strings.HasPrefix(t.text, "offset=") {
@@ -311,9 +284,6 @@ func (c *checker) checkImmediates(items []node, i int, info instrInfo, ctx *inst
 		if t := atom(i); t != nil && strings.HasPrefix(t.text, "offset=") {
 			return 0, errors.New("unexpected offset=")
 		}
-		return i, nil
-
-	case immMemOpt:
 		return i, nil
 
 	case immConstI32, immConstI64:
@@ -365,20 +335,12 @@ func (c *checker) parseBlockLabelAndType(items []node, i int, ctx *instrCtx) (in
 		label = items[i].atom.text
 		i++
 	}
-	end := i
-	for end < len(items) && items[end].isList() {
-		h := items[end].head()
-		if h == "type" || h == "param" || h == "result" {
-			end++
-		} else {
-			break
-		}
-	}
-	if _, _, _, err := c.parseTypeuse(items[i:end], false); err != nil {
+	_, consumed, err := c.parseTypeuse(items[i:], false)
+	if err != nil {
 		return 0, err
 	}
 	ctx.labels = append(ctx.labels, label)
-	return end, nil
+	return i + consumed, nil
 }
 
 // checkEndLabel validates the optional id after `end` / `else`.
@@ -494,7 +456,7 @@ func (c *checker) checkFolded(n *node, ctx *instrCtx) error {
 	if !ok {
 		return fmt.Errorf("unknown operator %q", name)
 	}
-	next, err := c.checkImmediates(items, 0, info, ctx, true)
+	next, err := c.checkImmediates(items, 0, info, ctx)
 	if err != nil {
 		return err
 	}

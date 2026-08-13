@@ -52,6 +52,19 @@ func isValType(s string) bool {
 // public entry points
 // ---------------------------------------------------------------------------
 
+// stripID drops an optional leading id atom from a field's items.
+func stripID(items []node) []node {
+	if len(items) > 0 && !items[0].isList() && items[0].atom.kind == tokID {
+		return items[1:]
+	}
+	return items
+}
+
+// moduleFields unwraps a (module $id? field*) form into its fields.
+func moduleFields(top *node) []node {
+	return stripID(top.list[1:])
+}
+
 // ValidateText checks a module text: either a single (module ...) form or a
 // bare sequence of module fields (as the spec's `quote` payloads allow).
 func ValidateText(src []byte) error {
@@ -66,11 +79,7 @@ func ValidateText(src []byte) error {
 
 	fields := forest
 	if len(forest) == 1 && forest[0].head() == "module" {
-		fields = forest[0].list[1:]
-		// an optional module id
-		if len(fields) > 0 && !fields[0].isList() && fields[0].atom.kind == tokID {
-			fields = fields[1:]
-		}
+		fields = moduleFields(&forest[0])
 	}
 	return checkModuleFields(fields)
 }
@@ -94,10 +103,7 @@ func ScriptModules(src []byte) (int, error) {
 		if top.head() != "module" {
 			continue
 		}
-		fields := top.list[1:]
-		if len(fields) > 0 && !fields[0].isList() && fields[0].atom.kind == tokID {
-			fields = fields[1:]
-		}
+		fields := moduleFields(&top)
 		// skip (module binary "...") / (module quote "...") payload forms
 		if len(fields) > 0 && !fields[0].isList() && fields[0].atom.kind == tokKeyword &&
 			(fields[0].atom.text == "binary" || fields[0].atom.text == "quote") {
@@ -320,32 +326,37 @@ func parseValTypeVec(items []node, allowName bool) ([]string, []string, error) {
 	return out, names, nil
 }
 
-// parseTypeuse parses (type x)? (param..)* (result..)* from items, returning
-// the resolved signature, the param names, and how many items were consumed.
-// If a (type x) is given together with inline params/results, they must match
-// the definition.
-func (c *checker) parseTypeuse(items []node, named bool) (funcSig, []string, int, error) {
+// parseTypeuse parses the (type x)? (param..)* (result..)* prefix of items,
+// returning the param names and how many items were consumed (the caller
+// resumes after them). If a (type x) is given together with inline
+// params/results, they must match the referenced definition.
+func (c *checker) parseTypeuse(items []node, named bool) ([]string, int, error) {
 	consumed := 0
 	var declared *funcSig
 	if len(items) > 0 && items[0].head() == "type" {
 		ti := items[0].list[1:]
 		if len(ti) != 1 || ti[0].isList() {
-			return funcSig{}, nil, 0, errors.New("malformed type use")
+			return nil, 0, errors.New("malformed type use")
 		}
-		idx, err := c.resolveIdx(ti[0].atom, c.typeIDs, len(c.types), "type")
-		if err != nil {
-			return funcSig{}, nil, 0, err
-		}
-		if idx < 0 && ti[0].atom.kind == tokNum {
-			// a numeric type index: resolve it here (in range) so an inline
-			// signature can be matched against the definition; an out-of-range
-			// index is left for the (binary) validator, not this grammar check
-			if n, perr := parseUint(ti[0].atom.text, 32); perr == nil && int(n) < len(c.types) {
-				idx = int(n)
+		switch t := ti[0].atom; t.kind {
+		case tokID:
+			idx, ok := c.typeIDs[t.text]
+			if !ok {
+				return nil, 0, fmt.Errorf("unknown type %s", t.text)
 			}
-		}
-		if idx >= 0 { // resolved id, or numeric index in range
 			declared = &c.types[idx]
+		case tokNum:
+			n, err := parseUint(t.text, 32)
+			if err != nil {
+				return nil, 0, fmt.Errorf("malformed type index: %v", err)
+			}
+			// an out-of-range numeric index is left for the (binary) validator,
+			// not this grammar check
+			if int(n) < len(c.types) {
+				declared = &c.types[n]
+			}
+		default:
+			return nil, 0, errors.New("expected type index")
 		}
 		consumed++
 	}
@@ -359,41 +370,15 @@ func (c *checker) parseTypeuse(items []node, named bool) (funcSig, []string, int
 			break
 		}
 	}
-	// e.g. a (type ...) appearing after (param)/(result) lands here
-	if inlineEnd != len(items) {
-		return funcSig{}, nil, 0, errors.New("unexpected token in type use")
-	}
 	inline, names, err := c.parseFuncType(items[consumed:inlineEnd], named)
 	if err != nil {
-		return funcSig{}, nil, 0, err
+		return nil, 0, err
 	}
 
-	if declared != nil {
-		if inlineEnd > consumed && !sigEqual(inline, *declared) {
-			return funcSig{}, nil, 0, errors.New("inline function type does not match type use")
-		}
-		return *declared, names, inlineEnd, nil
+	if declared != nil && inlineEnd > consumed && !sigEqual(inline, *declared) {
+		return nil, 0, errors.New("inline function type does not match type use")
 	}
-	return inline, names, inlineEnd, nil
-}
-
-// resolveIdx checks an index atom: a u32 number (returns -1: range-checked at
-// instantiation, not here) or an id which must resolve.
-func (c *checker) resolveIdx(t *token, ids map[string]int, n int, kind string) (int, error) {
-	switch t.kind {
-	case tokNum:
-		if _, err := parseUint(t.text, 32); err != nil {
-			return 0, fmt.Errorf("malformed %s index: %v", kind, err)
-		}
-		return -1, nil
-	case tokID:
-		idx, ok := ids[t.text]
-		if !ok {
-			return 0, fmt.Errorf("unknown %s %s", kind, t.text)
-		}
-		return idx, nil
-	}
-	return 0, fmt.Errorf("expected %s index", kind)
+	return names, inlineEnd, nil
 }
 
 // checkIdxAtom checks an index against a plain id set.
@@ -411,6 +396,44 @@ func checkIdxAtom(t *token, ids map[string]bool, kind string) error {
 		return nil
 	}
 	return fmt.Errorf("expected %s index, got %q", kind, t.text)
+}
+
+// checkGlobalType parses a globaltype: valtype | (mut valtype).
+func checkGlobalType(gt *node) error {
+	if gt.isList() {
+		if gt.head() != "mut" || len(gt.list) != 2 || gt.list[1].isList() || !isValType(gt.list[1].atom.text) {
+			return errors.New("malformed global type")
+		}
+		return nil
+	}
+	if !isValType(gt.atom.text) {
+		return errors.New("malformed global type")
+	}
+	return nil
+}
+
+// checkTableType parses a tabletype: limits funcref.
+func checkTableType(items []node) error {
+	rest, err := checkLimits(items)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 1 || rest[0].isList() || rest[0].atom.text != "funcref" {
+		return errors.New("expected element type funcref")
+	}
+	return nil
+}
+
+// checkMemType parses a memtype: just limits.
+func checkMemType(items []node) error {
+	rest, err := checkLimits(items)
+	if err != nil {
+		return err
+	}
+	if len(rest) != 0 {
+		return errors.New("unexpected token after memory limits")
+	}
+	return nil
 }
 
 // checkLimits parses "u32 u32?" limits.
@@ -479,27 +502,16 @@ func (c *checker) splitInlines(items []node, kind string) (rest []node, imported
 // ---------------------------------------------------------------------------
 
 func (c *checker) checkFunc(items []node) error {
-	if len(items) > 0 && !items[0].isList() && items[0].atom.kind == tokID {
-		items = items[1:]
-	}
+	items = stripID(items)
 	items, imported, err := c.splitInlines(items, "function")
 	if err != nil {
 		return err
 	}
-	tuEnd := 0
-	for tuEnd < len(items) && items[tuEnd].isList() {
-		h := items[tuEnd].head()
-		if h == "type" || h == "param" || h == "result" {
-			tuEnd++
-		} else {
-			break
-		}
-	}
-	sig, paramNames, _, err := c.parseTypeuse(items[:tuEnd], true)
+	paramNames, consumed, err := c.parseTypeuse(items, true)
 	if err != nil {
 		return err
 	}
-	items = items[tuEnd:]
+	items = items[consumed:]
 	if imported {
 		if len(items) != 0 {
 			return errors.New("unexpected body on imported function")
@@ -538,15 +550,12 @@ func (c *checker) checkFunc(items []node) error {
 		}
 		items = items[1:]
 	}
-	_ = sig
 
 	return c.checkInstrSeq(items, &instrCtx{locals: locals, labels: nil})
 }
 
 func (c *checker) checkTable(items []node) error {
-	if len(items) > 0 && !items[0].isList() && items[0].atom.kind == tokID {
-		items = items[1:]
-	}
+	items = stripID(items)
 	items, imported, err := c.splitInlines(items, "table")
 	if err != nil {
 		return err
@@ -564,20 +573,11 @@ func (c *checker) checkTable(items []node) error {
 		}
 		return c.checkElemList(items[1].list[1:])
 	}
-	items, err = checkLimits(items)
-	if err != nil {
-		return err
-	}
-	if len(items) != 1 || items[0].isList() || items[0].atom.text != "funcref" {
-		return errors.New("expected element type funcref")
-	}
-	return nil
+	return checkTableType(items)
 }
 
 func (c *checker) checkMemory(items []node) error {
-	if len(items) > 0 && !items[0].isList() && items[0].atom.kind == tokID {
-		items = items[1:]
-	}
+	items = stripID(items)
 	items, imported, err := c.splitInlines(items, "memory")
 	if err != nil {
 		return err
@@ -597,20 +597,11 @@ func (c *checker) checkMemory(items []node) error {
 		}
 		return nil
 	}
-	items, err = checkLimits(items)
-	if err != nil {
-		return err
-	}
-	if len(items) != 0 {
-		return errors.New("unexpected token after memory limits")
-	}
-	return nil
+	return checkMemType(items)
 }
 
 func (c *checker) checkGlobal(items []node) error {
-	if len(items) > 0 && !items[0].isList() && items[0].atom.kind == tokID {
-		items = items[1:]
-	}
+	items = stripID(items)
 	items, imported, err := c.splitInlines(items, "global")
 	if err != nil {
 		return err
@@ -621,14 +612,8 @@ func (c *checker) checkGlobal(items []node) error {
 	if len(items) == 0 {
 		return errors.New("expected global type")
 	}
-	// globaltype: valtype | (mut valtype)
-	gt := items[0]
-	if gt.isList() {
-		if gt.head() != "mut" || len(gt.list) != 2 || gt.list[1].isList() || !isValType(gt.list[1].atom.text) {
-			return errors.New("malformed global type")
-		}
-	} else if !isValType(gt.atom.text) {
-		return errors.New("malformed global type")
+	if err := checkGlobalType(&items[0]); err != nil {
+		return err
 	}
 	items = items[1:]
 	if imported {
@@ -651,45 +636,30 @@ func (c *checker) checkImport(items []node) error {
 		return err
 	}
 	desc := items[2]
-	d := desc.list[1:]
-	if len(d) > 0 && !d[0].isList() && d[0].atom.kind == tokID {
-		d = d[1:]
-	}
+	d := stripID(desc.list[1:])
 	switch desc.head() {
 	case "func":
 		if err := c.markImport("function"); err != nil {
 			return err
 		}
-		sig, _, _, err := c.parseTypeuse(d, true)
+		_, consumed, err := c.parseTypeuse(d, true)
 		if err != nil {
 			return err
 		}
-		_ = sig
+		if consumed != len(d) {
+			return errors.New("unexpected token in func import")
+		}
 		return nil
 	case "table":
 		if err := c.markImport("table"); err != nil {
 			return err
 		}
-		rest, err := checkLimits(d)
-		if err != nil {
-			return err
-		}
-		if len(rest) != 1 || rest[0].isList() || rest[0].atom.text != "funcref" {
-			return errors.New("expected element type funcref")
-		}
-		return nil
+		return checkTableType(d)
 	case "memory":
 		if err := c.markImport("memory"); err != nil {
 			return err
 		}
-		rest, err := checkLimits(d)
-		if err != nil {
-			return err
-		}
-		if len(rest) != 0 {
-			return errors.New("unexpected token in memory import")
-		}
-		return nil
+		return checkMemType(d)
 	case "global":
 		if err := c.markImport("global"); err != nil {
 			return err
@@ -697,15 +667,7 @@ func (c *checker) checkImport(items []node) error {
 		if len(d) != 1 {
 			return errors.New("malformed global import")
 		}
-		gt := d[0]
-		if gt.isList() {
-			if gt.head() != "mut" || len(gt.list) != 2 || gt.list[1].isList() || !isValType(gt.list[1].atom.text) {
-				return errors.New("malformed global type")
-			}
-		} else if !isValType(gt.atom.text) {
-			return errors.New("malformed global type")
-		}
-		return nil
+		return checkGlobalType(&d[0])
 	}
 	return fmt.Errorf("unexpected import description %q", desc.head())
 }
@@ -742,49 +704,59 @@ func (c *checker) checkStart(items []node) error {
 	return checkIdxAtom(items[0].atom, c.funcIDs, "function")
 }
 
+// consumeIdxOrUse consumes an optional target: a (kw x) use form or, in the
+// legacy abbreviation, a bare index atom (only when more items follow it).
+func (c *checker) consumeIdxOrUse(items []node, kw string, ids map[string]bool, kind string) ([]node, error) {
+	if len(items) > 0 && items[0].head() == kw {
+		u := items[0].list[1:]
+		if len(u) != 1 || u[0].isList() {
+			return nil, fmt.Errorf("malformed %s use", kind)
+		}
+		if err := checkIdxAtom(u[0].atom, ids, kind); err != nil {
+			return nil, err
+		}
+		return items[1:], nil
+	}
+	if len(items) > 1 && !items[0].isList() && (items[0].atom.kind == tokNum || items[0].atom.kind == tokID) {
+		if err := checkIdxAtom(items[0].atom, ids, kind); err != nil {
+			return nil, err
+		}
+		return items[1:], nil
+	}
+	return items, nil
+}
+
+// checkOffset validates an offset: (offset instr*) or a single folded instr.
+func (c *checker) checkOffset(n *node) error {
+	if n.head() == "offset" {
+		return c.checkInstrSeq(n.list[1:], &instrCtx{})
+	}
+	return c.checkInstrSeq([]node{*n}, &instrCtx{})
+}
+
 func (c *checker) checkElem(items []node) error {
-	// optional segment id
-	if len(items) > 0 && !items[0].isList() && items[0].atom.kind == tokID {
-		items = items[1:]
-	}
-	// declarative segments: (elem declare func $f ...)
-	if len(items) > 0 && !items[0].isList() && items[0].atom.text == "declare" {
-		return c.checkElemTail(items[1:])
-	}
-	// passive segments: (elem func $f ...) or (elem funcref (ref.func $f) ...)
-	// — no table index and no offset expression
-	if len(items) > 0 && !items[0].isList() &&
-		(items[0].atom.text == "func" || items[0].atom.text == "funcref") {
-		return c.checkElemTail(items)
-	}
-	// optional (table x) — or, in the legacy abbreviation, a bare table index
-	if len(items) > 0 && items[0].head() == "table" {
-		ti := items[0].list[1:]
-		if len(ti) != 1 || ti[0].isList() {
-			return errors.New("malformed table use")
+	items = stripID(items) // optional segment id
+
+	// a leading keyword means an offset-less segment: declarative
+	// (elem declare func ...) or passive (elem func ...)/(elem funcref ...)
+	if len(items) > 0 && !items[0].isList() && items[0].atom.kind == tokKeyword {
+		switch items[0].atom.text {
+		case "declare":
+			return c.checkElemTail(items[1:])
+		case "func", "funcref":
+			return c.checkElemTail(items)
 		}
-		if err := checkIdxAtom(ti[0].atom, c.tableIDs, "table"); err != nil {
-			return err
-		}
-		items = items[1:]
-	} else if len(items) > 0 && !items[0].isList() && (items[0].atom.kind == tokNum || items[0].atom.kind == tokID) {
-		if err := checkIdxAtom(items[0].atom, c.tableIDs, "table"); err != nil {
-			return err
-		}
-		items = items[1:]
 	}
-	// offset: (offset instr*) or a single folded instruction
+
+	items, err := c.consumeIdxOrUse(items, "table", c.tableIDs, "table")
+	if err != nil {
+		return err
+	}
 	if len(items) == 0 || !items[0].isList() {
 		return errors.New("expected offset expression")
 	}
-	if items[0].head() == "offset" {
-		if err := c.checkInstrSeq(items[0].list[1:], &instrCtx{}); err != nil {
-			return err
-		}
-	} else {
-		if err := c.checkInstrSeq(items[0:1], &instrCtx{}); err != nil {
-			return err
-		}
+	if err := c.checkOffset(&items[0]); err != nil {
+		return err
 	}
 	return c.checkElemTail(items[1:])
 }
@@ -832,46 +804,26 @@ func (c *checker) checkElemList(items []node) error {
 }
 
 func (c *checker) checkData(items []node) error {
-	if len(items) > 0 && !items[0].isList() && items[0].atom.kind == tokID {
-		items = items[1:]
+	items = stripID(items) // optional segment id
+
+	items, err := c.consumeIdxOrUse(items, "memory", c.memIDs, "memory")
+	if err != nil {
+		return err
 	}
-	// optional (memory x) — or, in the legacy abbreviation, a bare memory index
-	if len(items) > 0 && items[0].head() == "memory" {
-		mi := items[0].list[1:]
-		if len(mi) != 1 || mi[0].isList() {
-			return errors.New("malformed memory use")
-		}
-		if err := checkIdxAtom(mi[0].atom, c.memIDs, "memory"); err != nil {
-			return err
-		}
-		items = items[1:]
-	} else if len(items) > 1 && !items[0].isList() && (items[0].atom.kind == tokNum || items[0].atom.kind == tokID) {
-		if err := checkIdxAtom(items[0].atom, c.memIDs, "memory"); err != nil {
-			return err
-		}
-		items = items[1:]
+	// passive form: only strings, no offset
+	if len(items) == 0 || !items[0].isList() {
+		return checkDataStrings(items)
 	}
-	// passive form: only strings
-	if len(items) == 0 || (len(items) > 0 && !items[0].isList()) {
-		for i := range items {
-			if items[i].isList() || items[i].atom.kind != tokString {
-				return errors.New("expected string in data segment")
-			}
-		}
-		return nil
+	if err := c.checkOffset(&items[0]); err != nil {
+		return err
 	}
-	// offset
-	if items[0].head() == "offset" {
-		if err := c.checkInstrSeq(items[0].list[1:], &instrCtx{}); err != nil {
-			return err
-		}
-	} else {
-		if err := c.checkInstrSeq(items[0:1], &instrCtx{}); err != nil {
-			return err
-		}
-	}
-	for _, it := range items[1:] {
-		if it.isList() || it.atom.kind != tokString {
+	return checkDataStrings(items[1:])
+}
+
+// checkDataStrings validates a data segment's byte-string list.
+func checkDataStrings(items []node) error {
+	for i := range items {
+		if items[i].isList() || items[i].atom.kind != tokString {
 			return errors.New("expected string in data segment")
 		}
 	}
