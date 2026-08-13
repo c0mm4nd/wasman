@@ -1,8 +1,10 @@
 # WASMan (WebAssembly Manager)
 
-[![](https://godoc.org/github.com/c0mm4nd/wasman?status.svg)](http://godoc.org/github.com/c0mm4nd/wasman)
-[![Go Report Card](https://goreportcard.com/badge/github.com/c0mm4nd/wasman)](https://goreportcard.com/report/github.com/c0mm4nd/wasman)
+[![Go Reference](https://pkg.go.dev/badge/github.com/c0mm4nd/wasman.svg)](https://pkg.go.dev/github.com/c0mm4nd/wasman)
+[![Wasm core spec](https://img.shields.io/badge/wasm_core_spec-19220%2F19220_·_0_skipped-brightgreen)](./spectest/README.md)
 ![CI](https://github.com/c0mm4nd/wasman/workflows/CI/badge.svg)
+[![Go version](https://img.shields.io/github/go-mod/go-version/c0mm4nd/wasman)](./go.mod)
+[![Release](https://img.shields.io/github/v/tag/c0mm4nd/wasman?label=release&sort=semver)](https://github.com/c0mm4nd/wasman/tags)
 
 A WebAssembly interpreter engine for gophers: pure Go, zero dependencies,
 Go 1.18+.
