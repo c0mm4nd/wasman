@@ -25,7 +25,7 @@ var instructions = [256]func(ins *Instance) error{
 	expr.OpCodeBr:                br,
 	expr.OpCodeBrIf:              brIf,
 	expr.OpCodeBrTable:           brTable,
-	expr.OpCodeReturn:            nop,
+	expr.OpCodeReturn:            returnOp,
 	expr.OpCodeCall:              call,
 	expr.OpCodeCallIndirect:      callIndirect,
 	expr.OpCodeDrop:              drop,

@@ -194,12 +194,22 @@ type opCharger interface {
 	ChargeOp(expr.OpCode) error
 }
 
+// errReturn is the internal sentinel the return opcode uses to unwind the
+// exec loop without a per-instruction opcode comparison.
+var errReturn = errors.New("wasm return")
+
+func returnOp(_ *Instance) error { return errReturn }
+
 func (ins *Instance) execFunc() error {
 	// hoist the toll station (and its fast path) out of the hot loop
 	ts := ins.Module.ModuleConfig.TollStation
 	charger, fastToll := ts.(opCharger)
+	// ins.Active is stable across instr() calls (nested calls restore it),
+	// so the frame and body can be hoisted out of the loop
+	frame := ins.Active
+	body := frame.Func.body
 
-	for ; int(ins.Active.PC) < len(ins.Active.Func.body); ins.Active.PC++ {
+	for ; int(frame.PC) < len(body); frame.PC++ {
 		// poll the interrupt flag every 256 instructions: cheap enough for the
 		// hot loop, responsive enough for timeouts
 		ins.opTick++
@@ -207,14 +217,13 @@ func (ins *Instance) execFunc() error {
 			return ErrInterrupted
 		}
 
-		opByte := ins.Active.Func.body[ins.Active.PC]
-		op := expr.OpCode(opByte)
+		op := expr.OpCode(body[frame.PC])
 		instr := instructions[op]
 		if instr == nil {
-			return fmt.Errorf("%w: %#x", ErrUnknownOpcode, opByte)
+			return fmt.Errorf("%w: %#x", ErrUnknownOpcode, body[frame.PC])
 		}
 		err := instr(ins)
-		if err != nil {
+		if err != nil && err != errReturn {
 			return err
 		}
 
@@ -243,7 +252,7 @@ func (ins *Instance) execFunc() error {
 			}
 		}
 
-		if op == expr.OpCodeReturn {
+		if err == errReturn {
 			return nil
 		}
 	}
