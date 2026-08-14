@@ -14,6 +14,10 @@ import (
 
 	"github.com/c0mm4nd/wasman"
 	"github.com/c0mm4nd/wasman/config"
+	wagonexec "github.com/go-interpreter/wagon/exec"
+	wagonvalidate "github.com/go-interpreter/wagon/validate"
+	wagonwasm "github.com/go-interpreter/wagon/wasm"
+	lifeexec "github.com/perlin-network/life/exec"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 )
@@ -106,6 +110,8 @@ const (
 
 func BenchmarkFib(b *testing.B) {
 	b.Run("wasman", func(b *testing.B) { benchWasman(b, fibWasm, "fib", fibN, fibWant) })
+	b.Run("wagon", func(b *testing.B) { benchWagon(b, fibWasm, "fib", fibN, fibWant) })
+	b.Run("life", func(b *testing.B) { benchLife(b, fibWasm, "fib", fibN, fibWant) })
 	b.Run("wazero-interp", func(b *testing.B) {
 		benchWazero(b, wazero.NewRuntimeConfigInterpreter(), fibWasm, "fib", fibN, fibWant)
 	})
@@ -116,6 +122,8 @@ func BenchmarkFib(b *testing.B) {
 
 func BenchmarkSum(b *testing.B) {
 	b.Run("wasman", func(b *testing.B) { benchWasman(b, sumWasm, "sum", sumN, sumWant) })
+	b.Run("wagon", func(b *testing.B) { benchWagon(b, sumWasm, "sum", sumN, sumWant) })
+	b.Run("life", func(b *testing.B) { benchLife(b, sumWasm, "sum", sumN, sumWant) })
 	b.Run("wazero-interp", func(b *testing.B) {
 		benchWazero(b, wazero.NewRuntimeConfigInterpreter(), sumWasm, "sum", sumN, sumWant)
 	})
@@ -126,6 +134,8 @@ func BenchmarkSum(b *testing.B) {
 
 func BenchmarkMemRW(b *testing.B) {
 	b.Run("wasman", func(b *testing.B) { benchWasman(b, memrwWasm, "fillsum", memrwN, memrwWant) })
+	b.Run("wagon", func(b *testing.B) { benchWagon(b, memrwWasm, "fillsum", memrwN, memrwWant) })
+	b.Run("life", func(b *testing.B) { benchLife(b, memrwWasm, "fillsum", memrwN, memrwWant) })
 	b.Run("wazero-interp", func(b *testing.B) {
 		benchWazero(b, wazero.NewRuntimeConfigInterpreter(), memrwWasm, "fillsum", memrwN, memrwWant)
 	})
@@ -142,6 +152,29 @@ func BenchmarkInstantiate(b *testing.B) {
 				b.Fatal(err)
 			}
 			if _, err := wasman.NewInstance(mod, nil); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("wagon", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			m, err := wagonwasm.ReadModule(bytes.NewReader(fibWasm), nil)
+			if err != nil {
+				b.Fatal(err)
+			}
+			if err := wagonvalidate.VerifyModule(m); err != nil {
+				b.Fatal(err)
+			}
+			if _, err := wagonexec.NewVM(m); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("life", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if _, err := lifeexec.NewVirtualMachine(fibWasm, lifeexec.VMConfig{
+				DefaultMemoryPages: 1, DefaultTableSize: 1,
+			}, &lifeexec.NopResolver{}, nil); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -166,4 +199,96 @@ func BenchmarkInstantiate(b *testing.B) {
 			_ = r.Close(ctx)
 		}
 	})
+}
+
+// --- wagon (github.com/go-interpreter/wagon, archived) ---
+
+func wagonVM(b *testing.B, code []byte, fn string) (*wagonexec.VM, int64) {
+	b.Helper()
+	m, err := wagonwasm.ReadModule(bytes.NewReader(code), nil)
+	if err != nil {
+		b.Skipf("wagon cannot load module: %v", err)
+	}
+	if err := wagonvalidate.VerifyModule(m); err != nil {
+		b.Skipf("wagon cannot validate module: %v", err)
+	}
+	vm, err := wagonexec.NewVM(m)
+	if err != nil {
+		b.Skipf("wagon cannot instantiate: %v", err)
+	}
+	entry, ok := m.Export.Entries[fn]
+	if !ok {
+		b.Fatalf("wagon: no export %s", fn)
+	}
+	return vm, int64(entry.Index)
+}
+
+func benchWagon(b *testing.B, code []byte, fn string, arg, want uint64) {
+	vm, idx := wagonVM(b, code, fn)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ret, err := vm.ExecCode(idx, arg)
+		if err != nil {
+			b.Fatal(err)
+		}
+		var got uint64
+		switch v := ret.(type) {
+		case uint32:
+			got = uint64(v)
+		case uint64:
+			got = v
+		case int32:
+			got = uint64(uint32(v))
+		case int64:
+			got = uint64(v)
+		}
+		if got != want {
+			b.Fatalf("wagon got %d, want %d", got, want)
+		}
+	}
+}
+
+// --- life (github.com/perlin-network/life, archived) ---
+
+func lifeVM(b *testing.B, code []byte, fn string) (*lifeexec.VirtualMachine, int) {
+	b.Helper()
+	vm, err := lifeexec.NewVirtualMachine(code, lifeexec.VMConfig{
+		DefaultMemoryPages: 1,
+		DefaultTableSize:   1,
+	}, &lifeexec.NopResolver{}, nil)
+	if err != nil {
+		b.Skipf("life cannot instantiate: %v", err)
+	}
+	id, ok := vm.GetFunctionExport(fn)
+	if !ok {
+		b.Fatalf("life: no export %s", fn)
+	}
+	return vm, id
+}
+
+func benchLife(b *testing.B, code []byte, fn string, arg, want uint64) {
+	// life (archived since 2019) panics on some valid MVP modules; report
+	// that honestly as a skip instead of failing the whole suite
+	defer func() {
+		if r := recover(); r != nil {
+			b.Skipf("life panicked on this workload: %v", r)
+		}
+	}()
+	vm, id := lifeVM(b, code, fn)
+	// verify correctness once before timing
+	if ret, err := vm.Run(id, int64(arg)); err != nil {
+		b.Skipf("life failed: %v", err)
+	} else if uint64(ret) != want && uint64(uint32(ret)) != want {
+		b.Skipf("life computed a wrong result: got %d, want %d", ret, want)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ret, err := vm.Run(id, int64(arg))
+		if err != nil {
+			b.Fatal(err)
+		}
+		if uint64(ret) != want && uint64(uint32(ret)) != want {
+			b.Fatalf("life got %d, want %d", ret, want)
+		}
+	}
 }

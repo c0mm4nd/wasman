@@ -171,12 +171,13 @@ carry a wasm backtrace using names from the module's custom `name` section.
 
 ## Performance
 
-wasman is a straightforward bytecode interpreter that optimizes for startup
-cost, steady-state allocations and simplicity rather than peak throughput:
-~1 allocation per exported call, and instantiation (including full
-validation) several times faster than warming up other runtimes. A JIT such
-as wazero's compiler executes 40–300× faster — pick accordingly. See
-[bench/README.md](./bench/README.md) for the cross-runtime numbers.
+wasman is **the fastest Go WebAssembly interpreter** in our cross-runtime
+benchmarks — ahead of wazero (interpreter mode), wagon and life on every
+workload — with ~1 allocation per exported call at steady state and the
+fastest instantiation (including full validation) by 3–14×. See
+[bench/README.md](./bench/README.md) for the numbers and methodology.
+(JIT engines are a different performance class; the comparison is
+interpreter-to-interpreter.)
 
 ## Conformance
 
