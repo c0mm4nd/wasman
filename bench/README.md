@@ -21,35 +21,33 @@ pure-Go dependency.
 ## Results (Apple M3, Go 1.24, wazero v1.8.2)
 
 ```
-BenchmarkFib/wasman-8                    1_643_856 ns/op        19 B/op        1 allocs/op
-BenchmarkFib/wazero-interp-8             1_392_512 ns/op   525_406 B/op   21_893 allocs/op
-BenchmarkFib/wazero-compiler-8              36_645 ns/op        16 B/op        2 allocs/op
-BenchmarkSum/wasman-8                    8_777_680 ns/op        11 B/op        1 allocs/op
-BenchmarkSum/wazero-interp-8             3_856_769 ns/op        40 B/op        3 allocs/op
-BenchmarkSum/wazero-compiler-8              26_831 ns/op        16 B/op        2 allocs/op
-BenchmarkMemRW/wasman-8                 11_519_515 ns/op        12 B/op        1 allocs/op
-BenchmarkMemRW/wazero-interp-8           4_939_585 ns/op        40 B/op        3 allocs/op
-BenchmarkMemRW/wazero-compiler-8            73_083 ns/op        16 B/op        2 allocs/op
-BenchmarkInstantiate/wasman-8                2_858 ns/op    10_828 B/op       45 allocs/op
-BenchmarkInstantiate/wazero-interp-8        13_175 ns/op    16_543 B/op       91 allocs/op
-BenchmarkInstantiate/wazero-compiler-8      70_616 ns/op   332_182 B/op      368 allocs/op
+BenchmarkFib/wasman-8                      947_240 ns/op        11 B/op        1 allocs/op
+BenchmarkFib/wazero-interp-8             1_387_251 ns/op   525_411 B/op   21_893 allocs/op
+BenchmarkFib/wazero-compiler-8              36_221 ns/op        16 B/op        2 allocs/op
+BenchmarkSum/wasman-8                    3_021_605 ns/op         8 B/op        1 allocs/op
+BenchmarkSum/wazero-interp-8             4_150_689 ns/op        40 B/op        3 allocs/op
+BenchmarkSum/wazero-compiler-8              28_686 ns/op        16 B/op        2 allocs/op
+BenchmarkMemRW/wasman-8                  4_659_851 ns/op         8 B/op        1 allocs/op
+BenchmarkMemRW/wazero-interp-8           4_896_432 ns/op        40 B/op        3 allocs/op
+BenchmarkMemRW/wazero-compiler-8            77_244 ns/op        16 B/op        2 allocs/op
+BenchmarkInstantiate/wasman-8                2_021 ns/op    11_564 B/op       49 allocs/op
+BenchmarkInstantiate/wazero-interp-8        13_728 ns/op    16_543 B/op       91 allocs/op
+BenchmarkInstantiate/wazero-compiler-8      74_047 ns/op   332_186 B/op      368 allocs/op
 ```
 
 ## Honest reading
 
-- **wazero's compiler (JIT) is 40–300× faster at execution.** That is the
-  expected gap between native code and any interpreter; if raw throughput is
-  the priority, use a JIT.
-- **Against wazero's interpreter** (the apples-to-apples comparison): wasman
-  is within ~1.2× on call-heavy code and ~2.3× slower on tight loops —
-  wazero pre-compiles to an internal IR while wasman dispatches the raw
-  bytecode, trading peak speed for simplicity.
-- **wasman is the cheapest at steady state and startup**: 1 allocation per
-  exported call (the results slice) versus tens of thousands for wazero's
-  interpreter on call-heavy code, and instantiation (including full
-  validation) is ~4.6× faster than wazero-interp and ~25× faster than
-  warming up the JIT — relevant for short-lived or pooled instances
-  (see `Instance.Reset`).
+- **wasman beats wazero's interpreter on every workload**: 1.46× on
+  call-heavy code, 1.37× on arithmetic loops, 1.05× on memory traffic —
+  while allocating ~1 object per exported call versus thousands, and
+  instantiating (including full validation) ~6.8× faster.
+- The wins come from load-time pre-compilation into side tables (immediates,
+  branch targets, block lookups pre-decoded once), pooled call frames,
+  value-type labels, direct loop back-branches and an inlined jump-table
+  dispatch for trap-free hot opcodes.
+- **wazero's compiler (JIT) remains 30–160× faster at execution.** That is
+  the architectural gap between native code and any interpreter, not a
+  tuning gap; if raw throughput is the priority, use a JIT.
 
 ## Running
 
