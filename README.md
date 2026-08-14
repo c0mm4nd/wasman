@@ -154,6 +154,7 @@ then trap, misbehave, or (with `Recover` disabled) panic at run time. See
 | `MaxMemoryPages` | host-side hard cap on linear memory, regardless of the module's declared limits |
 | `Recover` | converts VM panics into returned errors, keeping the host process alive |
 | `CanonicalizeNaNs` | canonicalizes float-arithmetic NaNs for fully deterministic execution |
+| `EnableJIT` | compiles function bodies to native code at instantiation (arm64/amd64); unsupported constructs fall back to the interpreter per function |
 | `SkipValidation` | skips load-time validation (trusted modules only) |
 
 Run-time control on an `Instance`:
@@ -174,10 +175,15 @@ carry a wasm backtrace using names from the module's custom `name` section.
 wasman is **the fastest Go WebAssembly interpreter** in our cross-runtime
 benchmarks — ahead of wazero (interpreter mode), wagon and life on every
 workload — with ~1 allocation per exported call at steady state and the
-fastest instantiation (including full validation) by 3–14×. See
-[bench/README.md](./bench/README.md) for the numbers and methodology.
-(JIT engines are a different performance class; the comparison is
-interpreter-to-interpreter.)
+fastest instantiation (including full validation) by 3–14×.
+
+On arm64 and amd64, `EnableJIT` additionally compiles function bodies to
+native machine code at instantiation time (a template JIT, pure Go, still
+zero dependencies), which runs these workloads another 2–19× faster than
+the interpreter; constructs outside the compiled subset fall back to the
+interpreter per function, and the whole official test suite passes with
+the JIT enabled. See [bench/README.md](./bench/README.md) for numbers,
+methodology and an honest comparison against optimizing-compiler engines.
 
 ## Conformance
 

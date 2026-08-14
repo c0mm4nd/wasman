@@ -59,6 +59,24 @@ func wasmanInstance(b *testing.B, wasm []byte) *wasman.Instance {
 
 func benchWasman(b *testing.B, wasm []byte, fn string, arg, want uint64) {
 	ins := wasmanInstance(b, wasm)
+	runWasman(b, ins, fn, arg, want)
+}
+
+// benchWasmanJIT runs the same workload with native compilation enabled
+// (wasman's template JIT; falls back to the interpreter off arm64/amd64).
+func benchWasmanJIT(b *testing.B, wasm []byte, fn string, arg, want uint64) {
+	mod, err := wasman.NewModule(config.ModuleConfig{EnableJIT: true}, bytes.NewReader(wasm))
+	if err != nil {
+		b.Fatal(err)
+	}
+	ins, err := wasman.NewInstance(mod, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	runWasman(b, ins, fn, arg, want)
+}
+
+func runWasman(b *testing.B, ins *wasman.Instance, fn string, arg, want uint64) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		rets, _, err := ins.CallExportedFunc(fn, arg)
@@ -110,6 +128,7 @@ const (
 
 func BenchmarkFib(b *testing.B) {
 	b.Run("wasman", func(b *testing.B) { benchWasman(b, fibWasm, "fib", fibN, fibWant) })
+	b.Run("wasman-jit", func(b *testing.B) { benchWasmanJIT(b, fibWasm, "fib", fibN, fibWant) })
 	b.Run("wagon", func(b *testing.B) { benchWagon(b, fibWasm, "fib", fibN, fibWant) })
 	b.Run("life", func(b *testing.B) { benchLife(b, fibWasm, "fib", fibN, fibWant) })
 	b.Run("wazero-interp", func(b *testing.B) {
@@ -122,6 +141,7 @@ func BenchmarkFib(b *testing.B) {
 
 func BenchmarkSum(b *testing.B) {
 	b.Run("wasman", func(b *testing.B) { benchWasman(b, sumWasm, "sum", sumN, sumWant) })
+	b.Run("wasman-jit", func(b *testing.B) { benchWasmanJIT(b, sumWasm, "sum", sumN, sumWant) })
 	b.Run("wagon", func(b *testing.B) { benchWagon(b, sumWasm, "sum", sumN, sumWant) })
 	b.Run("life", func(b *testing.B) { benchLife(b, sumWasm, "sum", sumN, sumWant) })
 	b.Run("wazero-interp", func(b *testing.B) {
@@ -134,6 +154,7 @@ func BenchmarkSum(b *testing.B) {
 
 func BenchmarkMemRW(b *testing.B) {
 	b.Run("wasman", func(b *testing.B) { benchWasman(b, memrwWasm, "fillsum", memrwN, memrwWant) })
+	b.Run("wasman-jit", func(b *testing.B) { benchWasmanJIT(b, memrwWasm, "fillsum", memrwN, memrwWant) })
 	b.Run("wagon", func(b *testing.B) { benchWagon(b, memrwWasm, "fillsum", memrwN, memrwWant) })
 	b.Run("life", func(b *testing.B) { benchLife(b, memrwWasm, "fillsum", memrwN, memrwWant) })
 	b.Run("wazero-interp", func(b *testing.B) {
