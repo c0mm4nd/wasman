@@ -2,28 +2,11 @@
 
 package jit
 
-import (
-	"testing"
-	"unsafe"
-)
+import "testing"
 
 func runWithMem(t *testing.T, fd *FuncDesc, locals, mem []uint64, memBytes int) ([]uint64, uint32) {
 	t.Helper()
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { Free(cd.Code) })
-	stack := make([]uint64, cd.MaxHeight+1)
-	ctx := &Ctx{Stack: ptrOf(stack), MemLen: uint64(memBytes)}
-	if len(locals) > 0 {
-		ctx.Locals = ptrOf(locals)
-	}
-	if len(mem) > 0 {
-		ctx.Mem = uintptr(unsafe.Pointer(&mem[0]))
-	}
-	st := Call(cd.Code, ctx)
-	return stack[:ctx.Sp], st
+	return runFD(t, fd, locals, mem, memBytes, nil)
 }
 
 // TestLoadStore covers widths, sign/zero extension and offsets.
@@ -132,7 +115,7 @@ func TestMemFillSum(t *testing.T) {
 		{0x0c, 0, 1}, {0x0b, 0, 0}, {0x0b, 0, 0},
 		{0x20, 1, 1},
 		{0x0b, 0, 0},
-	}, 3, 0, 1)
+	}, 3, 3, 1)
 	var want uint64
 	for i := 0; i < n; i++ {
 		want += uint64(i & 0xff)

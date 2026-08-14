@@ -9,12 +9,7 @@ func blk(params, results int) uint64 { return uint64(params)<<32 | uint64(result
 
 func compileRun(t *testing.T, fd *FuncDesc, locals []uint64) []uint64 {
 	t.Helper()
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { Free(cd.Code) })
-	return runCompiled(t, cd, locals)
+	return runOK(t, fd, locals)
 }
 
 // TestSumLoop compiles the canonical block/loop/br_if/br summation.
@@ -137,14 +132,7 @@ func TestComparisons(t *testing.T) {
 // TestUnreachableTrap checks the trap status path.
 func TestUnreachableTrap(t *testing.T) {
 	fd := assemble([]ins{{0x00, 0, 0}, {0x0b, 0, 0}}, 0, 0, 0)
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer Free(cd.Code)
-	stack := make([]uint64, 4)
-	ctx := &Ctx{Stack: ptrOf(stack)}
-	if st := Call(cd.Code, ctx); st != StatusUnreachable {
+	if _, st := runFD(t, fd, nil, nil, 0, nil); st != StatusUnreachable {
 		t.Fatalf("status = %d, want unreachable", st)
 	}
 }

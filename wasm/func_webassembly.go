@@ -108,6 +108,31 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 		return f.callCross(ins)
 	}
 
+	// native-ABI code manages its own frames on the dedicated native stack
+	// (depth and capacity checks live in the generated prologue)
+	if cd := f.compiled; cd != nil && cd.NativeABI &&
+		ins.Module.ModuleConfig.TollStation == nil {
+		baseSp := ins.OperandStack.Ptr - len(f.signature.InputTypes)
+		if ins.Recover {
+			defer func() {
+				if v := recover(); v != nil {
+					ins.OperandStack.Ptr = baseSp
+					var ok bool
+					err, ok = v.(error)
+					if !ok {
+						err = fmt.Errorf("runtime error: %v", v)
+					}
+					err = annotateTrap(err, f.name)
+				}
+			}()
+		}
+		if err := ins.execNativeABI(f); err != nil {
+			ins.OperandStack.Ptr = baseSp
+			return annotateTrap(err, f.name)
+		}
+		return nil
+	}
+
 	// frames (with their label stacks and locals arrays) are pooled per
 	// instance: call-heavy code would otherwise allocate three objects per call
 	frame := ins.acquireFrame()

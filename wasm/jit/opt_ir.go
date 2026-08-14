@@ -23,20 +23,21 @@ import "fmt"
 type irOp uint8
 
 const (
-	irMov      irOp = iota // dst = a
-	irConst                // dst = imm
-	irBin                  // dst = a <sub> b (sub: wasm opcode)
-	irUn                   // dst = <sub> a
-	irLoad                 // dst = mem[a + imm] (sub: wasm opcode)
-	irStore                // mem[a + imm] = b (sub: wasm opcode)
-	irMemSize              // dst = pages
-	irSelect               // dst = a if c != 0 else b
-	irBr                   // jump to imm (IR index, patched)
-	irBrIf                 // if a != 0 jump to imm
-	irBrIfNot              // if a == 0 jump to imm
-	irCallExit             // host exit; imm = call-site id
-	irTrap                 // sub = status
-	irRet                  // return; results already canonicalized
+	irMov        irOp = iota // dst = a
+	irConst                  // dst = imm
+	irBin                    // dst = a <sub> b (sub: wasm opcode)
+	irUn                     // dst = <sub> a
+	irLoad                   // dst = mem[a + imm] (sub: wasm opcode)
+	irStore                  // mem[a + imm] = b (sub: wasm opcode)
+	irMemSize                // dst = pages
+	irSelect                 // dst = a if c != 0 else b
+	irBr                     // jump to imm (IR index, patched)
+	irBrIf                   // if a != 0 jump to imm
+	irBrIfNot                // if a == 0 jump to imm
+	irCallExit               // host exit; imm = call-site id
+	irCallNative             // direct native call; imm = funcIdx<<32 | spBefore
+	irTrap                   // sub = status
+	irRet                    // return; results already canonicalized
 )
 
 type irInstr struct {
@@ -57,7 +58,10 @@ type irFunc struct {
 	loops   [][2]int // [start, end) IR ranges of loops, for liveness
 	sites   []CallSite
 	nrets   int
+	sigs    []FuncSig // function index space arities (native call layout)
 }
+
+func (fn *irFunc) callSig(idx int) FuncSig { return fn.sigs[idx] }
 
 const maxOptHeight = 512 // wasm stack height cap for the fixed boundary map
 
@@ -177,6 +181,7 @@ func (f *irFrontend) lower() error {
 	fd := f.fd
 	f.fn.nlocals = fd.NumLocals
 	f.fn.nrets = fd.NumRets
+	f.fn.sigs = fd.FuncSigs
 	f.ctl = append(f.ctl, irCtl{kind: 0x02, resultN: fd.NumRets, elsePatch: -1})
 	body := fd.Body
 
@@ -392,7 +397,7 @@ func (f *irFrontend) lowerOp(op byte, imm uint64) error {
 		site := CallSite{Kind: SiteMemGrow, SpBefore: h, SpAfter: h}
 		f.emitCallExit(site, 1, 1)
 
-	case 0x10, 0x11: // call, call_indirect: host exits
+	case 0x10, 0x11: // calls: native when the target has the native ABI
 		var sig FuncSig
 		site := CallSite{Kind: SiteCall}
 		extra := 0
@@ -402,6 +407,19 @@ func (f *irFrontend) lowerOp(op byte, imm uint64) error {
 			}
 			site.FuncIdx = uint32(imm)
 			sig = f.fd.FuncSigs[imm]
+			if f.fd.NativeFuncs != nil && f.fd.NativeFuncs[imm] && imm < 4096 {
+				f.canonicalize()
+				sp := len(f.stack)
+				f.emit(irInstr{op: irCallNative, dst: -1, a: -1, b: -1, c: -1,
+					imm: imm<<32 | uint64(sp)})
+				for i := 0; i < sig.In; i++ {
+					f.pop()
+				}
+				for i := 0; i < sig.Out; i++ {
+					f.push(f.stackReg(len(f.stack)), -1)
+				}
+				return nil
+			}
 		} else {
 			ti, tbl := uint32(imm>>32), uint32(imm)
 			if int(ti) >= len(f.fd.TypeSigs) {

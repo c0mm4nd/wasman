@@ -48,6 +48,7 @@ const (
 	StatusCallIndirect = 6
 	StatusConvInvalid  = 7 // float->int conversion of NaN
 	StatusConvOverflow = 8 // float->int conversion out of range
+	StatusExhausted    = 9 // native stack or call depth exhausted
 )
 
 // CallAt runs generated code starting at a continuation offset.

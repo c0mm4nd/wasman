@@ -41,6 +41,12 @@ type Instance struct {
 	// The zero value is ready to use after a Reset.
 	reader bytes.Reader
 
+	// nativeStack backs the in-stack frames of natively-called JIT code;
+	// nativeEntries maps function index space slots to native entry points.
+	nativeStack   []uint64
+	nativeEntries []uintptr
+	nativeTop     int // first free slot while a chain is suspended in an exit
+
 	// interruptFlag is set (atomically, possibly from another goroutine) by
 	// Interrupt and polled by the exec loop; opTick amortizes the atomic load.
 	interruptFlag uint32

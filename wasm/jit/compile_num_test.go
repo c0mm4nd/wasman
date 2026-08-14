@@ -10,19 +10,11 @@ func runBin(t *testing.T, op byte, a, b uint64) (uint64, uint32) {
 	fd := assemble([]ins{
 		{0x20, 0, 1}, {0x20, 1, 1}, {op, 0, 0}, {0x0b, 0, 0},
 	}, 2, 2, 1)
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { Free(cd.Code) })
-	stack := make([]uint64, cd.MaxHeight+1)
-	locals := []uint64{a, b}
-	ctx := &Ctx{Stack: ptrOf(stack), Locals: ptrOf(locals)}
-	st := Call(cd.Code, ctx)
+	got, st := runFD(t, fd, []uint64{a, b}, nil, 0, nil)
 	if st != StatusOK {
 		return 0, st
 	}
-	return stack[0], st
+	return got[0], st
 }
 
 // runUn compiles [local.get 0, op].
@@ -31,18 +23,11 @@ func runUn(t *testing.T, op byte, v uint64) uint64 {
 	fd := assemble([]ins{
 		{0x20, 0, 1}, {op, 0, 0}, {0x0b, 0, 0},
 	}, 1, 1, 1)
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { Free(cd.Code) })
-	stack := make([]uint64, cd.MaxHeight+1)
-	locals := []uint64{v}
-	ctx := &Ctx{Stack: ptrOf(stack), Locals: ptrOf(locals)}
-	if st := Call(cd.Code, ctx); st != StatusOK {
+	got, st := runFD(t, fd, []uint64{v}, nil, 0, nil)
+	if st != StatusOK {
 		t.Fatalf("op %#x(%#x): status %d", op, v, st)
 	}
-	return stack[0]
+	return got[0]
 }
 
 func TestDivRem(t *testing.T) {

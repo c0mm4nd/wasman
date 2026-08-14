@@ -2,10 +2,7 @@
 
 package jit
 
-import (
-	"testing"
-	"unsafe"
-)
+import "testing"
 
 // TestGlobals covers global.get/set through the *uint64 cell indirection.
 func TestGlobals(t *testing.T) {
@@ -20,18 +17,12 @@ func TestGlobals(t *testing.T) {
 		{0x23, 1, 1}, // global.get 1
 		{0x0b, 0, 0},
 	}, 0, 0, 1)
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer Free(cd.Code)
-	stack := make([]uint64, cd.MaxHeight+1)
-	ctx := &Ctx{Stack: ptrOf(stack), Globals: uintptr(unsafe.Pointer(&cells[0]))}
-	if st := Call(cd.Code, ctx); st != StatusOK {
+	got, st := runFD(t, fd, nil, nil, 0, cells)
+	if st != StatusOK {
 		t.Fatalf("status %d", st)
 	}
-	if stack[0] != 42 || g1 != 42 {
-		t.Fatalf("stack %d, g1 %d, want 42", stack[0], g1)
+	if got[0] != 42 || g1 != 42 {
+		t.Fatalf("got %d, g1 %d, want 42", got[0], g1)
 	}
 }
 
@@ -66,18 +57,11 @@ func TestBrTable(t *testing.T) {
 	fd.BrTables = map[int]BrTable{pc0e: {Targets: []uint32{0, 1}, Def: 1}}
 
 	run := func(idx uint64) uint64 {
-		cd, err := compileUnderTest(fd)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer Free(cd.Code)
-		stack := make([]uint64, cd.MaxHeight+1)
-		locals := []uint64{idx}
-		ctx := &Ctx{Stack: ptrOf(stack), Locals: ptrOf(locals)}
-		if st := Call(cd.Code, ctx); st != StatusOK {
+		got, st := runFD(t, fd, []uint64{idx}, nil, 0, nil)
+		if st != StatusOK {
 			t.Fatalf("idx %d: status %d", idx, st)
 		}
-		return stack[0]
+		return got[0]
 	}
 	if got := run(0); got != 10 { // depth 0: exits inner, runs "push 10"
 		t.Fatalf("idx 0: got %d, want 10", got)

@@ -32,7 +32,20 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 			fmt.Printf("  v%d -> reg=%d spill=%d\n", v, al.loc[ci].reg, al.loc[ci].spill)
 		}
 	}
-	g := &optGen{fn: fn, al: al}
+	if fn.nlocals*8 >= 4096 {
+		return nil, ErrUnsupported // locals offset must fit an imm12
+	}
+	for _, ins := range fn.code {
+		if ins.op == irCallNative {
+			// call-site offsets (callee locals at the frame end) must stay
+			// within the scaled-imm12 addressing range
+			if (fn.maxH+al.spillSlots+2+520)*8 >= 32760 {
+				return nil, ErrUnsupported
+			}
+			break
+		}
+	}
+	g := &optGen{fn: fn, fd: fd, al: al}
 	if err := g.gen(); err != nil {
 		return nil, err
 	}
@@ -41,7 +54,9 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 		return nil, err
 	}
 	return &Compiled{Code: code, MaxHeight: fn.maxH + al.spillSlots,
-		CallSites: fn.sites}, nil
+		CallSites: fn.sites, NativeABI: true,
+		FrameSlots: fn.nlocals + fn.maxH + al.spillSlots + 1,
+		LocalSlots: fn.nlocals}, nil
 }
 
 type optPatch struct {
@@ -54,6 +69,7 @@ type optPatch struct {
 
 type optGen struct {
 	fn      *irFunc
+	fd      *FuncDesc
 	al      *allocation
 	a       Asm
 	irOff   []int
@@ -127,9 +143,8 @@ func (g *optGen) gen() error {
 	g.pendV = -1
 	a := &g.a
 
-	a.Prologue()
-	// register-allocated locals load once here (args were copied into the
-	// frame's locals array; declared locals arrive zeroed)
+	g.framePrologue(true)
+	// register-allocated locals load once here
 	for j := 0; j < fn.nlocals; j++ {
 		if r, ok := g.loc(j); ok && r >= 0 {
 			a.LdrImm(uint32(8+r), RegLocals, uint32(j*8))
@@ -245,24 +260,25 @@ func (g *optGen) gen() error {
 			}
 		case irCallExit:
 			site := &fn.sites[ins.imm]
-			a.MovImm64(RegSp, uint64(site.SpBefore))
-			a.StrImm(RegSp, RegCtx, 8)
-			a.MovImm64(RegT0, ins.imm)
+			a.StrImm(RegStack, RegCtx, 8) // ctx.Sp = my frame pointer
+			a.MovImm64(RegT0, uint64(g.fd.SelfIdx)<<32|ins.imm)
 			a.StrImm(RegT0, RegCtx, 40)
 			st := uint32(StatusCall)
 			if site.Kind == SiteCallIndirect {
 				st = StatusCallIndirect
 			}
 			a.Movz(RegStatus, st, 0)
-			a.Ret()
+			g.trampRet()
 			site.Cont = a.Len()
-			a.Prologue()
+			// resumed via the shim: R1 already holds this frame's base
+			g.framePrologue(false)
+		case irCallNative:
+			g.emitNativeCall(ins)
 		case irTrap:
 			a.Movz(RegStatus, uint32(ins.sub), 0)
-			a.Ret()
+			g.trampRet()
 		case irRet:
-			a.MovImm64(RegSp, uint64(fn.nrets))
-			a.Epilogue(StatusOK)
+			g.frameEpilogue()
 		}
 		if ins.op != irBin && ins.op != irBinImm && ins.op != irUn {
 			g.pendV = -1
@@ -290,9 +306,137 @@ func (g *optGen) gen() error {
 			a.PatchBcond(at, condHI)
 		}
 		a.Movz(RegStatus, StatusMemOOB, 0)
-		a.Ret()
+		g.trampRet()
 	}
 	return nil
+}
+
+// trampRet leaves generated code for the trampoline continuation: the link
+// register may hold a native return address, so the exit loads the address
+// the entry shim recorded.
+func (g *optGen) trampRet() {
+	g.a.LdrImm(30, RegCtx, 64) // Ctx.TrampRet
+	g.a.Ret()
+}
+
+// linkSlot is the frame slot holding the saved return address.
+func (g *optGen) linkSlot() int { return g.fn.maxH + g.al.spillSlots }
+
+// framePrologue establishes the in-stack frame: R1 arrives as this frame's
+// stack base (from a native caller or the entry shim). The full form runs
+// the capacity/depth checks, saves the return address and zeroes declared
+// locals; continuations only rebuild the derived registers.
+func (g *optGen) framePrologue(full bool) {
+	a := &g.a
+	need := g.fn.nlocals
+	if full {
+		end := (g.linkSlot() + 1) * 8
+		if end < 4096 {
+			a.AddImm(RegT0, RegStack, uint32(end))
+		} else {
+			a.MovImm64(RegT0, uint64(end))
+			a.AddRegX(RegT0, RegStack, RegT0)
+		}
+		a.LdrImm(RegT1, RegCtx, 56) // Ctx.StackLimit
+		a.CmpRegX(RegT0, RegT1)
+		ok := a.Len()
+		a.Bcond(condLS, 0)
+		a.Movz(RegStatus, StatusExhausted, 0)
+		g.trampRet()
+		a.PatchBcond(ok, condLS)
+		if lim := g.fd.DepthLimit; lim != 0 {
+			a.LdrImm(RegT0, RegCtx, 80) // Ctx.Depth
+			a.AddImm(RegT0, RegT0, 1)
+			a.StrImm(RegT0, RegCtx, 80)
+			a.MovImm64(RegT1, lim)
+			a.CmpRegX(RegT0, RegT1)
+			ok2 := a.Len()
+			a.Bcond(condLO, 0)
+			a.Movz(RegStatus, StatusExhausted, 0)
+			g.trampRet()
+			a.PatchBcond(ok2, condLO)
+		}
+		a.StrImm(30, RegStack, uint32(g.linkSlot()*8)) // save LR
+	}
+	if need > 0 {
+		a.SubImm(RegLocals, RegStack, uint32(need*8))
+	} else {
+		a.word(0xAA0003E0 | RegStack<<16 | RegLocals) // MOV R3, R1
+	}
+	if full {
+		for i := g.fd.NumParams; i < need; i++ {
+			a.StrImm(31, RegLocals, uint32(i*8)) // STR XZR: zero declared
+		}
+	}
+	a.LdrImm(RegMem, RegCtx, 24)
+	a.LdrImm(RegMemLen, RegCtx, 32)
+}
+
+// frameEpilogue returns to whoever entered: results already sit at slots
+// [0, nrets); the status/frame-pointer stores only matter when the caller
+// is the trampoline, and are harmless on native returns.
+func (g *optGen) frameEpilogue() {
+	a := &g.a
+	if g.fd.DepthLimit != 0 {
+		a.LdrImm(RegT0, RegCtx, 80)
+		a.SubImm(RegT0, RegT0, 1)
+		a.StrImm(RegT0, RegCtx, 80)
+	}
+	a.StrImm(RegStack, RegCtx, 8) // ctx.Sp = frame pointer
+	a.Movz(RegStatus, StatusOK, 0)
+	a.LdrImm(30, RegStack, uint32(g.linkSlot()*8))
+	a.Ret()
+}
+
+// emitNativeCall performs a direct call: the callee frame starts at this
+// frame's end (everything below — spills, linkage — stays live across the
+// call), arguments copy into the callee's locals and results copy back to
+// the caller's stack top. Live-across values are memory-homed by
+// allocation, so only the derived registers need rebuilding afterwards.
+func (g *optGen) emitNativeCall(ins *irInstr) {
+	a := &g.a
+	idx := int(ins.imm >> 32)
+	sp := int(uint32(ins.imm))
+	sig := g.fn.sigs[idx]
+	frameEnd := (g.linkSlot() + 1) * 8 // callee locals start here
+	// arguments: caller stack top -> callee locals
+	for i := 0; i < sig.In; i++ {
+		a.LdrImm(RegT0, RegStack, uint32((sp-sig.In+i)*8))
+		a.StrImm(RegT0, RegStack, uint32(frameEnd+i*8))
+	}
+	off := frameEnd + sig.Locals*8
+	g.addSubR1(off, true)
+	a.LdrImm(RegT0, RegCtx, 72) // Ctx.Funcs
+	a.LdrImm(RegT0, RegT0, uint32(idx*8))
+	a.word(0xD63F0000 | RegT0<<5) // BLR
+	g.addSubR1(off, false)
+	g.framePrologue(false) // rebuild R3-R5 (memory may have grown)
+	// results: callee stack base -> caller stack top
+	for i := 0; i < sig.Out; i++ {
+		a.LdrImm(RegT0, RegStack, uint32(off+i*8))
+		a.StrImm(RegT0, RegStack, uint32((sp-sig.In+i)*8))
+	}
+}
+
+func (g *optGen) addSubR1(off int, add bool) {
+	a := &g.a
+	if off == 0 {
+		return
+	}
+	if off < 4096 {
+		if add {
+			a.AddImm(RegStack, RegStack, uint32(off))
+		} else {
+			a.SubImm(RegStack, RegStack, uint32(off))
+		}
+		return
+	}
+	a.MovImm64(RegT0, uint64(off))
+	if add {
+		a.AddRegX(RegStack, RegStack, RegT0)
+	} else {
+		a.word(0xCB000000 | RegT0<<16 | RegStack<<5 | RegStack) // SUB
+	}
 }
 
 // rotateBackEdge rewrites a back edge to a rotatable loop head: the head's

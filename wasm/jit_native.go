@@ -26,23 +26,79 @@ func (ins *Instance) compileNativeAll() {
 	funcSigs := make([]jit.FuncSig, len(ins.IndexSpace.Functions))
 	for i, fn := range ins.IndexSpace.Functions {
 		t := fn.getType()
-		funcSigs[i] = jit.FuncSig{In: len(t.InputTypes), Out: len(t.ReturnTypes)}
+		sig := jit.FuncSig{In: len(t.InputTypes), Out: len(t.ReturnTypes)}
+		if wf, ok := fn.(*wasmFunc); ok {
+			sig.Locals = int(wf.NumLocal) + sig.In
+		}
+		funcSigs[i] = sig
 	}
 	typeSigs := make([]jit.FuncSig, len(ins.TypeSection))
 	for i, t := range ins.TypeSection {
 		typeSigs[i] = jit.FuncSig{In: len(t.InputTypes), Out: len(t.ReturnTypes)}
 	}
-	for _, fn := range ins.IndexSpace.Functions {
-		if wf, ok := fn.(*wasmFunc); ok && wf.owner == ins {
-			ins.compileNative(wf, funcSigs, typeSigs)
+	var depthLimit uint64
+	if l := ins.Module.ModuleConfig.CallDepthLimit; l != nil {
+		depthLimit = *l
+	}
+	type job struct {
+		wf *wasmFunc
+		fd *jit.FuncDesc
+	}
+	var jobs []job
+	for i, fn := range ins.IndexSpace.Functions {
+		if wf, ok := fn.(*wasmFunc); ok && wf.owner == ins && wf.imms != nil && wf.compiled == nil {
+			fd := buildFuncDesc(wf, funcSigs, typeSigs)
+			fd.SelfIdx = uint32(i)
+			fd.DepthLimit = depthLimit
+			jobs = append(jobs, job{wf, fd})
+		}
+	}
+	// pass 1: fix the native-call target set before generating any code, so
+	// call sites to functions that compile later can still go native
+	var native []bool
+	if jit.NativeCallsSupported() && !jitForceBaseline {
+		native = make([]bool, len(ins.IndexSpace.Functions))
+		for _, j := range jobs {
+			native[j.fd.SelfIdx] = jit.OptEligible(j.fd)
+		}
+	}
+	// pass 2: compile; if a promised-native function still fails (resource
+	// errors), restart with native calls disabled — a stale promise would
+	// leave call sites targeting a hole in the entry table
+	for retry := 0; retry < 2; retry++ {
+		ok := true
+		for _, j := range jobs {
+			j.wf.compiled = nil
+			if !jitForceBaseline {
+				j.fd.NativeFuncs = native
+				if cd, err := jit.CompileOpt(j.fd); err == nil {
+					j.wf.compiled = cd
+					continue
+				} else if native != nil && native[j.fd.SelfIdx] {
+					ok = false
+					break
+				}
+			}
+			if cd, err := jit.CompileBaseline(j.fd); err == nil {
+				j.wf.compiled = cd
+			}
+		}
+		if ok {
+			break
+		}
+		native = nil
+	}
+	if native != nil {
+		ins.nativeEntries = make([]uintptr, len(ins.IndexSpace.Functions))
+		for i, fn := range ins.IndexSpace.Functions {
+			if wf, ok := fn.(*wasmFunc); ok && wf.compiled != nil && wf.compiled.NativeABI {
+				ins.nativeEntries[i] = uintptr(unsafe.Pointer(&wf.compiled.Code[0]))
+			}
 		}
 	}
 }
 
-func (ins *Instance) compileNative(f *wasmFunc, funcSigs, typeSigs []jit.FuncSig) {
-	if f.imms == nil || f.compiled != nil {
-		return
-	}
+func buildFuncDesc(f *wasmFunc, funcSigs, typeSigs []jit.FuncSig) *jit.FuncDesc {
 	fd := &jit.FuncDesc{
 		Body:      f.body,
 		Imms:      append([]uint64(nil), f.imms...),
@@ -65,17 +121,7 @@ func (ins *Instance) compileNative(f *wasmFunc, funcSigs, typeSigs []jit.FuncSig
 			uint64(len(blk.BlockType.ReturnTypes))
 		fd.PcEnd[pc] = uint32(blk.StartAt + blk.BlockTypeBytes)
 	}
-	// tiered: the optimizing compiler first, the baseline template
-	// compiler for anything outside its subset, the interpreter last
-	if !jitForceBaseline {
-		if cd, err := jit.CompileOpt(fd); err == nil {
-			f.compiled = cd
-			return
-		}
-	}
-	if cd, err := jit.CompileBaseline(fd); err == nil {
-		f.compiled = cd
-	}
+	return fd
 }
 
 // callNative invokes a same-instance JIT-compiled callee from native code:
@@ -183,7 +229,8 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, localsOff, ba
 				fn := ins.IndexSpace.Functions[site.FuncIdx]
 				// same-instance native callees skip the generic call
 				// ceremony (reflection-free arg copy, no per-level recover)
-				if wf, ok := fn.(*wasmFunc); ok && wf.compiled != nil && wf.owner == ins {
+				if wf, ok := fn.(*wasmFunc); ok && wf.compiled != nil &&
+					!wf.compiled.NativeABI && wf.owner == ins {
 					err = ins.callNative(wf)
 				} else {
 					err = fn.call(ins)
@@ -209,6 +256,126 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, localsOff, ba
 		case jit.StatusConvOverflow:
 			return ErrIntegerOverflow
 		default: // div-by-zero / overflow trap the same way the interpreter does
+			return ErrUndefined
+		}
+	}
+}
+
+// nativeStackSlots sizes the dedicated stack backing native call frames
+// (64K slots = 512KiB); exceeding it traps as call-stack exhaustion.
+const nativeStackSlots = 1 << 16
+
+// execNativeABI runs a function compiled for the native-call ABI: frames
+// live on the dedicated native stack (locals below the stack base), calls
+// between such functions are direct native calls, and only calls that leave
+// the compiled world exit to this loop, which ferries arguments between the
+// native stack and the interpreter's operand stack.
+func (ins *Instance) execNativeABI(f *wasmFunc) error {
+	cd := f.compiled
+	osk := ins.OperandStack
+	al := len(f.signature.InputTypes)
+	need := int(f.NumLocal) + al
+	if ins.nativeStack == nil {
+		ins.nativeStack = make([]uint64, nativeStackSlots)
+	}
+	ns := ins.nativeStack
+	start := ins.nativeTop // above any chain suspended in a host exit
+	if start+cd.FrameSlots >= len(ns) {
+		return ErrCallStackExhausted
+	}
+	copy(ns[start:start+al], osk.Values[osk.Ptr-al+1:osk.Ptr+1])
+	osk.Ptr -= al
+
+	base := uintptr(unsafe.Pointer(&ns[0]))
+	var ctx jit.Ctx
+	ctx.Stack = base + uintptr((start+need)*8)
+	ctx.StackLimit = base + uintptr(len(ns)*8)
+	if len(ins.nativeEntries) > 0 {
+		ctx.Funcs = uintptr(unsafe.Pointer(&ins.nativeEntries[0]))
+	}
+	if len(ins.Globals) > 0 {
+		ctx.Globals = uintptr(unsafe.Pointer(&ins.Globals[0]))
+	}
+	ctx.Depth = uint64(ins.FrameStack.Ptr + 1)
+
+	code, entry := cd.Code, 0
+	for {
+		if ins.Memory != nil && len(ins.Memory.Value) > 0 {
+			ctx.Mem = uintptr(unsafe.Pointer(&ins.Memory.Value[0]))
+			ctx.MemLen = uint64(len(ins.Memory.Value))
+		} else {
+			ctx.Mem, ctx.MemLen = 0, 0
+		}
+		switch st := jit.CallAt(code, entry, &ctx); st {
+		case jit.StatusOK:
+			fb := int((uintptr(ctx.Sp) - base) / 8)
+			for i := 0; i < len(f.signature.ReturnTypes); i++ {
+				osk.Push(ns[fb+i])
+			}
+			return nil
+		case jit.StatusCall, jit.StatusCallIndirect:
+			// the exit names the frame's function and site; any compiled
+			// function in the chain may be the one exiting
+			fidx, sid := uint32(ctx.TrapInfo>>32), uint32(ctx.TrapInfo)
+			if int(fidx) >= len(ins.IndexSpace.Functions) {
+				return ErrUndefined
+			}
+			ef, ok := ins.IndexSpace.Functions[fidx].(*wasmFunc)
+			if !ok || ef.compiled == nil || int(sid) >= len(ef.compiled.CallSites) {
+				return ErrUndefined
+			}
+			site := &ef.compiled.CallSites[sid]
+			fb := int((uintptr(ctx.Sp) - base) / 8)
+			var nin, nout int
+			switch site.Kind {
+			case jit.SiteCallIndirect:
+				sig := ins.TypeSection[site.TypeIdx]
+				nin, nout = len(sig.InputTypes)+1, len(sig.ReturnTypes)
+			case jit.SiteMemGrow:
+				nin, nout = 1, 1
+			default:
+				sig := ins.IndexSpace.Functions[site.FuncIdx].getType()
+				nin, nout = len(sig.InputTypes), len(sig.ReturnTypes)
+			}
+			argBase := fb + site.SpBefore - nin
+			for i := 0; i < nin; i++ {
+				osk.Push(ns[argBase+i])
+			}
+			// the callee may re-enter native code; its frames go above ours
+			prevTop := ins.nativeTop
+			ins.nativeTop = fb + ef.compiled.FrameSlots - ef.compiled.LocalSlots
+			var err error
+			switch site.Kind {
+			case jit.SiteCallIndirect:
+				err = callIndirectCore(ins, site.TypeIdx, site.TableIdx)
+			case jit.SiteMemGrow:
+				err = memoryGrowBody(ins)
+			default:
+				err = ins.IndexSpace.Functions[site.FuncIdx].call(ins)
+			}
+			ins.nativeTop = prevTop
+			if err != nil {
+				return err
+			}
+			for i := nout - 1; i >= 0; i-- {
+				ns[argBase+i] = osk.Pop()
+			}
+			if atomic.LoadUint32(&ins.interruptFlag) != 0 {
+				return ErrInterrupted
+			}
+			ctx.Stack = base + uintptr(fb*8)
+			code, entry = ef.compiled.Code, site.Cont
+		case jit.StatusUnreachable:
+			return ErrUnreachable
+		case jit.StatusMemOOB:
+			return ErrPtrOutOfBounds
+		case jit.StatusConvInvalid:
+			return ErrInvalidConversionToInt
+		case jit.StatusConvOverflow:
+			return ErrIntegerOverflow
+		case jit.StatusExhausted:
+			return ErrCallStackExhausted
+		default:
 			return ErrUndefined
 		}
 	}

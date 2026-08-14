@@ -153,17 +153,9 @@ func TestTruncTraps(t *testing.T) {
 		fd := assemble([]ins{
 			{0x20, 0, 1}, {tc.op, 0, 0}, {0x1a, 0, 0}, {0x0b, 0, 0},
 		}, 1, 1, 0)
-		cd, err := compileUnderTest(fd)
-		if err != nil {
-			t.Fatal(err)
-		}
-		stack := make([]uint64, cd.MaxHeight+1)
-		locals := []uint64{tc.v}
-		ctx := &Ctx{Stack: ptrOf(stack), Locals: ptrOf(locals)}
-		if st := Call(cd.Code, ctx); st != tc.want {
+		if _, st := runFD(t, fd, []uint64{tc.v}, nil, 0, nil); st != tc.want {
 			t.Fatalf("op %#x(%#x): status %d, want %d", tc.op, tc.v, st, tc.want)
 		}
-		Free(cd.Code)
 	}
 
 	// small negative into _u that truncates to -0: passes (trunc(-0.9) == -0)
@@ -179,18 +171,11 @@ func truncSat(t *testing.T, sub byte, v uint64) uint64 {
 	fd := assemble([]ins{
 		{0x20, 0, 1}, {0xfc, uint64(sub), 1}, {0x0b, 0, 0},
 	}, 1, 1, 1)
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer Free(cd.Code)
-	stack := make([]uint64, cd.MaxHeight+1)
-	locals := []uint64{v}
-	ctx := &Ctx{Stack: ptrOf(stack), Locals: ptrOf(locals)}
-	if st := Call(cd.Code, ctx); st != StatusOK {
+	got, st := runFD(t, fd, []uint64{v}, nil, 0, nil)
+	if st != StatusOK {
 		t.Fatalf("sub %d(%#x): status %d", sub, v, st)
 	}
-	return stack[0]
+	return got[0]
 }
 
 func TestTruncSat(t *testing.T) {

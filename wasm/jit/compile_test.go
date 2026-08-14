@@ -41,19 +41,6 @@ func assemble(code []ins, numLocals, numParams, numRets int) *FuncDesc {
 
 func ptrOf(s []uint64) uintptr { return uintptr(unsafe.Pointer(&s[0])) }
 
-func runCompiled(t *testing.T, cd *Compiled, locals []uint64) []uint64 {
-	t.Helper()
-	stack := make([]uint64, cd.MaxHeight+1)
-	ctx := &Ctx{Stack: uintptr(unsafe.Pointer(&stack[0]))}
-	if len(locals) > 0 {
-		ctx.Locals = uintptr(unsafe.Pointer(&locals[0]))
-	}
-	if st := Call(cd.Code, ctx); st != StatusOK {
-		t.Fatalf("status = %d", st)
-	}
-	return stack[:ctx.Sp]
-}
-
 // TestStraightLineI32 compiles ((a+b)*3 ^ b) >>u 1 and checks bit-exact
 // parity with the interpreter's stack representation.
 func TestStraightLineI32(t *testing.T) {
@@ -69,13 +56,7 @@ func TestStraightLineI32(t *testing.T) {
 		{0x76, 0, 0}, // i32.shr_u
 		{0x0b, 0, 0}, // end
 	}, 2, 2, 1)
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer Free(cd.Code)
-
-	got := runCompiled(t, cd, []uint64{5, 7})
+	got := runOK(t, fd, []uint64{5, 7})
 	if len(got) != 1 || got[0] != 17 { // ((5+7)*3 ^ 7) >> 1
 		t.Fatalf("got %v", got)
 	}
@@ -93,12 +74,7 @@ func TestSignExtension(t *testing.T) {
 		{0x6b, 0, 0}, // i32.sub
 		{0x0b, 0, 0},
 	}, 0, 0, 1)
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer Free(cd.Code)
-	got := runCompiled(t, cd, nil)
+	got := runOK(t, fd, nil)
 	if uint32(got[0]) != 0xffffffff {
 		t.Fatalf("got %#x, want -1 in the low 32 bits", got[0])
 	}
@@ -111,12 +87,7 @@ func TestSignExtension(t *testing.T) {
 		{0x73, 0, 0},                  // i32.xor
 		{0x0b, 0, 0},
 	}, 0, 0, 1)
-	cd2, err := compileUnderTest(fd2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer Free(cd2.Code)
-	if got := runCompiled(t, cd2, nil); got[0] != 0xffffffff {
+	if got := runOK(t, fd2, nil); got[0] != 0xffffffff {
 		t.Fatalf("got %#x, want zero-extended 0xffffffff", got[0])
 	}
 }
@@ -136,14 +107,9 @@ func TestI64AndLocals(t *testing.T) {
 		{0x7d, 0, 0}, // i64.sub
 		{0x0b, 0, 0},
 	}, 3, 2, 1)
-	cd, err := compileUnderTest(fd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer Free(cd.Code)
 	a, b := uint64(123456789), uint64(987654321)
 	want := (a*b)<<8 - a
-	if got := runCompiled(t, cd, []uint64{a, b, 0}); got[0] != want {
+	if got := runOK(t, fd, []uint64{a, b, 0}); got[0] != want {
 		t.Fatalf("got %d, want %d", got[0], want)
 	}
 }

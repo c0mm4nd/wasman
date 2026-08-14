@@ -22,4 +22,5 @@ TEXT ·enter(SB), NOSPLIT, $0-20
 
 TEXT jitshim<>(SB), NOSPLIT, $0-0
 	MOVD R30, 64(R0)
+	MOVD 0(R0), R1
 	B (R16)

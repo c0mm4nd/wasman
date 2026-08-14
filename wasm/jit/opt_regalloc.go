@@ -91,14 +91,24 @@ func (fn *irFunc) allocate(nregs int) *allocation {
 		if ins.dst >= 0 {
 			touch(ins.dst, idx)
 		}
-		if ins.op == irCallExit {
+		if ins.op == irCallExit || ins.op == irCallNative {
 			exits = append(exits, idx)
-			// the exit communicates through memory: everything at or below
-			// the site's stack heights stays home-allocated
-			site := fn.sites[ins.imm]
-			max := site.SpBefore
-			if site.SpAfter > max {
-				max = site.SpAfter
+			// the call communicates through frame memory: everything at or
+			// below the site's stack heights stays home-allocated
+			max := 0
+			if ins.op == irCallExit {
+				site := fn.sites[ins.imm]
+				max = site.SpBefore
+				if site.SpAfter > max {
+					max = site.SpAfter
+				}
+			} else {
+				sp := int(uint32(ins.imm))
+				sig := fn.callSig(int(ins.imm >> 32))
+				max = sp
+				if after := sp - sig.In + sig.Out; after > max {
+					max = after
+				}
 			}
 			for i := 0; i < max; i++ {
 				forced[fn.stackRegID(i)] = true
