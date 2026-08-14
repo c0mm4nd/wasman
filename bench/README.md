@@ -84,15 +84,13 @@ Five kernel workloads widen the picture beyond the core loops
 | `Sort` (recursive quicksort, memory) | **367,952** | 477,368 | 1.3x ahead |
 | `Dispatch` (br_table-dense loop) | **1,513,461** | 1,536,712 | level |
 | `Hash` (i64 multiply/rotate mixing) | 1,382,997 | **1,268,367** | within 9% |
-| `Indirect` (call_indirect-dense) | 3,926,713 | **2,812,512** | 1.4x behind |
-| `Mandel` (f64 escape-time) | 36,104,628 | **5,911,049** | 6x behind¹ |
+| `Mandel` (f64 escape-time) | 6,052,462 | **5,900,375** | within 3% |
+| `Indirect` (call_indirect-dense) | 3,926,713 | **2,812,512** | 1.4x behind¹ |
 
-¹ float arithmetic runs on the baseline tier today (the optimizing tier
-does not allocate float registers yet); Mandel is the honest cost of
-that gap and the next optimization target. `Indirect` dispatches
-natively through a per-instance table mirror (bounds, null and
-signature checks in generated code) and falls back to the host for
-anything the mirror cannot prove.
+¹ `Indirect` dispatches natively through a per-instance table mirror
+(bounds, null and signature checks in generated code) and falls back to
+the host for anything the mirror cannot prove — imported or exported
+tables, non-native targets.
 
 The two engines now sit in the same performance class: wasman leads on
 memory-bound code, ties on arithmetic loops and trails within ~10% on
