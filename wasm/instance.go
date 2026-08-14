@@ -132,8 +132,19 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 	ins.Functions = make([]fn, len(ins.IndexSpace.Functions))
 	for i, f := range ins.IndexSpace.Functions {
 		if wasmFn, ok := f.(*HostFunc); ok {
+			// every instance gets its OWN bound copy: mutating only the
+			// shared HostFunc would re-bind the imports of every EARLIER
+			// instance to the latest instance (and its memory) whenever
+			// several modules import the same host module
+			ins.Functions[i] = &HostFunc{
+				Signature: wasmFn.Signature,
+				Generator: wasmFn.Generator,
+				function:  wasmFn.Generator(ins),
+			}
+			// the shared object stays callable for the paths resolving
+			// through the raw index space (e.g. table elements); those
+			// keep the pre-existing last-binder semantics
 			wasmFn.function = wasmFn.Generator(ins)
-			ins.Functions[i] = wasmFn
 		} else {
 			ins.Functions[i] = f
 		}
