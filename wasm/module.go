@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/c0mm4nd/wasman/config"
 
@@ -92,4 +93,41 @@ func NewModule(config config.ModuleConfig, r *bytes.Reader) (*Module, error) {
 	}
 
 	return module, nil
+}
+
+// ExportInfo describes one export of a module.
+type ExportInfo struct {
+	Name string
+	Kind segments.Kind
+	// Type is the function signature for KindFunction exports, nil otherwise.
+	Type *types.FuncType
+}
+
+// Exports lists the module's exports (sorted by name), resolving function
+// signatures statically — usable right after NewModule, before instantiation.
+func (m *Module) Exports() []ExportInfo {
+	// the function index space: imported functions first, then local ones
+	var funcTypes []*types.FuncType
+	for _, imp := range m.ImportSection {
+		if imp.Desc.Kind == segments.KindFunction && imp.Desc.TypeIndexPtr != nil &&
+			int(*imp.Desc.TypeIndexPtr) < len(m.TypeSection) {
+			funcTypes = append(funcTypes, m.TypeSection[*imp.Desc.TypeIndexPtr])
+		}
+	}
+	for _, ti := range m.FunctionSection {
+		if int(ti) < len(m.TypeSection) {
+			funcTypes = append(funcTypes, m.TypeSection[ti])
+		}
+	}
+
+	out := make([]ExportInfo, 0, len(m.ExportSection))
+	for name, exp := range m.ExportSection {
+		info := ExportInfo{Name: name, Kind: exp.Desc.Kind}
+		if exp.Desc.Kind == segments.KindFunction && int(exp.Desc.Index) < len(funcTypes) {
+			info.Type = funcTypes[exp.Desc.Index]
+		}
+		out = append(out, info)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }

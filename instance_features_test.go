@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/c0mm4nd/wasman/config"
+	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/wasm"
 )
 
@@ -182,5 +183,24 @@ func TestMaxMemoryPages(t *testing.T) {
 	}
 	if rets, _, err := ins.CallExportedFunc("grow"); err != nil || int32(rets[0]) != 2 {
 		t.Fatalf("uncapped grow: want 2, got %v (err %v)", rets, err)
+	}
+}
+
+func TestModuleExports(t *testing.T) {
+	mod, err := NewModule(config.ModuleConfig{}, bytes.NewReader(counterModule))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exps := mod.Exports()
+	if len(exps) != 2 {
+		t.Fatalf("want 2 exports, got %d", len(exps))
+	}
+	// sorted by name: "g" (global), "run" (func () -> ())
+	if exps[0].Name != "g" || exps[0].Kind != segments.KindGlobal || exps[0].Type != nil {
+		t.Fatalf("bad export[0]: %+v", exps[0])
+	}
+	if exps[1].Name != "run" || exps[1].Kind != segments.KindFunction || exps[1].Type == nil ||
+		len(exps[1].Type.InputTypes) != 0 || len(exps[1].Type.ReturnTypes) != 0 {
+		t.Fatalf("bad export[1]: %+v", exps[1])
 	}
 }
