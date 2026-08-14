@@ -29,9 +29,16 @@ func Call(code []byte, ctx *Ctx) uint32 {
 
 // status codes returned by generated code
 const (
-	StatusOK          = 0 // fell off the end of the function
-	StatusUnreachable = 1
-	StatusMemOOB      = 2
-	StatusDivZero     = 3
-	StatusIntOverflow = 4
+	StatusOK           = 0 // fell off the end of the function
+	StatusUnreachable  = 1
+	StatusMemOOB       = 2
+	StatusDivZero      = 3
+	StatusIntOverflow  = 4
+	StatusCall         = 5 // call site: Ctx.TrapInfo holds the site id
+	StatusCallIndirect = 6
 )
+
+// CallAt runs generated code starting at a continuation offset.
+func CallAt(code []byte, off int, ctx *Ctx) uint32 {
+	return enter(uintptr(unsafe.Pointer(&code[0]))+uintptr(off), ctx)
+}

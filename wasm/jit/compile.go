@@ -17,6 +17,28 @@ type FuncDesc struct {
 	NumRets   int
 	// BrTables holds pre-decoded br_table plans keyed by opcode PC.
 	BrTables map[int]BrTable
+	// FuncSigs holds the arity of every function in the module's index
+	// space; TypeSigs the arity of every entry in the type section. Both
+	// are needed to compile call/call_indirect sites.
+	FuncSigs []FuncSig
+	TypeSigs []FuncSig
+}
+
+// FuncSig is a function arity (parameter and result slot counts).
+type FuncSig struct {
+	In, Out int
+}
+
+// CallSite describes one call/call_indirect exit point: where to re-enter,
+// the static stack heights around the call, and what to invoke.
+type CallSite struct {
+	Cont     int // code offset of the continuation (starts with a prologue)
+	SpBefore int // stack height at the exit (args, and index if indirect)
+	SpAfter  int // stack height expected after the call returns
+	Indirect bool
+	FuncIdx  uint32 // direct calls
+	TypeIdx  uint32 // indirect calls
+	TableIdx uint32
 }
 
 // BrTable is a pre-decoded br_table: label depths per index plus a default.
@@ -29,4 +51,7 @@ type BrTable struct {
 type Compiled struct {
 	Code      []byte // executable mapping (AllocExec)
 	MaxHeight int    // operand slots the caller must provide
+	// CallSites, indexed by the id the exiting code leaves in Ctx.TrapInfo,
+	// tell the host what to call and where to re-enter.
+	CallSites []CallSite
 }

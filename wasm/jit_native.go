@@ -1,15 +1,38 @@
 package wasm
 
 import (
+	"fmt"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/c0mm4nd/wasman/wasm/jit"
 )
 
-// compileNative translates f with the template JIT. Functions using
-// constructs outside the compiled subset keep compiled == nil and run in
-// the interpreter; on unsupported platforms jit.Compile rejects everything.
-func (ins *Instance) compileNative(f *wasmFunc) {
+// compileNativeAll translates every eligible locally-defined function with
+// the template JIT. Functions using constructs outside the compiled subset
+// keep compiled == nil and run in the interpreter; on unsupported platforms
+// jit.Compile rejects everything.
+func (ins *Instance) compileNativeAll() {
+	if !jit.Supported() {
+		return
+	}
+	funcSigs := make([]jit.FuncSig, len(ins.IndexSpace.Functions))
+	for i, fn := range ins.IndexSpace.Functions {
+		t := fn.getType()
+		funcSigs[i] = jit.FuncSig{In: len(t.InputTypes), Out: len(t.ReturnTypes)}
+	}
+	typeSigs := make([]jit.FuncSig, len(ins.TypeSection))
+	for i, t := range ins.TypeSection {
+		typeSigs[i] = jit.FuncSig{In: len(t.InputTypes), Out: len(t.ReturnTypes)}
+	}
+	for _, fn := range ins.IndexSpace.Functions {
+		if wf, ok := fn.(*wasmFunc); ok && wf.owner == ins {
+			ins.compileNative(wf, funcSigs, typeSigs)
+		}
+	}
+}
+
+func (ins *Instance) compileNative(f *wasmFunc, funcSigs, typeSigs []jit.FuncSig) {
 	if f.imms == nil || f.compiled != nil {
 		return
 	}
@@ -20,6 +43,8 @@ func (ins *Instance) compileNative(f *wasmFunc) {
 		NumLocals: int(f.NumLocal) + len(f.signature.InputTypes),
 		NumParams: len(f.signature.InputTypes),
 		NumRets:   len(f.signature.ReturnTypes),
+		FuncSigs:  funcSigs,
+		TypeSigs:  typeSigs,
 	}
 	if len(f.brPlans) > 0 {
 		fd.BrTables = make(map[int]jit.BrTable, len(f.brPlans))
@@ -40,34 +65,64 @@ func (ins *Instance) compileNative(f *wasmFunc) {
 
 // execNative runs a JIT-compiled body: the native code works directly on the
 // instance's operand stack slots above baseSp and on the frame's locals.
+// Calls exit to this loop, which invokes the callee through the ordinary
+// call machinery and re-enters the native code at the site's continuation;
+// every re-entry refreshes the stack and memory base pointers, since a
+// callee may have regrown either.
 func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, baseSp int) error {
-	os := ins.OperandStack
-	if need := baseSp + 1 + cd.MaxHeight; len(os.Values) < need {
-		os.Values = append(os.Values, make([]uint64, need-len(os.Values))...)
-	}
 	var ctx jit.Ctx
-	if cd.MaxHeight > 0 {
-		ctx.Stack = uintptr(unsafe.Pointer(&os.Values[baseSp+1]))
-	}
 	if len(locals) > 0 {
 		ctx.Locals = uintptr(unsafe.Pointer(&locals[0]))
-	}
-	if ins.Memory != nil && len(ins.Memory.Value) > 0 {
-		ctx.Mem = uintptr(unsafe.Pointer(&ins.Memory.Value[0]))
-		ctx.MemLen = uint64(len(ins.Memory.Value))
 	}
 	if len(ins.Globals) > 0 {
 		ctx.Globals = uintptr(unsafe.Pointer(&ins.Globals[0]))
 	}
-	switch jit.Call(cd.Code, &ctx) {
-	case jit.StatusOK:
-		os.Ptr = baseSp + int(ctx.Sp)
-		return nil
-	case jit.StatusUnreachable:
-		return ErrUnreachable
-	case jit.StatusMemOOB:
-		return ErrPtrOutOfBounds
-	default: // div-by-zero / overflow trap the same way the interpreter does
-		return ErrUndefined
+	entry := 0
+	for {
+		os := ins.OperandStack
+		if need := baseSp + 1 + cd.MaxHeight; len(os.Values) < need {
+			os.Values = append(os.Values, make([]uint64, need-len(os.Values))...)
+		}
+		if cd.MaxHeight > 0 {
+			ctx.Stack = uintptr(unsafe.Pointer(&os.Values[baseSp+1]))
+		}
+		if ins.Memory != nil && len(ins.Memory.Value) > 0 {
+			ctx.Mem = uintptr(unsafe.Pointer(&ins.Memory.Value[0]))
+			ctx.MemLen = uint64(len(ins.Memory.Value))
+		}
+		switch st := jit.CallAt(cd.Code, entry, &ctx); st {
+		case jit.StatusOK:
+			os.Ptr = baseSp + int(ctx.Sp)
+			return nil
+		case jit.StatusCall, jit.StatusCallIndirect:
+			if ctx.TrapInfo >= uint64(len(cd.CallSites)) {
+				return ErrUndefined
+			}
+			site := &cd.CallSites[ctx.TrapInfo]
+			os.Ptr = baseSp + site.SpBefore
+			var err error
+			if site.Indirect {
+				err = callIndirectCore(ins, site.TypeIdx, site.TableIdx)
+			} else {
+				err = ins.IndexSpace.Functions[site.FuncIdx].call(ins)
+			}
+			if err != nil {
+				return err
+			}
+			if os.Ptr != baseSp+site.SpAfter {
+				return fmt.Errorf("function returned too few values")
+			}
+			// a call boundary is also the interruption point for native code
+			if atomic.LoadUint32(&ins.interruptFlag) != 0 {
+				return ErrInterrupted
+			}
+			entry = site.Cont
+		case jit.StatusUnreachable:
+			return ErrUnreachable
+		case jit.StatusMemOOB:
+			return ErrPtrOutOfBounds
+		default: // div-by-zero / overflow trap the same way the interpreter does
+			return ErrUndefined
+		}
 	}
 }

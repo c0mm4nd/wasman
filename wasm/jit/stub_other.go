@@ -32,12 +32,17 @@ func (unsupportedErr) Error() string { return "jit: unsupported platform" }
 var errUnsupported = unsupportedErr{}
 
 const (
-	StatusOK          = 0
-	StatusUnreachable = 1
-	StatusMemOOB      = 2
-	StatusDivZero     = 3
-	StatusIntOverflow = 4
+	StatusOK           = 0
+	StatusUnreachable  = 1
+	StatusMemOOB       = 2
+	StatusDivZero      = 3
+	StatusIntOverflow  = 4
+	StatusCall         = 5
+	StatusCallIndirect = 6
 )
+
+// CallAt is unavailable on this platform.
+func CallAt(code []byte, off int, ctx *Ctx) uint32 { return ^uint32(0) }
 
 // Compile is unavailable on this platform: everything falls back to the
 // interpreter.

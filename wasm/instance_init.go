@@ -48,6 +48,11 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 	if err := ins.buildFunctionIndexSpace(); err != nil {
 		return fmt.Errorf("build function index space: %w", err)
 	}
+	if ins.ModuleConfig.EnableJIT {
+		// after the whole function index space exists, so call sites can
+		// reference any function's signature
+		ins.compileNativeAll()
+	}
 
 	// segment application is all-or-nothing: bounds-check every active element
 	// AND data segment first, so a failing instantiation (link error) leaves
@@ -254,9 +259,6 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 		}
 
 		f.Blocks = brs
-		if ins.ModuleConfig.EnableJIT {
-			ins.compileNative(f)
-		}
 		ins.IndexSpace.Functions = append(ins.IndexSpace.Functions, f)
 	}
 

@@ -85,6 +85,7 @@ func BenchmarkJIT(b *testing.B) {
 		name, file, fn string
 		arg, want      uint64
 	}{
+		{"Fib", "bench/testdata/fib.wasm", "fib", 20, 6765},
 		{"Sum", "bench/testdata/sum.wasm", "sum", 100_000, 5_000_050_000},
 		{"MemRW", "bench/testdata/memrw.wasm", "fillsum", 65_536, 8_355_840},
 	} {

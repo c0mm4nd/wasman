@@ -280,6 +280,12 @@ func callIndirect(ins *Instance) error {
 		tableIndex = tbl
 	}
 
+	return callIndirectCore(ins, typeIndex, tableIndex)
+}
+
+// callIndirectCore runs the table lookup, null/type checks and the call
+// itself; shared by the interpreter handler and the JIT's call-out path.
+func callIndirectCore(ins *Instance, typeIndex, tableIndex uint32) error {
 	expType := ins.Module.TypeSection[typeIndex]
 
 	if tableIndex >= uint32(len(ins.IndexSpace.Tables)) {

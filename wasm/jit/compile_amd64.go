@@ -18,7 +18,7 @@ func Compile(fd *FuncDesc) (*Compiled, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Compiled{Code: code, MaxHeight: c.maxH}, nil
+	return &Compiled{Code: code, MaxHeight: c.maxH, CallSites: c.sites}, nil
 }
 
 type ctl struct {
@@ -41,6 +41,7 @@ type compiler struct {
 	skip    int   // nesting depth of blocks opened inside unreachable code
 	oob     []int // JA placeholders jumping to the shared OOB trap stub
 	op0     int   // PC of the opcode being compiled
+	sites   []CallSite
 }
 
 func (c *compiler) push() int {
@@ -194,6 +195,7 @@ func buildOpHasImm() (t [256]bool) {
 	for _, op := range []byte{
 		0x02, 0x03, 0x04, // block/loop/if (packed param/result counts)
 		0x0c, 0x0d, // br, br_if
+		0x10, 0x11, // call, call_indirect
 		0x20, 0x21, 0x22, 0x23, 0x24, // locals, globals
 		0x41, 0x42, 0x43, 0x44, // consts
 		0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, // loads (offsets)
@@ -297,6 +299,47 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		a.TestRR(true, rDX)
 		a.CmoveRR(rAX, rCX) // cond == 0 -> v2
 		a.StSlot(rAX, c.push())
+
+	// calls exit to the host (which runs the callee through the ordinary
+	// call machinery — interpreter, JIT or host function — and re-enters at
+	// the continuation, whose fresh prologue reloads every base pointer)
+	case 0x10, 0x11:
+		site := CallSite{SpBefore: c.h, Indirect: op == 0x11}
+		var sig FuncSig
+		if op == 0x10 {
+			if int(imm) >= len(c.fd.FuncSigs) {
+				return fmt.Errorf("%w: call target %d", ErrUnsupported, imm)
+			}
+			site.FuncIdx = uint32(imm)
+			sig = c.fd.FuncSigs[imm]
+			c.h -= sig.In
+		} else {
+			ti, tbl := uint32(imm>>32), uint32(imm)
+			if int(ti) >= len(c.fd.TypeSigs) {
+				return fmt.Errorf("%w: call_indirect type %d", ErrUnsupported, ti)
+			}
+			site.TypeIdx, site.TableIdx = ti, tbl
+			sig = c.fd.TypeSigs[ti]
+			c.h -= sig.In + 1 // the table index rides on top of the args
+		}
+		c.h += sig.Out
+		if c.h > c.maxH {
+			c.maxH = c.h
+		}
+		site.SpAfter = c.h
+		a.MovImm64(rCX, uint64(site.SpBefore))
+		a.StCtx(rCX, 8) // Ctx.Sp
+		a.MovImm64(rCX, uint64(len(c.sites)))
+		a.StCtx(rCX, 40) // Ctx.TrapInfo = site id
+		if op == 0x10 {
+			a.MovImm32AX(StatusCall)
+		} else {
+			a.MovImm32AX(StatusCallIndirect)
+		}
+		a.Ret()
+		site.Cont = a.Len()
+		c.prologue() // the continuation reloads stack/memory bases
+		c.sites = append(c.sites, site)
 
 	case 0x0e: // br_table: compare chain over the pre-decoded plan
 		plan, ok := c.fd.BrTables[c.op0]

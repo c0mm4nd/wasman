@@ -159,8 +159,13 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 
 	// JIT-compiled bodies run natively against the operand stack and locals;
 	// tolls cannot be charged per instruction there, so a TollStation keeps
-	// the interpreter path.
+	// the interpreter path. The frame still joins the FrameStack so the
+	// call-depth accounting (and with it CallDepthLimit) stays exact across
+	// mixed native/interpreted call chains.
 	if cd := f.compiled; cd != nil && ins.Module.ModuleConfig.TollStation == nil {
+		frame.Func = f
+		ins.FrameStack.Push(frame)
+		ins.Active = frame
 		err = ins.execNative(cd, locals, baseSp)
 		ins.FrameStack.Ptr = prevPtr
 		ins.Active = prev
