@@ -179,3 +179,56 @@ func (a *Asm) AddImm32(reg int, v uint32) {
 func (a *Asm) ShiftImm(w bool, sub byte, reg int, n byte) {
 	a.bytes(rex(w, 0, 0, reg), 0xC1, 0xC0|sub<<3|byte(reg&7), n)
 }
+
+// Cdq / Cqo sign-extend AX into DX before IDIV.
+func (a *Asm) Cdq() { a.bytes(0x99) }
+func (a *Asm) Cqo() { a.bytes(0x48, 0x99) }
+
+// DivCX emits DIV/IDIV by CX (sub 6 div, 7 idiv), operating on DX:AX.
+func (a *Asm) DivCX(w bool, sub byte) {
+	a.bytes(rex(w, 0, 0, rCX), 0xF7, 0xC0|sub<<3|byte(rCX&7))
+}
+
+// XorDX zeroes (E)DX.
+func (a *Asm) XorDX(w bool) { a.modRegReg(w, 0x31, rDX, rDX) }
+
+// Bsr / Bsf emit bit scans (undefined dst when src is zero; guard first).
+func (a *Asm) Bsr(w bool, dst, src int) {
+	a.bytes(rex(w, dst, 0, src), 0x0F, 0xBD, 0xC0|byte(dst&7)<<3|byte(src&7))
+}
+func (a *Asm) Bsf(w bool, dst, src int) {
+	a.bytes(rex(w, dst, 0, src), 0x0F, 0xBC, 0xC0|byte(dst&7)<<3|byte(src&7))
+}
+
+// Popcnt emits POPCNT dst, src (SSE4.2 baseline, like other Go JITs).
+func (a *Asm) Popcnt(w bool, dst, src int) {
+	a.bytes(0xF3, rex(w, dst, 0, src), 0x0F, 0xB8, 0xC0|byte(dst&7)<<3|byte(src&7))
+}
+
+// RotCL emits ROL/ROR by CL (sub 0 rol, 1 ror).
+func (a *Asm) RotCL(w bool, sub byte, reg int) {
+	a.bytes(rex(w, 0, 0, reg), 0xD3, 0xC0|sub<<3|byte(reg&7))
+}
+
+// MovsxB / MovsxW sign-extend the low 8/16 bits of a register in place.
+func (a *Asm) MovsxB(w bool, dst, src int) {
+	a.bytes(rex(w, dst, 0, src), 0x0F, 0xBE, 0xC0|byte(dst&7)<<3|byte(src&7))
+}
+func (a *Asm) MovsxW(w bool, dst, src int) {
+	a.bytes(rex(w, dst, 0, src), 0x0F, 0xBF, 0xC0|byte(dst&7)<<3|byte(src&7))
+}
+
+// CmpImm32 emits CMP reg, imm32 (sign-extended when w).
+func (a *Asm) CmpImm32(w bool, reg int, v uint32) {
+	a.bytes(rex(w, 0, 0, reg), 0x81, 0xC0|7<<3|byte(reg&7))
+	a.u32(v)
+}
+
+// MovImm32 emits MOV reg32, imm32 (zero-extending).
+func (a *Asm) MovImm32(reg int, v uint32) {
+	if reg >= 8 {
+		a.bytes(rex(false, 0, 0, reg))
+	}
+	a.bytes(0xB8 | byte(reg&7))
+	a.u32(v)
+}

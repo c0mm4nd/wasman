@@ -385,6 +385,101 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		}
 		c.str(RegT0, c.push())
 
+	// i32/i64 div and rem: the zero (and signed-overflow) checks trap inline
+	// via a skip-over pattern, so no patch bookkeeping is needed
+	case 0x6d, 0x6e, 0x6f, 0x70, 0x7f, 0x80, 0x81, 0x82:
+		w := op >= 0x7f
+		c.ldr(RegT1, c.pop()) // v2
+		c.ldr(RegT0, c.pop()) // v1
+		if w {
+			a.CmpImmX(RegT1, 0)
+		} else {
+			a.CmpImmW(RegT1, 0)
+		}
+		a.Bcond(condNE, 12) // skip the trap when the divisor is nonzero
+		a.Movz(RegCtx, StatusDivZero, 0)
+		a.Ret()
+		switch op {
+		case 0x6d, 0x7f: // div_s: MinInt / -1 overflows
+			a.CmnImm(w, RegT1, 1)
+			a.Bcond(condNE, 24) // skip the 5-word overflow check + trap
+			if w {
+				a.Movz(RegT2, 0x8000, 3) // MinInt64
+				a.CmpRegX(RegT0, RegT2)
+			} else {
+				a.Movz(RegT2, 0x8000, 1) // MinInt32 (W compare)
+				a.CmpRegW(RegT0, RegT2)
+			}
+			a.Bcond(condNE, 12)
+			a.Movz(RegCtx, StatusIntOverflow, 0)
+			a.Ret()
+			a.Sdiv(w, RegT0, RegT0, RegT1)
+			if !w {
+				a.Sxtw(RegT0, RegT0)
+			}
+		case 0x6e, 0x80: // div_u
+			a.Udiv(w, RegT0, RegT0, RegT1)
+		case 0x6f, 0x81: // rem_s (MinInt % -1 is 0 in hardware via msub)
+			a.Sdiv(w, RegT2, RegT0, RegT1)
+			a.Msub(w, RegT0, RegT2, RegT1, RegT0)
+			if !w {
+				a.Sxtw(RegT0, RegT0)
+			}
+		case 0x70, 0x82: // rem_u
+			a.Udiv(w, RegT2, RegT0, RegT1)
+			a.Msub(w, RegT0, RegT2, RegT1, RegT0)
+		}
+		c.str(RegT0, c.push())
+
+	case 0x67, 0x79: // clz
+		c.ldr(RegT0, c.h-1)
+		a.Clz(op == 0x79, RegT0, RegT0)
+		c.str(RegT0, c.h-1)
+	case 0x68, 0x7a: // ctz = clz(rbit(x))
+		c.ldr(RegT0, c.h-1)
+		w := op == 0x7a
+		a.Rbit(w, RegT0, RegT0)
+		a.Clz(w, RegT0, RegT0)
+		c.str(RegT0, c.h-1)
+	case 0x69, 0x7b: // popcnt (NEON CNT+ADDV)
+		c.ldr(RegT0, c.h-1)
+		if op == 0x69 {
+			a.Uxtw(RegT0, RegT0)
+		}
+		a.Popcnt(RegT0, RegT0)
+		c.str(RegT0, c.h-1)
+
+	case 0x77, 0x78, 0x89, 0x8a: // rotl (via negated rotr), rotr
+		w := op >= 0x89
+		c.ldr(RegT1, c.pop())
+		c.ldr(RegT0, c.pop())
+		if op == 0x77 || op == 0x89 { // rotl x,n == rotr x,-n
+			a.Neg(w, RegT1, RegT1)
+		}
+		a.Rorv(w, RegT0, RegT0, RegT1)
+		c.str(RegT0, c.push())
+
+	case 0xc0: // i32.extend8_s
+		c.ldr(RegT0, c.h-1)
+		a.Sxtb(false, RegT0, RegT0)
+		c.str(RegT0, c.h-1)
+	case 0xc1: // i32.extend16_s
+		c.ldr(RegT0, c.h-1)
+		a.Sxth(false, RegT0, RegT0)
+		c.str(RegT0, c.h-1)
+	case 0xc2: // i64.extend8_s
+		c.ldr(RegT0, c.h-1)
+		a.Sxtb(true, RegT0, RegT0)
+		c.str(RegT0, c.h-1)
+	case 0xc3: // i64.extend16_s
+		c.ldr(RegT0, c.h-1)
+		a.Sxth(true, RegT0, RegT0)
+		c.str(RegT0, c.h-1)
+	case 0xc4: // i64.extend32_s
+		c.ldr(RegT0, c.h-1)
+		a.Sxtw(RegT0, RegT0)
+		c.str(RegT0, c.h-1)
+
 	// conversions
 	case 0xa7: // i32.wrap_i64
 		c.ldr(RegT0, c.h-1)

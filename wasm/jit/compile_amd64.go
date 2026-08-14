@@ -393,6 +393,125 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		}
 		a.StSlot(rAX, c.push())
 
+	// i32/i64 div and rem: divisor-zero (and signed-overflow) checks trap
+	// inline via a skip-over pattern
+	case 0x6d, 0x6e, 0x6f, 0x70, 0x7f, 0x80, 0x81, 0x82:
+		w := op >= 0x7f
+		a.LdSlot(rCX, c.pop()) // v2
+		a.LdSlot(rAX, c.pop()) // v1
+		a.TestRR(w, rCX)
+		at := a.Len()
+		a.Jcc(ccNE, 0) // skip the trap when the divisor is nonzero
+		c.trap(StatusDivZero)
+		a.PatchJcc(at)
+		signed := op == 0x6d || op == 0x6f || op == 0x7f || op == 0x81
+		if signed {
+			// MinInt / -1: div_s traps, rem_s must yield 0 (IDIV would fault)
+			a.CmpImm32(w, rCX, 0xffffffff)
+			ok1 := a.Len()
+			a.Jcc(ccNE, 0)
+			if w {
+				a.MovImm64(rDX, 0x8000000000000000)
+				a.BinRR(true, 0x39, rAX, rDX)
+			} else {
+				a.CmpImm32(false, rAX, 0x80000000)
+			}
+			ok2 := a.Len()
+			a.Jcc(ccNE, 0)
+			if op == 0x6d || op == 0x7f { // div_s: trap
+				c.trap(StatusIntOverflow)
+			} else { // rem_s: result 0
+				a.XorDX(true)
+				a.StSlot(rDX, c.h)
+				done := a.Len()
+				a.Jmp(0)
+				a.PatchJcc(ok1)
+				a.PatchJcc(ok2)
+				c.emitDiv(op, w)
+				a.PatchJmp(done)
+				c.push()
+				break
+			}
+			a.PatchJcc(ok1)
+			a.PatchJcc(ok2)
+		}
+		c.emitDiv(op, w)
+		c.push()
+
+	case 0x67, 0x79: // clz: 31/63 - bsr, or width when zero
+		w := op == 0x79
+		bits := uint32(31)
+		if w {
+			bits = 63
+		}
+		a.LdSlot(rAX, c.h-1)
+		a.TestRR(w, rAX)
+		z := a.Len()
+		a.Jcc(ccE, 0)
+		a.Bsr(w, rDX, rAX)
+		a.MovImm32(rAX, bits)
+		a.BinRR(w, 0x29, rAX, rDX) // SUB
+		done := a.Len()
+		a.Jmp(0)
+		a.PatchJcc(z)
+		a.MovImm32(rAX, bits+1)
+		a.PatchJmp(done)
+		a.StSlot(rAX, c.h-1)
+	case 0x68, 0x7a: // ctz: bsf, or width when zero
+		w := op == 0x7a
+		bits := uint32(32)
+		if w {
+			bits = 64
+		}
+		a.LdSlot(rAX, c.h-1)
+		a.TestRR(w, rAX)
+		z := a.Len()
+		a.Jcc(ccE, 0)
+		a.Bsf(w, rAX, rAX)
+		done := a.Len()
+		a.Jmp(0)
+		a.PatchJcc(z)
+		a.MovImm32(rAX, bits)
+		a.PatchJmp(done)
+		a.StSlot(rAX, c.h-1)
+	case 0x69, 0x7b: // popcnt
+		w := op == 0x7b
+		a.LdSlot(rAX, c.h-1)
+		a.Popcnt(w, rAX, rAX)
+		a.StSlot(rAX, c.h-1)
+
+	case 0x77, 0x78, 0x89, 0x8a: // rotl, rotr
+		w := op >= 0x89
+		a.LdSlot(rCX, c.pop())
+		a.LdSlot(rAX, c.pop())
+		if op == 0x77 || op == 0x89 {
+			a.RotCL(w, 0, rAX) // ROL
+		} else {
+			a.RotCL(w, 1, rAX) // ROR
+		}
+		a.StSlot(rAX, c.push())
+
+	case 0xc0: // i32.extend8_s (32-bit dst zero-extends to 64)
+		a.LdSlot(rAX, c.h-1)
+		a.MovsxB(false, rAX, rAX)
+		a.StSlot(rAX, c.h-1)
+	case 0xc1: // i32.extend16_s
+		a.LdSlot(rAX, c.h-1)
+		a.MovsxW(false, rAX, rAX)
+		a.StSlot(rAX, c.h-1)
+	case 0xc2: // i64.extend8_s
+		a.LdSlot(rAX, c.h-1)
+		a.MovsxB(true, rAX, rAX)
+		a.StSlot(rAX, c.h-1)
+	case 0xc3: // i64.extend16_s
+		a.LdSlot(rAX, c.h-1)
+		a.MovsxW(true, rAX, rAX)
+		a.StSlot(rAX, c.h-1)
+	case 0xc4: // i64.extend32_s
+		a.LdSlot(rAX, c.h-1)
+		a.Movsxd(rAX, rAX)
+		a.StSlot(rAX, c.h-1)
+
 	// conversions
 	case 0xa7: // i32.wrap_i64
 		a.LdSlot(rAX, c.h-1)
@@ -433,6 +552,44 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		return fmt.Errorf("%w: opcode %#x", ErrUnsupported, op)
 	}
 	return nil
+}
+
+// emitDiv emits the DIV/IDIV core with the result stored at the next slot
+// height (operands already in AX/CX, checks already done).
+func (c *compiler) emitDiv(op byte, w bool) {
+	a := &c.a
+	switch op {
+	case 0x6d, 0x7f: // div_s
+		if w {
+			a.Cqo()
+		} else {
+			a.Cdq()
+		}
+		a.DivCX(w, 7)
+		if !w {
+			a.Movsxd(rAX, rAX)
+		}
+		a.StSlot(rAX, c.h)
+	case 0x6e, 0x80: // div_u
+		a.XorDX(true)
+		a.DivCX(w, 6)
+		a.StSlot(rAX, c.h)
+	case 0x6f, 0x81: // rem_s
+		if w {
+			a.Cqo()
+		} else {
+			a.Cdq()
+		}
+		a.DivCX(w, 7)
+		if !w {
+			a.Movsxd(rDX, rDX)
+		}
+		a.StSlot(rDX, c.h)
+	case 0x70, 0x82: // rem_u
+		a.XorDX(true)
+		a.DivCX(w, 6)
+		a.StSlot(rDX, c.h)
+	}
 }
 
 // memAccess describes loads/stores 0x28..0x3e: access width, legacy prefix,
