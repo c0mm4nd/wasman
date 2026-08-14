@@ -234,11 +234,17 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 			return fmt.Errorf("code index out of range")
 		}
 
+		funcIdx := uint32(len(ins.IndexSpace.Functions))
+		name := ins.FunctionNames[funcIdx]
+		if name == "" {
+			name = fmt.Sprintf("func[%d]", funcIdx)
+		}
 		f := &wasmFunc{
 			signature: ins.TypeSection[typeIndex],
 			body:      ins.CodeSection[codeIndex].Body,
 			NumLocal:  ins.CodeSection[codeIndex].NumLocals,
 			owner:     ins,
+			name:      name,
 		}
 
 		brs, err := ins.parseBlocks(f.body)

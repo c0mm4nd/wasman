@@ -159,7 +159,53 @@ func (m *Module) readSectionCustom(r *bytes.Reader, size uint32) error {
 		return fmt.Errorf("custom section name is not valid UTF-8")
 	}
 
+	// the "name" section carries debug names; parse best-effort (its content
+	// is uninterpreted per spec, so garbage never fails the module)
+	if string(name) == "name" {
+		m.parseNameSection(body[uint64(l)+uint64(nameLen):])
+	}
+
 	return nil
+}
+
+// parseNameSection extracts function names (subsection 1) for trap backtraces.
+func (m *Module) parseNameSection(body []byte) {
+	r := bytes.NewReader(body)
+	for r.Len() > 0 {
+		id, err := r.ReadByte()
+		if err != nil {
+			return
+		}
+		size, _, err := leb128decode.DecodeUint32(r)
+		if err != nil || uint64(size) > uint64(r.Len()) {
+			return
+		}
+		sub := make([]byte, size)
+		if _, err := io.ReadFull(r, sub); err != nil {
+			return
+		}
+		if id != 1 { // 1 = function names
+			continue
+		}
+		sr := bytes.NewReader(sub)
+		count, _, err := leb128decode.DecodeUint32(sr)
+		if err != nil {
+			return
+		}
+		names := make(map[uint32]string, count)
+		for i := uint32(0); i < count; i++ {
+			idx, _, err := leb128decode.DecodeUint32(sr)
+			if err != nil {
+				return
+			}
+			n, err := types.ReadNameValue(sr)
+			if err != nil {
+				return
+			}
+			names[idx] = n
+		}
+		m.FunctionNames = names
+	}
 }
 
 func (m *Module) readSectionTypes(r *bytes.Reader) error {

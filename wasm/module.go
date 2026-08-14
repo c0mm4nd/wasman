@@ -43,6 +43,9 @@ type Module struct {
 	// DataCountSection holds the value of the bulk-memory data count section,
 	// if present; it must then match the number of data segments.
 	DataCountSection *uint32
+	// FunctionNames maps function indices to their debug names from the
+	// custom "name" section (used in trap backtraces), if present.
+	FunctionNames map[uint32]string
 
 	// index spaces
 	IndexSpace *IndexSpace

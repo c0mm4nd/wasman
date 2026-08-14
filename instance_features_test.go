@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -202,5 +203,43 @@ func TestModuleExports(t *testing.T) {
 	if exps[1].Name != "run" || exps[1].Kind != segments.KindFunction || exps[1].Type == nil ||
 		len(exps[1].Type.InputTypes) != 0 || len(exps[1].Type.ReturnTypes) != 0 {
 		t.Fatalf("bad export[1]: %+v", exps[1])
+	}
+}
+
+// trapModule is (module (func $boom (unreachable)) (func (export "go") (call $boom)))
+// with a custom "name" section naming func 0 "boom".
+var trapModule = []byte{
+	0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+	0x01, 0x04, 0x01, 0x60, 0x00, 0x00, // type () -> ()
+	0x03, 0x03, 0x02, 0x00, 0x00, // funcs: boom, go
+	0x07, 0x06, 0x01, 0x02, 0x67, 0x6f, 0x00, 0x01, // export "go" -> func 1
+	0x0a, 0x0a, 0x02,
+	0x03, 0x00, 0x00, 0x0b, // boom: unreachable
+	0x04, 0x00, 0x10, 0x00, 0x0b, // go: call 0
+	// custom "name" section: subsection 1, func 0 -> "boom"
+	0x00, 0x0e, 0x04, 0x6e, 0x61, 0x6d, 0x65, // "name"
+	0x01, 0x07, 0x01, 0x00, 0x04, 0x62, 0x6f, 0x6f, 0x6d, // funcnames: 0 -> "boom"
+}
+
+func TestTrapBacktrace(t *testing.T) {
+	mod, err := NewModule(config.ModuleConfig{}, bytes.NewReader(trapModule))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err := NewInstance(mod, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = ins.CallExportedFunc("go")
+	if err == nil {
+		t.Fatal("want a trap")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "at boom") || !strings.Contains(msg, "at func[1]") {
+		t.Fatalf("backtrace missing frames: %q", msg)
+	}
+	// the underlying trap survives the decoration
+	if !errors.Is(err, wasm.ErrUnreachable) {
+		t.Fatalf("wrapped error lost its cause: %v", err)
 	}
 }

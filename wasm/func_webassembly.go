@@ -24,6 +24,42 @@ type wasmFunc struct {
 	// owner's module state — its functions, globals, memory and tables — not
 	// the caller's.
 	owner *Instance
+
+	// name is the debug name for trap backtraces (from the custom "name"
+	// section, or a synthesized func[N]).
+	name string
+}
+
+// maxTraceFrames bounds a trap backtrace so deep recursion (e.g. a call-stack
+// exhaustion with 1000+ frames) stays cheap and readable.
+const maxTraceFrames = 16
+
+// trapError decorates a trap with the wasm call frames it unwound through.
+type trapError struct {
+	err    error
+	frames []string
+}
+
+func (t *trapError) Error() string {
+	s := t.err.Error() + "\nwasm stack:"
+	for _, f := range t.frames {
+		s += "\n\tat " + f
+	}
+	return s
+}
+
+func (t *trapError) Unwrap() error { return t.err }
+
+// annotateTrap appends the current frame to err's backtrace (in place when
+// one exists already, so unwinding N frames stays O(N)).
+func annotateTrap(err error, frame string) error {
+	if te, ok := err.(*trapError); ok {
+		if len(te.frames) < maxTraceFrames {
+			te.frames = append(te.frames, frame)
+		}
+		return te
+	}
+	return &trapError{err: err, frames: []string{frame}}
 }
 
 type funcBlock struct {
@@ -77,6 +113,7 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 				if !ok {
 					err = fmt.Errorf("runtime error: %v", v)
 				}
+				err = annotateTrap(err, f.name)
 			}
 		}()
 	}
@@ -110,7 +147,7 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 	// repeated traps on a long-lived instance cannot grow the stack unboundedly
 	if err != nil {
 		ins.OperandStack.Ptr = baseSp
-		return err
+		return annotateTrap(err, f.name)
 	}
 
 	// a successful body must leave its declared results; an invalid body run
