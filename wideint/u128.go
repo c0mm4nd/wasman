@@ -198,18 +198,20 @@ func (a U128) RemS(b U128) U128 {
 	return r
 }
 
+// big conversions go through big-endian bytes so they stay correct on
+// hosts where big.Word is 32 bits (386, arm, wasm).
 func (a U128) big() *big.Int {
-	return new(big.Int).SetBits([]big.Word{big.Word(a.Lo), big.Word(a.Hi)})
+	var b [16]byte
+	binary.BigEndian.PutUint64(b[0:], a.Hi)
+	binary.BigEndian.PutUint64(b[8:], a.Lo)
+	return new(big.Int).SetBytes(b[:])
 }
 
 func u128FromBig(x *big.Int) U128 {
-	var u U128
-	w := x.Bits()
-	if len(w) > 0 {
-		u.Lo = uint64(w[0])
+	var b [16]byte
+	x.FillBytes(b[:])
+	return U128{
+		Hi: binary.BigEndian.Uint64(b[0:]),
+		Lo: binary.BigEndian.Uint64(b[8:]),
 	}
-	if len(w) > 1 {
-		u.Hi = uint64(w[1])
-	}
-	return u
 }

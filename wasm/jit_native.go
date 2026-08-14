@@ -299,7 +299,7 @@ func (ins *Instance) execNativeABI(f *wasmFunc) error {
 	}
 	ns := ins.nativeStack
 	start := ins.nativeTop // above any chain suspended in a host exit
-	if start+cd.FrameSlots >= len(ns) {
+	if start+cd.FrameSlots > len(ns) {
 		return ErrCallStackExhausted
 	}
 	copy(ns[start:start+al], osk.Values[osk.Ptr-al+1:osk.Ptr+1])

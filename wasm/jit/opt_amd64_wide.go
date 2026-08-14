@@ -167,7 +167,11 @@ func (a *Asm) rmwMem(op byte, reg int, off int32) {
 // free). R8/R10 borrow as accumulators and are re-derived afterwards.
 func (g *optGen) emitMul128(ins *irInstr) {
 	a := &g.a
-	g.wideChk(ins.a, 16, rDX)               // dst: bounds only (rDX reused below)
+	park := int32((g.linkSlot() + 1) * 8)
+	// the destination index must be derived while R8 is intact (its vreg
+	// may live in the locals home): park it in the frame
+	g.wideChk(ins.a, 16, rDX)
+	a.rmwMem(0x89, rDX, park)
 	g.wideChk(ins.b, 16, rCX)               // a
 	g.wideChk(ins.c, 16, rR11)              // b
 	a.memSIBd(true, 0x8B, rAX, rR9, rCX, 0) // a0
@@ -180,8 +184,7 @@ func (g *optGen) emitMul128(ins *irInstr) {
 	a.memSIBd(true, 0x8B, rAX, rR9, rCX, 8) // a1
 	a.imulMem(rR11, 0)                      // * b0 (low)
 	a.BinRR(true, 0x01, rR8, rAX)
-	p := g.read(ins.a, rAX) // derive the destination
-	a.MovRR32(rDX, p)
+	a.modDisp32(true, 0x8B, rDX, rSI, park) // parked destination index
 	a.memSIBd(true, 0x89, rR10, rR9, rDX, 0)
 	a.memSIBd(true, 0x89, rR8, rR9, rDX, 8)
 	// restore the borrowed derived registers

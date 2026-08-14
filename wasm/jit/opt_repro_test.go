@@ -112,3 +112,111 @@ func TestNativeSelfCall(t *testing.T) {
 		t.Fatalf("got %d, want 0", buf[fb])
 	}
 }
+
+// TestWideMulSpilledDst reproduces the reviewed defect: when the
+// destination-pointer local is memory-homed (register pressure), the
+// multiply intrinsics must not reload it through the borrowed locals base.
+func TestWideMulSpilledDst(t *testing.T) {
+	// 16 params; params 3..15 stay live across the mul and are summed
+	// afterwards together with param 0 (the destination pointer), forcing
+	// long ranges that exceed both register pools.
+	var code []ins
+	code = append(code,
+		ins{0x20, 0, 1}, // dst ptr
+		ins{0x20, 1, 1}, // a ptr
+		ins{0x20, 2, 1}, // b ptr
+		ins{0x10, 0, 1}, // call 0 = u128.mul (tagged)
+	)
+	for i := uint64(1); i < 16; i++ {
+		code = append(code, ins{0x20, i, 1})
+		if i > 1 {
+			code = append(code, ins{0x7c, 0, 0}) // i64.add
+		}
+	}
+	// the destination pointer's local is used LAST: its interval reaches
+	// farthest, so linear scan evicts it to its memory home under pressure
+	code = append(code, ins{0x20, 0, 1}, ins{0x7c, 0, 0}, ins{0x0b, 0, 0})
+	fd := assemble(code, 16, 16, 1)
+	fd.FuncSigs = []FuncSig{{In: 3, Out: 0, Locals: 3}}
+	fd.WideOps = []uint16{WideOpID(WideMul, false)}
+	cd, err := CompileOpt(fd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer Free(cd.Code)
+
+	mem := make([]uint64, 32) // 256 bytes of linear memory
+	U := func(lo, hi uint64, at int) {
+		mem[at/8] = lo
+		mem[at/8+1] = hi
+	}
+	U(3, 5, 16)  // a at byte 16
+	U(7, 11, 32) // b at byte 32
+
+	locals := make([]uint64, 16)
+	locals[0], locals[1], locals[2] = 0, 16, 32 // dst at byte 0
+	for i := 3; i < 16; i++ {
+		locals[i] = uint64(i)
+	}
+	buf := make([]uint64, 16+cd.FrameSlots+64)
+	copy(buf, locals)
+	base := uintptr(unsafe.Pointer(&buf[0]))
+	var ctx Ctx
+	ctx.Stack = base + uintptr(16*8)
+	ctx.StackLimit = base + uintptr(len(buf)*8)
+	ctx.Mem = uintptr(unsafe.Pointer(&mem[0]))
+	ctx.MemLen = 256
+	if st := Call(cd.Code, &ctx); st != StatusOK {
+		t.Fatalf("status %d", st)
+	}
+	// 3*7 = 21 low; hi = umulh(3,7)=0 + 3*11 + 5*7 = 68
+	if mem[0] != 21 || mem[1] != 68 {
+		t.Fatalf("mul result {%d %d}, want {21 68}", mem[0], mem[1])
+	}
+}
+
+// TestWideMul256SpilledDst is the 256-bit variant of the same defect.
+func TestWideMul256SpilledDst(t *testing.T) {
+	var code []ins
+	code = append(code,
+		ins{0x20, 0, 1}, ins{0x20, 1, 1}, ins{0x20, 2, 1}, ins{0x10, 0, 1})
+	for i := uint64(1); i < 16; i++ {
+		code = append(code, ins{0x20, i, 1})
+		if i > 1 {
+			code = append(code, ins{0x7c, 0, 0})
+		}
+	}
+	code = append(code, ins{0x20, 0, 1}, ins{0x7c, 0, 0}, ins{0x0b, 0, 0})
+	fd := assemble(code, 16, 16, 1)
+	fd.FuncSigs = []FuncSig{{In: 3, Out: 0, Locals: 3}}
+	fd.WideOps = []uint16{WideOpID(WideMul, true)}
+	cd, err := CompileOpt(fd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer Free(cd.Code)
+
+	mem := make([]uint64, 32)
+	mem[8], mem[9], mem[10], mem[11] = 3, 5, 0, 0    // a at byte 64
+	mem[16], mem[17], mem[18], mem[19] = 7, 11, 0, 0 // b at byte 128
+	locals := make([]uint64, 16)
+	locals[0], locals[1], locals[2] = 0, 64, 128
+	for i := 3; i < 16; i++ {
+		locals[i] = uint64(i)
+	}
+	buf := make([]uint64, 16+cd.FrameSlots+64)
+	copy(buf, locals)
+	base := uintptr(unsafe.Pointer(&buf[0]))
+	var ctx Ctx
+	ctx.Stack = base + uintptr(16*8)
+	ctx.StackLimit = base + uintptr(len(buf)*8)
+	ctx.Mem = uintptr(unsafe.Pointer(&mem[0]))
+	ctx.MemLen = 256
+	if st := Call(cd.Code, &ctx); st != StatusOK {
+		t.Fatalf("status %d", st)
+	}
+	// (3 + 5*2^64) * (7 + 11*2^64) = 21, 33+35=68, 55, 0
+	if mem[0] != 21 || mem[1] != 68 || mem[2] != 55 || mem[3] != 0 {
+		t.Fatalf("mul256 result %v, want [21 68 55 0]", mem[0:4])
+	}
+}

@@ -142,7 +142,11 @@ func (g *optGen) emitWide(ins *irInstr) {
 // an accumulator and is re-derived afterwards.
 func (g *optGen) emitMul128(ins *irInstr) {
 	a := &g.a
-	g.wideEff(ins.a, 16, optScratch2) // dst: bounds only, reg reused below
+	park := uint32((g.linkSlot() + 1) * 8)
+	// the destination address must be derived while every base register is
+	// intact (its vreg may live in the locals home): park it in the frame
+	g.wideEff(ins.a, 16, optScratch2)
+	a.StrImm(optScratch2, RegStack, park)
 	g.wideEff(ins.b, 16, 17)
 	g.wideEff(ins.c, 16, wideScratch3)
 	a.LdrImm(RegT0, 17, 0)                                                            // a0
@@ -153,9 +157,7 @@ func (g *optGen) emitMul128(ins *irInstr) {
 	a.word(0x9BC07C00 | RegT1<<16 | RegT0<<5 | wideScratch3)                          // UMULH r2
 	a.word(0x9B000000 | 17<<16 | wideScratch3<<10 | RegT0<<5 | wideScratch3)          // MADD += a0*b1
 	a.word(0x9B000000 | RegT1<<16 | wideScratch3<<10 | optScratch2<<5 | wideScratch3) // MADD += a1*b0
-	p := g.read(ins.a, RegT0)                                                         // re-derive the destination
-	a.Uxtw(RegT0, p)
-	a.AddRegX(optScratch2, RegMem, RegT0)
+	a.LdrImm(optScratch2, RegStack, park)                                             // parked destination address
 	a.StrImm(RegLocals, optScratch2, 0)
 	a.StrImm(wideScratch3, optScratch2, 8)
 	a.SubImm(RegLocals, RegStack, uint32(g.fn.nlocals*8)) // restore R3
@@ -168,7 +170,9 @@ func (g *optGen) emitMul128(ins *irInstr) {
 func (g *optGen) emitMul256(ins *irInstr) {
 	a := &g.a
 	tmp := uint32((g.linkSlot() + 1) * 8)
-	g.wideEff(ins.a, 32, optScratch2) // dst: bounds only
+	park := tmp + 32
+	g.wideEff(ins.a, 32, optScratch2)
+	a.StrImm(optScratch2, RegStack, park) // park while the bases are intact
 	g.wideEff(ins.b, 32, 17)
 	g.wideEff(ins.c, 32, wideScratch3)
 	// acc0=R3, acc1=R5, acc2=R4
@@ -197,10 +201,8 @@ func (g *optGen) emitMul256(ins *irInstr) {
 			a.MovImm64(RegMem, 0)
 		}
 	}
-	g.restoreDerived() // R4/R5 back before deriving the destination
-	p := g.read(ins.a, RegT0)
-	a.Uxtw(RegT0, p)
-	a.AddRegX(optScratch2, RegMem, RegT0)
+	g.restoreDerived()
+	a.LdrImm(optScratch2, RegStack, park) // parked destination address
 	for k := 0; k < 4; k++ {
 		a.LdrImm(RegT0, RegStack, tmp+uint32(k*8))
 		a.StrImm(RegT0, optScratch2, uint32(k*8))

@@ -39,10 +39,18 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 	}
 	g := &optGen{fn: fn, fd: fd, al: al}
 	for _, i2 := range fn.code {
-		if i2.op == irWide {
-			if k, w256 := WideOpKind(uint16(i2.sub)); k == WideMul && w256 {
-				g.frameExtra = 4
-				break
+		if i2.op != irWide {
+			continue
+		}
+		if k, w256 := WideOpKind(uint16(i2.sub)); k == WideMul {
+			// multiplication parks the destination address (and, for the
+			// 256-bit form, its column accumulators) in frame scratch slots
+			need := 1
+			if w256 {
+				need = 4
+			}
+			if need > g.frameExtra {
+				g.frameExtra = need
 			}
 		}
 	}
