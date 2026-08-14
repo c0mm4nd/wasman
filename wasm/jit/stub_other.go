@@ -37,3 +37,7 @@ const (
 	StatusDivZero     = 3
 	StatusIntOverflow = 4
 )
+
+// Compile is unavailable on this platform: everything falls back to the
+// interpreter.
+func Compile(fd *FuncDesc) (*Compiled, error) { return nil, errUnsupported }

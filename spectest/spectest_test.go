@@ -380,6 +380,10 @@ func loadModule(path string) (*wasman.Module, error) {
 	return wasman.NewModule(config.ModuleConfig{
 		Recover:        true,
 		CallDepthLimit: &callDepthLimit,
+		// WASMAN_JIT=1 runs the whole suite with native compilation enabled,
+		// exercising every JIT-eligible function body against the same 19k+
+		// assertions (ineligible bodies fall back to the interpreter).
+		EnableJIT: os.Getenv("WASMAN_JIT") == "1",
 	}, f)
 }
 

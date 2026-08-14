@@ -40,6 +40,15 @@ type ModuleConfig struct {
 	// hosts — useful for consensus-critical embedding. Bit-preserving ops
 	// (const, load, reinterpret, abs/neg/copysign) are unaffected.
 	CanonicalizeNaNs bool
+	// EnableJIT compiles eligible function bodies to native code at
+	// instantiation time (currently arm64; a template JIT translating each
+	// opcode to a fixed native sequence). Functions using constructs outside
+	// the compiled subset — calls, floats, globals — fall back to the
+	// interpreter transparently, as does the whole instance on unsupported
+	// platforms. JIT-compiled bodies do not charge tolls (a TollStation
+	// disables the JIT path) and cannot be interrupted mid-loop by
+	// Interrupt/context cancellation until they return.
+	EnableJIT bool
 	// SkipValidation disables the full static validation (type checking etc.)
 	// that NewModule performs after decoding. Only use it for trusted modules
 	// that a strict validator would reject; invalid code may then trap, return

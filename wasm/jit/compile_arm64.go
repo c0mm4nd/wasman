@@ -100,7 +100,14 @@ func (c *compiler) run() error {
 		imm := uint64(0)
 		if opHasImm[op] {
 			imm = c.fd.Imms[pc]
-			pc = int(c.fd.PcEnd[pc])
+		}
+		// advance past immediates with the engine's pre-decoded table; an
+		// opcode with no PcEnd entry that is not known to be immediate-free
+		// cannot be skipped safely (e.g. inside unreachable code), so bail
+		if e := c.fd.PcEnd[pc]; e != 0 {
+			pc = int(e)
+		} else if !opSingleByte[op] {
+			return fmt.Errorf("%w: cannot skip opcode %#x", ErrUnsupported, op)
 		}
 
 		// unreachable code: skip everything but the control skeleton
@@ -127,19 +134,46 @@ func (c *compiler) run() error {
 			return err
 		}
 		if len(c.ctl) == 0 { // the implicit block closed: function end
-			c.a.MovImm64(RegSp, uint64(c.h))
-			c.a.Epilogue(StatusOK)
-			if len(c.oob) > 0 { // shared out-of-bounds trap stub
-				for _, at := range c.oob {
-					c.a.PatchBcond(at, condHI)
-				}
-				c.a.Movz(RegCtx, StatusMemOOB, 0)
-				c.a.Ret()
-			}
-			return nil
+			return c.finish()
 		}
 	}
+	if len(c.ctl) == 1 {
+		// the engine strips the body's final `end`; falling off the end of
+		// the byte stream closes the implicit block
+		if err := c.emit(0x0b, 0); err != nil {
+			return err
+		}
+		return c.finish()
+	}
 	return fmt.Errorf("%w: body ended with %d open blocks", ErrUnsupported, len(c.ctl))
+}
+
+// finish emits the success epilogue and the shared out-of-bounds trap stub.
+func (c *compiler) finish() error {
+	c.a.MovImm64(RegSp, uint64(c.h))
+	c.a.Epilogue(StatusOK)
+	if len(c.oob) > 0 {
+		for _, at := range c.oob {
+			c.a.PatchBcond(at, condHI)
+		}
+		c.a.Movz(RegCtx, StatusMemOOB, 0)
+		c.a.Ret()
+	}
+	return nil
+}
+
+// opSingleByte marks opcodes known to carry no immediates, so unreachable
+// code containing them can be skipped without a PcEnd entry.
+var opSingleByte = buildOpSingleByte()
+
+func buildOpSingleByte() (t [256]bool) {
+	for _, op := range []byte{0x00, 0x01, 0x05, 0x0b, 0x0f, 0x1a, 0x1b} {
+		t[op] = true
+	}
+	for op := 0x45; op <= 0xc4; op++ { // numeric, comparison and conversion ops
+		t[op] = true
+	}
+	return
 }
 
 // opHasImm marks opcodes whose pre-decoded immediate sits in Imms/PcEnd.

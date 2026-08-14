@@ -6,6 +6,7 @@ import (
 
 	"github.com/c0mm4nd/wasman/stacks"
 	"github.com/c0mm4nd/wasman/types"
+	"github.com/c0mm4nd/wasman/wasm/jit"
 )
 
 // ErrCallStackExhausted is returned when the configured
@@ -42,6 +43,11 @@ type wasmFunc struct {
 	// loop's first inner instruction, keeping the loop label in place instead
 	// of popping it and re-executing the loop opcode every iteration.
 	brFast []uint32
+
+	// compiled is the native translation of the body (ModuleConfig.EnableJIT);
+	// nil when the JIT is off, unsupported here, or the body uses constructs
+	// outside the compiled subset.
+	compiled *jit.Compiled
 }
 
 // brPlan is a pre-decoded br_table: its targets and default label.
@@ -149,6 +155,21 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 				err = annotateTrap(err, f.name)
 			}
 		}()
+	}
+
+	// JIT-compiled bodies run natively against the operand stack and locals;
+	// tolls cannot be charged per instruction there, so a TollStation keeps
+	// the interpreter path.
+	if cd := f.compiled; cd != nil && ins.Module.ModuleConfig.TollStation == nil {
+		err = ins.execNative(cd, locals, baseSp)
+		ins.FrameStack.Ptr = prevPtr
+		ins.Active = prev
+		ins.releaseFrame(frame)
+		if err != nil {
+			ins.OperandStack.Ptr = baseSp
+			return annotateTrap(err, f.name)
+		}
+		return nil
 	}
 
 	frame.Func = f

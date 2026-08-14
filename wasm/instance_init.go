@@ -254,6 +254,9 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 		}
 
 		f.Blocks = brs
+		if ins.ModuleConfig.EnableJIT {
+			ins.compileNative(f)
+		}
 		ins.IndexSpace.Functions = append(ins.IndexSpace.Functions, f)
 	}
 
