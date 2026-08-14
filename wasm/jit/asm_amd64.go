@@ -348,3 +348,10 @@ func (a *Asm) movqMemX(x, base int, off int32) {
 	a.bytes(0x0F, 0xD6, 0x80|byte(x&7)<<3|byte(base&7))
 	a.u32(uint32(off))
 }
+
+// memSIBd emits op with a [base + idx + disp32] operand.
+func (a *Asm) memSIBd(wide bool, op byte, reg, base, idx int, disp int32) {
+	a.bytes(rex(wide, reg, idx, base), op, 0x84|byte(reg&7)<<3,
+		byte(idx&7)<<3|byte(base&7))
+	a.u32(uint32(disp))
+}

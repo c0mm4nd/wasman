@@ -48,6 +48,15 @@ func (ins *Instance) compileNativeAll() {
 	for i, t := range ins.TypeSection {
 		typeSigIDs[i] = ins.sigID(sigKey(t))
 	}
+	var wideOps []uint16
+	for i, fn := range ins.IndexSpace.Functions {
+		if hf, ok := fn.(*HostFunc); ok && hf.wideOp != 0 {
+			if wideOps == nil {
+				wideOps = make([]uint16, len(ins.IndexSpace.Functions))
+			}
+			wideOps[i] = hf.wideOp
+		}
+	}
 	type job struct {
 		wf *wasmFunc
 		fd *jit.FuncDesc
@@ -59,6 +68,7 @@ func (ins *Instance) compileNativeAll() {
 			fd.SelfIdx = uint32(i)
 			fd.DepthLimit = depthLimit
 			fd.TypeSigIDs = typeSigIDs
+			fd.WideOps = wideOps
 			jobs = append(jobs, job{wf, fd})
 		}
 	}

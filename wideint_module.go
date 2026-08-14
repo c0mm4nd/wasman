@@ -3,6 +3,7 @@ package wasman
 import (
 	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/wasm"
+	"github.com/c0mm4nd/wasman/wasm/jit"
 	"github.com/c0mm4nd/wasman/wideint"
 )
 
@@ -30,6 +31,16 @@ func wideSpan(ins *Instance, ptr uint32, n int) ([]byte, error) {
 
 func wideIntModules() map[string]*Module {
 	l := NewLinker(config.LinkerConfig{})
+
+	// tag inlinable operations so the optimizing tier can compile them to
+	// native carry chains instead of host calls
+	tag := func(modName, funcName string, op int, wide256 bool) {
+		mod := l.Modules[modName]
+		idx := mod.ExportSection[funcName].Desc.Index
+		if hf, ok := mod.IndexSpace.Functions[idx].(*wasm.HostFunc); ok {
+			hf.SetWideOp(jit.WideOpID(op, wide256))
+		}
+	}
 
 	bin128 := func(name string, op func(a, b wideint.U128) wideint.U128) {
 		_ = l.DefineAdvancedFunc("u128", name, func(ins *Instance) interface{} {
@@ -235,6 +246,19 @@ func wideIntModules() map[string]*Module {
 			return 0, nil
 		}
 	})
+
+	for i, wide := range []bool{false, true} {
+		ns := [2]string{"u128", "u256"}[i]
+		tag(ns, "add", jit.WideAdd, wide)
+		tag(ns, "sub", jit.WideSub, wide)
+		tag(ns, "and", jit.WideAnd, wide)
+		tag(ns, "or", jit.WideOr, wide)
+		tag(ns, "xor", jit.WideXor, wide)
+		tag(ns, "not", jit.WideNot, wide)
+		tag(ns, "iszero", jit.WideIsZero, wide)
+		tag(ns, "cmp_u", jit.WideCmpU, wide)
+		tag(ns, "cmp_s", jit.WideCmpS, wide)
+	}
 
 	return l.Modules
 }

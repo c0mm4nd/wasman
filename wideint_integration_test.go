@@ -162,3 +162,23 @@ func TestWideIntOps(t *testing.T) {
 		}
 	}
 }
+
+// BenchmarkWideAdd256 measures one u256 add through wasm; the baseline
+// tier keeps the host-call path, the optimizing tier inlines it.
+func BenchmarkWideAdd256(b *testing.B) {
+	raw, _ := os.ReadFile("testdata/wideint.wasm")
+	mod, err := wasman.NewModule(config.ModuleConfig{EnableWideInt: true, EnableJIT: true}, bytes.NewReader(raw))
+	if err != nil {
+		b.Fatal(err)
+	}
+	ins, err := wasman.NewInstance(mod, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, _, err := ins.CallExportedFunc("bench_add256", 1_000_000); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

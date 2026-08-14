@@ -19,7 +19,15 @@ type HostFunc struct {
 
 	// function is the generated func from Generator, should be set at the time of wasm instance creation
 	function interface{}
+
+	// wideOp marks a built-in wide-integer operation the optimizing tier
+	// may inline as native code instead of a host call (0: none).
+	wideOp uint16
 }
+
+// SetWideOp marks this host function as an inlinable wide-integer
+// operation (used by the built-in u128/u256 modules).
+func (f *HostFunc) SetWideOp(id uint16) { f.wideOp = id }
 
 func (f *HostFunc) getType() *types.FuncType {
 	return f.Signature

@@ -13,7 +13,7 @@ import (
 // operands and serve the fixed-register instructions (shifts via CL,
 // division via AX:DX).
 
-const optNumRegs = 5
+const optNumRegs = 4
 
 // optFloatSupported gates frontend acceptance of float opcodes.
 const optFloatSupported = true
@@ -21,7 +21,7 @@ const optFloatSupported = true
 // optNumFRegs sizes the float pool: XMM3-XMM7 (XMM0-2 stage).
 const optNumFRegs = 5
 
-var optPool = [optNumRegs]int{3, 11, 12, 13, 15} // BX, R11, R12, R13, R15
+var optPool = [optNumRegs]int{3, 12, 13, 15} // BX, R12, R13, R15 (R11: wide scratch)
 
 // CompileOpt lowers, allocates and generates native code for fd.
 func CompileOpt(fd *FuncDesc) (*Compiled, error) {
@@ -470,6 +470,8 @@ func (g *optGen) gen() error {
 			g.framePrologue(false)
 		case irCallNative:
 			g.emitNativeCall(ins)
+		case irWide:
+			g.emitWide(ins)
 		case irGlobalGet: // cells are *uint64: double indirection
 			a.LdCtx(rDX, 48)
 			a.modDisp32(true, 0x8B, rDX, rDX, int32(ins.imm*8))

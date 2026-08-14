@@ -35,6 +35,33 @@ type FuncDesc struct {
 	// TypeSigIDs maps type-section indices to instance-wide structural
 	// signature ids (the call_indirect fast path compares them natively).
 	TypeSigIDs []uint32
+	// WideOps marks index-space entries that are built-in wide-integer
+	// operations: calls to them inline as native carry chains instead of
+	// host exits (0: not a wide op).
+	WideOps []uint16
+}
+
+// Wide-integer intrinsic ids: 1 + op + width*16 (width 0: u128, 1: u256).
+const (
+	WideAdd = iota
+	WideSub
+	WideAnd
+	WideOr
+	WideXor
+	WideNot
+	WideIsZero
+	WideCmpU
+	WideCmpS
+	wideOpCount
+)
+
+// WideOpID builds an intrinsic id; Wide256 selects the 256-bit width.
+func WideOpID(op int, wide256 bool) uint16 {
+	id := uint16(1 + op)
+	if wide256 {
+		id += 16
+	}
+	return id
 }
 
 // FuncSig is a function arity (parameter and result slot counts) plus the

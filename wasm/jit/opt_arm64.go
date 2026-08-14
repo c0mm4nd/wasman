@@ -30,6 +30,13 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 	fn := &fe.fn
 	fn.peephole()
 	al := fn.allocate2(optNumRegs, optNumFRegs)
+	if os.Getenv("WASMAN_WIDE_DEBUG") == "1" {
+		for _, i2 := range fn.code {
+			if i2.op == irWide {
+				println("IRWIDE id", int(i2.sub))
+			}
+		}
+	}
 	if os.Getenv("WASMAN_OPT_DEBUG") == "1" {
 		for i, ins := range fn.code {
 			fmt.Printf("IR%02d op=%d sub=%#x dst=%d a=%d b=%d imm=%d\n", i, ins.op, ins.sub, ins.dst, ins.a, ins.b, ins.imm)
@@ -350,6 +357,8 @@ func (g *optGen) gen() error {
 			g.framePrologue(false)
 		case irCallNative:
 			g.emitNativeCall(ins)
+		case irWide:
+			g.emitWide(ins)
 		case irGlobalGet: // cells are *uint64: double indirection
 			a.LdrImm(optScratch2, RegCtx, 48)
 			a.LdrImm(optScratch2, optScratch2, uint32(ins.imm*8))

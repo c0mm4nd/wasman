@@ -68,4 +68,21 @@
   (func (export "u256_cmp_u") (param i32 i32) (result i32) (call $u256_cmp_u (local.get 0) (local.get 1)))
   (func (export "u256_cmp_s") (param i32 i32) (result i32) (call $u256_cmp_s (local.get 0) (local.get 1)))
   (func (export "u256_iszero") (param i32) (result i32) (call $u256_iszero (local.get 0)))
+  (func (export "bench_add256") (param $n i32)
+    (block $done
+      (loop $l
+        (br_if $done (i32.eqz (local.get $n)))
+        (call $u256_add (i32.const 0) (i32.const 64) (i32.const 96))
+        (local.set $n (i32.sub (local.get $n) (i32.const 1)))
+        (br $l))))
+  (func (export "bench_cmp128") (param $n i32) (result i32)
+    (local $acc i32)
+    (block $done
+      (loop $l
+        (br_if $done (i32.eqz (local.get $n)))
+        (local.set $acc (i32.add (local.get $acc)
+          (call $u128_cmp_u (i32.const 16) (i32.const 32))))
+        (local.set $n (i32.sub (local.get $n) (i32.const 1)))
+        (br $l)))
+    (local.get $acc))
 )

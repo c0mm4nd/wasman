@@ -40,6 +40,7 @@ const (
 	irRet                    // return; results already canonicalized
 	irGlobalGet              // dst = *globals[imm]
 	irGlobalSet              // *globals[imm] = a
+	irWide                   // wide-integer intrinsic; sub = WideOpID
 )
 
 type irInstr struct {
@@ -546,6 +547,35 @@ func (f *irFrontend) lowerOp(op byte, imm uint64) error {
 			}
 			site.FuncIdx = uint32(imm)
 			sig = f.fd.FuncSigs[imm]
+			// built-in wide-integer targets inline as native carry chains
+			if f.fd.WideOps != nil && int(imm) < len(f.fd.WideOps) && f.fd.WideOps[imm] != 0 {
+				wid := f.fd.WideOps[imm]
+				kind := int(wid-1) & 0xf
+				ins := irInstr{op: irWide, sub: byte(wid), dst: -1, a: -1, b: -1, c: -1}
+				switch kind {
+				case WideAdd, WideSub, WideAnd, WideOr, WideXor: // (dst, a, b)
+					pb, pa, pd := f.pop(), f.pop(), f.pop()
+					ins.a, ins.b, ins.c = pd.v, pa.v, pb.v
+					f.emit(ins)
+				case WideNot: // (dst, a)
+					pa, pd := f.pop(), f.pop()
+					ins.a, ins.b = pd.v, pa.v
+					f.emit(ins)
+				case WideCmpU, WideCmpS: // (a, b) -> i32
+					pb, pa := f.pop(), f.pop()
+					t := f.newTemp()
+					ins.a, ins.b, ins.dst = pa.v, pb.v, t
+					f.emit(ins)
+					f.push(t, -1)
+				case WideIsZero: // (a) -> i32
+					pa := f.pop()
+					t := f.newTemp()
+					ins.a, ins.dst = pa.v, t
+					f.emit(ins)
+					f.push(t, -1)
+				}
+				return nil
+			}
 			if f.fd.NativeFuncs != nil && f.fd.NativeFuncs[imm] && imm < 4096 {
 				f.canonicalize()
 				sp := len(f.stack)
