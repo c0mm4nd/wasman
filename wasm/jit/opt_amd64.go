@@ -15,8 +15,11 @@ import (
 
 const optNumRegs = 5
 
-// optFloatSupported: the amd64 float register file port is pending.
-const optFloatSupported = false
+// optFloatSupported gates frontend acceptance of float opcodes.
+const optFloatSupported = true
+
+// optNumFRegs sizes the float pool: XMM3-XMM7 (XMM0-2 stage).
+const optNumFRegs = 5
 
 var optPool = [optNumRegs]int{3, 11, 12, 13, 15} // BX, R11, R12, R13, R15
 
@@ -28,7 +31,7 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 	}
 	fn := &fe.fn
 	fn.peephole()
-	al := fn.allocate(optNumRegs)
+	al := fn.allocate2(optNumRegs, optNumFRegs)
 	if os.Getenv("WASMAN_OPT_DEBUG") == "1" {
 		for i, ins := range fn.code {
 			fmt.Printf("IR%02d op=%d sub=%#x dst=%d a=%d b=%d imm=%d\n", i, ins.op, ins.sub, ins.dst, ins.a, ins.b, ins.imm)
@@ -92,10 +95,24 @@ func (g *optGen) homeAddr(v int) (int, int32) {
 	}
 }
 
-// read makes v available in a register, staging from memory into scratch.
+// vlocOf fetches the full location record.
+func (g *optGen) vlocOf(v int) (vloc, bool) {
+	ci, ok := g.al.compact[v]
+	if !ok {
+		return vloc{reg: -1}, false
+	}
+	return g.al.loc[ci], true
+}
+
+// read makes v available in an integer register, staging from memory or
+// bridging from the float file.
 func (g *optGen) read(v int, scratch int) int {
-	if r, ok := g.loc(v); ok && r >= 0 {
-		return optPool[r]
+	if l, ok := g.vlocOf(v); ok && l.reg >= 0 {
+		if l.freg {
+			g.a.MovqRX(scratch, 3+int(l.reg))
+			return scratch
+		}
+		return optPool[l.reg]
 	}
 	base, off := g.homeAddr(v)
 	g.a.modDisp32(true, 0x8B, scratch, base, off)
@@ -103,11 +120,42 @@ func (g *optGen) read(v int, scratch int) int {
 }
 
 func (g *optGen) dst(v int, scratch int) (int, func()) {
-	if r, ok := g.loc(v); ok && r >= 0 {
-		return optPool[r], func() {}
+	if l, ok := g.vlocOf(v); ok && l.reg >= 0 {
+		if l.freg {
+			xr := 3 + int(l.reg)
+			return scratch, func() { g.a.MovqXR(xr, scratch) }
+		}
+		return optPool[l.reg], func() {}
 	}
 	base, off := g.homeAddr(v)
 	return scratch, func() { g.a.modDisp32(true, 0x89, scratch, base, off) }
+}
+
+// readF makes v available in a float register (XMM0/XMM1 stage).
+func (g *optGen) readF(v int, xscratch int) int {
+	if l, ok := g.vlocOf(v); ok && l.reg >= 0 {
+		if l.freg {
+			return 3 + int(l.reg)
+		}
+		g.a.MovqXR(xscratch, optPool[l.reg])
+		return xscratch
+	}
+	base, off := g.homeAddr(v)
+	g.a.movqXMem(xscratch, base, off)
+	return xscratch
+}
+
+// dstF returns the float register to compute v into plus its commit.
+func (g *optGen) dstF(v int, xscratch int) (int, func()) {
+	if l, ok := g.vlocOf(v); ok && l.reg >= 0 {
+		if l.freg {
+			return 3 + int(l.reg), func() {}
+		}
+		gr := optPool[l.reg]
+		return xscratch, func() { g.a.MovqRX(gr, xscratch) }
+	}
+	base, off := g.homeAddr(v)
+	return xscratch, func() { g.a.movqMemX(xscratch, base, off) }
 }
 
 // linkSlot is the frame slot holding the saved software link register.
@@ -289,8 +337,12 @@ func (g *optGen) gen() error {
 
 	g.framePrologue(true)
 	for j := 0; j < fn.nlocals; j++ {
-		if r, ok := g.loc(j); ok && r >= 0 {
-			a.modDisp32(true, 0x8B, optPool[r], rR8, int32(j*8))
+		if l, ok := g.vlocOf(j); ok && l.reg >= 0 {
+			if l.freg {
+				a.movqXMem(3+int(l.reg), rR8, int32(j*8))
+			} else {
+				a.modDisp32(true, 0x8B, optPool[l.reg], rR8, int32(j*8))
+			}
 		}
 	}
 
@@ -314,6 +366,12 @@ func (g *optGen) gen() error {
 			a.MovImm64(d, ins.imm)
 			commit()
 		case irBin:
+			if isFloatBinOp(ins.sub) {
+				if err := g.emitFBin(ins, idx); err != nil {
+					return err
+				}
+				break
+			}
 			if isCmpOp(ins.sub) && g.branchFeeds(fn, idx, ins.dst) {
 				n := g.read(ins.a, rAX)
 				m := g.read(ins.b, rCX)
@@ -335,6 +393,12 @@ func (g *optGen) gen() error {
 				return err
 			}
 		case irUn:
+			if isFloatUnOp(ins.sub) {
+				if err := g.emitFUn(ins); err != nil {
+					return err
+				}
+				break
+			}
 			if (ins.sub == 0x45 || ins.sub == 0x50) && g.branchFeeds(fn, idx, ins.dst) {
 				r := g.read(ins.a, rAX)
 				g.setPend(ins.dst, 'z', 0, r, ins.sub == 0x50)

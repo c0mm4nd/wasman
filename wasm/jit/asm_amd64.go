@@ -329,3 +329,22 @@ func (a *Asm) LeaScaled(dst, base, idx int) {
 	a.bytes(rex(true, dst, idx, base), 0x8D, 0x04|byte(dst&7)<<3,
 		3<<6|byte(idx&7)<<3|byte(base&7))
 }
+
+// movqXMem / movqMemX move 64-bit patterns between memory and xmm.
+func (a *Asm) movqXMem(x, base int, off int32) {
+	a.bytes(0xF3)
+	if x >= 8 || base >= 8 {
+		a.bytes(rex(false, x, 0, base))
+	}
+	a.bytes(0x0F, 0x7E, 0x80|byte(x&7)<<3|byte(base&7))
+	a.u32(uint32(off))
+}
+
+func (a *Asm) movqMemX(x, base int, off int32) {
+	a.bytes(0x66)
+	if x >= 8 || base >= 8 {
+		a.bytes(rex(false, x, 0, base))
+	}
+	a.bytes(0x0F, 0xD6, 0x80|byte(x&7)<<3|byte(base&7))
+	a.u32(uint32(off))
+}
