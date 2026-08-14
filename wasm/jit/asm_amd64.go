@@ -307,3 +307,19 @@ func (a *Asm) AndImm32(w bool, reg int, v uint32) {
 // AndByteAL / OrByteAL combine AL with CL (float eq/ne parity fixups).
 func (a *Asm) AndByteAL() { a.bytes(0x20, 0xC8) }
 func (a *Asm) OrByteAL()  { a.bytes(0x08, 0xC8) }
+
+// PatchJmpTo / PatchJccTo rewrite a placeholder's rel32 toward an absolute
+// code offset (used by the optimizing tier's IR-indexed patches).
+func (a *Asm) PatchJmpTo(at, target int) {
+	binary.LittleEndian.PutUint32(a.buf[at+1:], uint32(int32(target-(at+5))))
+}
+
+func (a *Asm) PatchJccTo(at, target int) {
+	binary.LittleEndian.PutUint32(a.buf[at+2:], uint32(int32(target-(at+6))))
+}
+
+// ArithImm32 emits an 0x81-family op (sub 0 add, 5 sub, 7 cmp) reg, imm32.
+func (a *Asm) ArithImm32(w bool, sub byte, reg int, v uint32) {
+	a.bytes(rex(w, 0, 0, reg), 0x81, 0xC0|sub<<3|byte(reg&7))
+	a.u32(v)
+}
