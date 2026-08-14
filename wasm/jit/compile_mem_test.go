@@ -9,7 +9,7 @@ import (
 
 func runWithMem(t *testing.T, fd *FuncDesc, locals, mem []uint64, memBytes int) ([]uint64, uint32) {
 	t.Helper()
-	cd, err := Compile(fd)
+	cd, err := CompileBaseline(fd)
 	if err != nil {
 		t.Fatal(err)
 	}

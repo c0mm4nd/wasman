@@ -46,6 +46,9 @@ const (
 // CallAt is unavailable on this platform.
 func CallAt(code []byte, off int, ctx *Ctx) uint32 { return ^uint32(0) }
 
-// Compile is unavailable on this platform: everything falls back to the
-// interpreter.
-func Compile(fd *FuncDesc) (*Compiled, error) { return nil, errUnsupported }
+// CompileBaseline is unavailable on this platform: everything falls back
+// to the interpreter.
+func CompileBaseline(fd *FuncDesc) (*Compiled, error) { return nil, errUnsupported }
+
+// CompileOpt is unavailable on this platform.
+func CompileOpt(fd *FuncDesc) (*Compiled, error) { return nil, errUnsupported }

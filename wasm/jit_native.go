@@ -2,11 +2,16 @@ package wasm
 
 import (
 	"fmt"
+	"os"
 	"sync/atomic"
 	"unsafe"
 
 	"github.com/c0mm4nd/wasman/wasm/jit"
 )
+
+// jitForceBaseline pins compilation to the baseline tier (test/debug knob,
+// so the spec suite can exercise both tiers independently).
+var jitForceBaseline = os.Getenv("WASMAN_JIT_TIER") == "baseline"
 
 // compileNativeAll translates every eligible locally-defined function with
 // the template JIT. Functions using constructs outside the compiled subset
@@ -60,7 +65,15 @@ func (ins *Instance) compileNative(f *wasmFunc, funcSigs, typeSigs []jit.FuncSig
 			uint64(len(blk.BlockType.ReturnTypes))
 		fd.PcEnd[pc] = uint32(blk.StartAt + blk.BlockTypeBytes)
 	}
-	if cd, err := jit.Compile(fd); err == nil {
+	// tiered: the optimizing compiler first, the baseline template
+	// compiler for anything outside its subset, the interpreter last
+	if !jitForceBaseline {
+		if cd, err := jit.CompileOpt(fd); err == nil {
+			f.compiled = cd
+			return
+		}
+	}
+	if cd, err := jit.CompileBaseline(fd); err == nil {
 		f.compiled = cd
 	}
 }

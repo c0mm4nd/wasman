@@ -69,7 +69,7 @@ func TestStraightLineI32(t *testing.T) {
 		{0x76, 0, 0}, // i32.shr_u
 		{0x0b, 0, 0}, // end
 	}, 2, 2, 1)
-	cd, err := Compile(fd)
+	cd, err := CompileBaseline(fd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestSignExtension(t *testing.T) {
 		{0x6b, 0, 0}, // i32.sub
 		{0x0b, 0, 0},
 	}, 0, 0, 1)
-	cd, err := Compile(fd)
+	cd, err := CompileBaseline(fd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestSignExtension(t *testing.T) {
 		{0x73, 0, 0},                  // i32.xor
 		{0x0b, 0, 0},
 	}, 0, 0, 1)
-	cd2, err := Compile(fd2)
+	cd2, err := CompileBaseline(fd2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestI64AndLocals(t *testing.T) {
 		{0x7d, 0, 0}, // i64.sub
 		{0x0b, 0, 0},
 	}, 3, 2, 1)
-	cd, err := Compile(fd)
+	cd, err := CompileBaseline(fd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestI64AndLocals(t *testing.T) {
 // TestUnsupportedFallsBack ensures unknown opcodes report ErrUnsupported.
 func TestUnsupportedFallsBack(t *testing.T) {
 	fd := assemble([]ins{{0x10, 0, 1}, {0x0b, 0, 0}}, 0, 0, 0) // call
-	if _, err := Compile(fd); err == nil {
+	if _, err := CompileBaseline(fd); err == nil {
 		t.Fatal("expected ErrUnsupported")
 	}
 }

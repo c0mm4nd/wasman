@@ -4,14 +4,14 @@ package jit
 
 import "fmt"
 
-// Compile translates a function body to native code, or ErrUnsupported if it
+// CompileBaseline translates a function body to native code, or ErrUnsupported if it
 // uses constructs outside the template subset (the caller then falls back to
 // the interpreter). The operand stack lives at static offsets from the stack
 // base register: heights are tracked at compile time (the body has already
 // passed validation, so they are well-defined), branches become native jumps
 // with result-slot moves, and the runtime stack index is written only in the
 // epilogues.
-func Compile(fd *FuncDesc) (*Compiled, error) {
+func CompileBaseline(fd *FuncDesc) (*Compiled, error) {
 	c := &compiler{fd: fd}
 	if err := c.run(); err != nil {
 		return nil, err

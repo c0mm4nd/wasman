@@ -4,12 +4,12 @@ package jit
 
 import "fmt"
 
-// Compile translates a function body to native amd64 code, or ErrUnsupported
+// CompileBaseline translates a function body to native amd64 code, or ErrUnsupported
 // if it uses constructs outside the template subset (the caller then falls
 // back to the interpreter). Same driver as the arm64 backend: the operand
 // stack lives at static offsets from SI, heights are tracked at compile time
 // and branches become native jumps with result-slot moves.
-func Compile(fd *FuncDesc) (*Compiled, error) {
+func CompileBaseline(fd *FuncDesc) (*Compiled, error) {
 	c := &compiler{fd: fd}
 	if err := c.run(); err != nil {
 		return nil, err
