@@ -155,7 +155,7 @@ then trap, misbehave, or (with `Recover` disabled) panic at run time. See
 | `Recover` | converts VM panics into returned errors, keeping the host process alive |
 | `CanonicalizeNaNs` | canonicalizes float-arithmetic NaNs for fully deterministic execution |
 | `EnableJIT` | compiles function bodies to native code at instantiation (arm64/amd64); unsupported constructs fall back to the interpreter per function |
-| `EnableWideInt` | exposes the optional `u128`/`u256` import namespaces: 128/256-bit arithmetic over little-endian values in linear memory (EVM division conventions; `_s` variants cover i128/i256). With the JIT, add/sub/compare/bitwise/iszero compile to inline native carry chains (~1ns per u256 add); mul/div/shifts run as host functions |
+| `EnableWideInt` | exposes the optional `u128`/`u256` import namespaces: 128/256-bit arithmetic over little-endian values in linear memory (EVM division conventions; `_s` variants cover i128/i256). With the JIT, add/sub/mul/compare/bitwise/iszero compile to inline native code (~1ns per u256 add, ~3ns per u256 mul); div/rem/shifts dispatch reflection-free to the runtime — the same split C compilers use for `__int128` — leaving ~15ns of call overhead on a ~150ns division |
 | `SkipValidation` | skips load-time validation (trusted modules only) |
 
 Run-time control on an `Instance`:
