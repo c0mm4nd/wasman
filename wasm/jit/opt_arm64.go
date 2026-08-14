@@ -22,6 +22,7 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 		return nil, err
 	}
 	fn := &fe.fn
+	fn.peephole()
 	al := fn.allocate(optNumRegs)
 	if os.Getenv("WASMAN_OPT_DEBUG") == "1" {
 		for i, ins := range fn.code {
@@ -58,9 +59,12 @@ type optGen struct {
 	irOff   []int
 	patches []optPatch
 	oob     []int
-	// pendingCmp fuses a comparison into an immediately following branch
+	// pending fusion of a flag/zero test into the following branch
 	pendV    int
+	pendKind byte // 'f' flags+cond, 'z' cbnz on a register
 	pendCond uint32
+	pendReg  uint32
+	pendW    bool
 }
 
 func (g *optGen) loc(v int) (int16, bool) {
@@ -150,23 +154,37 @@ func (g *optGen) gen() error {
 			d, commit := g.dst(ins.dst, RegT0)
 			a.MovImm64(d, ins.imm)
 			commit()
+		case irNop:
 		case irBin:
 			// comparison feeding the next branch fuses into flags
-			if isCmpOp(ins.sub) && idx+1 < len(fn.code) {
-				nx := &fn.code[idx+1]
-				if nx.op == irBrIfNot && nx.a == ins.dst && g.lastUse(ins.dst) == idx+1 {
-					n := g.read(ins.a, RegT0)
-					m := g.read(ins.b, RegT1)
-					g.emitCmpFlags(ins.sub, n, m)
-					g.pendV = ins.dst
-					g.pendCond = cmpCondOf(ins.sub)
-					break
-				}
+			if isCmpOp(ins.sub) && g.branchFeeds(fn, idx, ins.dst) {
+				n := g.read(ins.a, RegT0)
+				m := g.read(ins.b, RegT1)
+				g.emitCmpFlags(ins.sub, n, m)
+				g.setPend(ins.dst, 'f', cmpCondOf(ins.sub), 0, false)
+				break
 			}
 			if err := g.emitBin(ins); err != nil {
 				return err
 			}
+		case irBinImm:
+			if isCmpOp(ins.sub) && g.branchFeeds(fn, idx, ins.dst) {
+				n := g.read(ins.a, RegT0)
+				g.emitCmpImmFlags(ins.sub, n, uint32(ins.imm))
+				g.setPend(ins.dst, 'f', cmpCondOf(ins.sub), 0, false)
+				break
+			}
+			if err := g.emitBinImm(ins); err != nil {
+				return err
+			}
 		case irUn:
+			// eqz feeding the next branch becomes a bare cbnz: br_if-not on
+			// (x == 0) branches exactly when x != 0
+			if (ins.sub == 0x45 || ins.sub == 0x50) && g.branchFeeds(fn, idx, ins.dst) {
+				r := g.read(ins.a, RegT0)
+				g.setPend(ins.dst, 'z', 0, r, ins.sub == 0x50)
+				break
+			}
 			if err := g.emitUn(ins); err != nil {
 				return err
 			}
@@ -187,7 +205,22 @@ func (g *optGen) gen() error {
 		case irBr:
 			g.branchTo(int(ins.imm), a.B)
 		case irBrIfNot:
-			if g.pendV == ins.a { // fused: branch on the inverted condition
+			if g.pendV == ins.a && g.pendKind == 'z' { // fused eqz: cbnz
+				g.pendV = -1
+				t := int(ins.imm)
+				if t < len(g.irOff) && g.irOff[t] >= 0 {
+					a.Cbnz(g.pendW, g.pendReg, g.irOff[t]-a.Len())
+				} else {
+					k := byte('n')
+					if g.pendW {
+						k = 'N'
+					}
+					g.patches = append(g.patches, optPatch{at: a.Len(), target: t, kind: k, reg: g.pendReg})
+					a.Cbnz(g.pendW, g.pendReg, 0)
+				}
+				break
+			}
+			if g.pendV == ins.a { // fused compare: branch on the inversion
 				g.pendV = -1
 				t := int(ins.imm)
 				inv := g.pendCond ^ 1
@@ -228,7 +261,7 @@ func (g *optGen) gen() error {
 			a.MovImm64(RegSp, uint64(fn.nrets))
 			a.Epilogue(StatusOK)
 		}
-		if ins.op != irBin {
+		if ins.op != irBin && ins.op != irBinImm && ins.op != irUn {
 			g.pendV = -1
 		}
 	}
@@ -243,6 +276,10 @@ func (g *optGen) gen() error {
 			a.setWord(p.at, 0x54000000|(uint32(rel/4)&0x7ffff)<<5|p.cond)
 		case 'z':
 			a.setWord(p.at, 0xB4000000|(uint32(rel/4)&0x7ffff)<<5|p.reg)
+		case 'n': // cbnz w
+			a.setWord(p.at, 0x35000000|(uint32(rel/4)&0x7ffff)<<5|p.reg)
+		case 'N': // cbnz x
+			a.setWord(p.at, 0xB5000000|(uint32(rel/4)&0x7ffff)<<5|p.reg)
 		}
 	}
 	if len(g.oob) > 0 {
@@ -253,6 +290,29 @@ func (g *optGen) gen() error {
 		a.Ret()
 	}
 	return nil
+}
+
+// branchFeeds reports whether code[idx]'s result is consumed solely by an
+// immediately following conditional branch (the fusion precondition).
+func (g *optGen) branchFeeds(fn *irFunc, idx, dst int) bool {
+	if idx+1 >= len(fn.code) {
+		return false
+	}
+	nx := &fn.code[idx+1]
+	return nx.op == irBrIfNot && nx.a == dst && g.lastUse(dst) == idx+1
+}
+
+func (g *optGen) setPend(v int, kind byte, cond, reg uint32, w bool) {
+	g.pendV, g.pendKind, g.pendCond, g.pendReg, g.pendW = v, kind, cond, reg, w
+}
+
+// emitCmpImmFlags emits the flags-setting compare against an immediate.
+func (g *optGen) emitCmpImmFlags(sub byte, n, imm uint32) {
+	if sub >= 0x51 {
+		g.a.CmpImmX(n, imm)
+	} else {
+		g.a.CmpImmW(n, imm)
+	}
 }
 
 // lastUse reports the final IR index touching v.

@@ -207,3 +207,34 @@ func (g *optGen) emitMem(ins *irInstr) {
 	v := g.read(ins.b, RegT1)
 	a.MemOp(m.word, v, RegMem, RegT0)
 }
+
+// emitBinImm lowers folded-immediate forms (add/sub and materialized
+// comparisons; the branch-fused compare path never reaches here).
+func (g *optGen) emitBinImm(ins *irInstr) error {
+	a := &g.a
+	n := g.read(ins.a, RegT0)
+	d, commit := g.dst(ins.dst, RegT0)
+	imm := uint32(ins.imm)
+	switch ins.sub {
+	case 0x6a:
+		a.AddImmW(d, n, imm)
+		a.Sxtw(d, d)
+	case 0x6b:
+		a.SubImmW(d, n, imm)
+		a.Sxtw(d, d)
+	case 0x7c:
+		a.AddImm(d, n, imm)
+	case 0x7d:
+		a.SubImm(d, n, imm)
+	default:
+		if !isCmpOp(ins.sub) {
+			return errBadImmForm
+		}
+		g.emitCmpImmFlags(ins.sub, n, imm)
+		a.Cset(d, cmpCondOf(ins.sub))
+	}
+	commit()
+	return nil
+}
+
+var errBadImmForm = fmt.Errorf("%w: immediate form", ErrUnsupported)

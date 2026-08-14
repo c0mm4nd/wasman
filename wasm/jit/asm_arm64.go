@@ -228,3 +228,12 @@ func pick(w bool, x, y uint32) uint32 {
 	}
 	return y
 }
+
+// AddImmW / SubImmW are the 32-bit immediate forms (upper half zeroed).
+func (a *Asm) AddImmW(d, n, imm uint32) { a.word(0x11000000 | imm<<10 | n<<5 | d) }
+func (a *Asm) SubImmW(d, n, imm uint32) { a.word(0x51000000 | imm<<10 | n<<5 | d) }
+
+// Cbnz emits CBNZ with width selection and a relative byte offset.
+func (a *Asm) Cbnz(x bool, t uint32, rel int) {
+	a.word(pick(x, 0xB5000000, 0x35000000) | (uint32(rel/4)&0x7ffff)<<5 | t)
+}
