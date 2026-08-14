@@ -323,3 +323,9 @@ func (a *Asm) ArithImm32(w bool, sub byte, reg int, v uint32) {
 	a.bytes(rex(w, 0, 0, reg), 0x81, 0xC0|sub<<3|byte(reg&7))
 	a.u32(v)
 }
+
+// LeaScaled emits LEA dst, [base + idx*8].
+func (a *Asm) LeaScaled(dst, base, idx int) {
+	a.bytes(rex(true, dst, idx, base), 0x8D, 0x04|byte(dst&7)<<3,
+		3<<6|byte(idx&7)<<3|byte(base&7))
+}

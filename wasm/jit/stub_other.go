@@ -15,6 +15,7 @@ type Ctx struct {
 	TrampRet   uintptr
 	Funcs      uintptr
 	Depth      uint64
+	Indirect   uintptr
 }
 
 // Supported reports whether native codegen exists for this platform.

@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/c0mm4nd/wasman/types"
 	"github.com/c0mm4nd/wasman/wasm/jit"
 )
 
@@ -40,6 +41,13 @@ func (ins *Instance) compileNativeAll() {
 	if l := ins.Module.ModuleConfig.CallDepthLimit; l != nil {
 		depthLimit = *l
 	}
+	// instance-wide structural signature ids: type-section entries first
+	// (compiled code embeds these), table entries may extend the map later
+	ins.sigIDs = make(map[string]uint32)
+	typeSigIDs := make([]uint32, len(ins.TypeSection))
+	for i, t := range ins.TypeSection {
+		typeSigIDs[i] = ins.sigID(sigKey(t))
+	}
 	type job struct {
 		wf *wasmFunc
 		fd *jit.FuncDesc
@@ -50,6 +58,7 @@ func (ins *Instance) compileNativeAll() {
 			fd := buildFuncDesc(wf, funcSigs, typeSigs)
 			fd.SelfIdx = uint32(i)
 			fd.DepthLimit = depthLimit
+			fd.TypeSigIDs = typeSigIDs
 			jobs = append(jobs, job{wf, fd})
 		}
 	}
@@ -296,6 +305,9 @@ func (ins *Instance) execNativeABI(f *wasmFunc) error {
 	if len(ins.Globals) > 0 {
 		ctx.Globals = uintptr(unsafe.Pointer(&ins.Globals[0]))
 	}
+	if len(ins.indirectMirror) > 0 {
+		ctx.Indirect = uintptr(unsafe.Pointer(&ins.indirectMirror[0]))
+	}
 	ctx.Depth = uint64(ins.FrameStack.Ptr + 1)
 
 	code, entry := cd.Code, 0
@@ -379,4 +391,65 @@ func (ins *Instance) execNativeABI(f *wasmFunc) error {
 			return ErrUndefined
 		}
 	}
+}
+
+// sigKey canonicalizes a signature structurally.
+func sigKey(t *types.FuncType) string {
+	b := make([]byte, 0, len(t.InputTypes)+len(t.ReturnTypes)+1)
+	for _, v := range t.InputTypes {
+		b = append(b, byte(v))
+	}
+	b = append(b, 0xff)
+	for _, v := range t.ReturnTypes {
+		b = append(b, byte(v))
+	}
+	return string(b)
+}
+
+func (ins *Instance) sigID(key string) uint32 {
+	if id, ok := ins.sigIDs[key]; ok {
+		return id
+	}
+	id := uint32(len(ins.sigIDs))
+	ins.sigIDs[key] = id
+	return id
+}
+
+// buildNativeIndirect mirrors table 0 for the native call_indirect fast
+// path. Only a private table qualifies: an imported or exported table can
+// be repopulated by other modules after this instance compiled, and a
+// stale mirror would dispatch to the wrong function (a zero entry merely
+// falls back to the host, which is always correct).
+func (ins *Instance) buildNativeIndirect() {
+	if ins.nativeEntries == nil || len(ins.IndexSpace.Tables) == 0 || ins.sigIDs == nil {
+		return
+	}
+	if len(ins.Module.ImportSection) > 0 {
+		for _, imp := range ins.Module.ImportSection {
+			if imp.Desc != nil && imp.Desc.TableTypePtr != nil {
+				return
+			}
+		}
+	}
+	for _, exp := range ins.Module.ExportSection {
+		if exp.Desc != nil && exp.Desc.Kind == 1 { // table export
+			return
+		}
+	}
+	t := ins.IndexSpace.Tables[0]
+	m := make([]uint64, 1+2*len(t.Value))
+	m[0] = uint64(len(t.Value))
+	for i, fn := range t.Value {
+		if fn == nil {
+			continue
+		}
+		wf, ok := fn.(*wasmFunc)
+		if !ok || wf.compiled == nil || !wf.compiled.NativeABI || wf.owner != ins {
+			continue
+		}
+		m[1+2*i] = uint64(ins.sigID(sigKey(wf.getType())))<<32 |
+			uint64(wf.compiled.LocalSlots*8)
+		m[1+2*i+1] = uint64(uintptr(unsafe.Pointer(&wf.compiled.Code[0])))
+	}
+	ins.indirectMirror = m
 }

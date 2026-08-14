@@ -166,6 +166,8 @@ func (g *optGen) frameEpilogue() {
 	}
 	a.StCtx(rSI, 8) // ctx.Sp = frame pointer
 	a.MovImm32AX(StatusOK)
+	// indirect-call return ABI: DX reports this frame's locals extent
+	a.MovImm32(rDX, uint32(g.fn.nlocals*8))
 	a.modDisp32(true, 0x8B, rCX, rSI, int32(g.linkSlot()*8))
 	a.TestRR(true, rCX)
 	nz := a.Len()
@@ -173,6 +175,67 @@ func (g *optGen) frameEpilogue() {
 	a.Ret() // sentinel: balance the trampoline's CALL
 	a.PatchJcc(nz)
 	a.bytes(0xFF, 0xE1) // JMP RCX
+}
+
+// emitIndirectFast tries a call_indirect natively: bounds, null and
+// signature checks against the per-instance mirror, then a direct jump to
+// a native-ABI target. Any failing check falls through to the host-exit
+// slow path. Returns patches that skip the exit code on success.
+func (g *optGen) emitIndirectFast(site *CallSite) []int {
+	a := &g.a
+	sig := g.fn.typeSigs[site.TypeIdx]
+	expect := g.fd.TypeSigIDs[site.TypeIdx]
+	sp := site.SpBefore
+	n := sig.In
+	frameEnd := (g.linkSlot() + 1) * 8
+	var exits []int
+	bail := func(cc byte) {
+		exits = append(exits, a.Len())
+		a.Jcc(cc, 0)
+	}
+	a.LdCtx(rCX, 88) // mirror
+	a.TestRR(true, rCX)
+	bail(ccE)
+	a.modDisp32(false, 0x8B, rAX, rSI, int32((sp-1)*8)) // idx, zero-extended
+	a.modDisp32(true, 0x8B, rDX, rCX, 0)                // len
+	a.BinRR(true, 0x39, rAX, rDX)
+	bail(ccAE)
+	a.LeaScaled(rCX, rCX, rAX)
+	a.LeaScaled(rCX, rCX, rAX)            // + idx*16
+	a.modDisp32(true, 0x8B, rDX, rCX, 16) // entry
+	a.TestRR(true, rDX)
+	bail(ccE)
+	a.modDisp32(true, 0x8B, rCX, rCX, 8) // sigID<<32 | needBytes
+	a.BinRR(true, 0x89, rAX, rCX)
+	a.ShiftImm(true, 5, rAX, 32)
+	a.CmpImm32(true, rAX, expect)
+	bail(ccNE)
+	for i := 0; i < n; i++ {
+		a.modDisp32(true, 0x8B, rAX, rSI, int32((sp-1-n+i)*8))
+		a.modDisp32(true, 0x89, rAX, rSI, int32(frameEnd+i*8))
+	}
+	a.MovRR32(rCX, rCX) // needBytes
+	a.ArithImm32(true, 0, rSI, uint32(frameEnd))
+	a.BinRR(true, 0x01, rSI, rCX)
+	a.bytes(0x48, 0x8D, 0x05) // LEA RAX, [RIP+2]
+	a.u32(2)
+	a.bytes(0xFF, 0xE2) // JMP RDX
+	// return: DX = callee needBytes (epilogue ABI)
+	a.BinRR(true, 0x29, rSI, rDX)
+	a.ArithImm32(true, 5, rSI, uint32(frameEnd))
+	g.framePrologue(false)
+	for i := 0; i < sig.Out; i++ {
+		a.BinRR(true, 0x89, rCX, rSI)
+		a.BinRR(true, 0x01, rCX, rDX)
+		a.modDisp32(true, 0x8B, rAX, rCX, int32(frameEnd+i*8))
+		a.modDisp32(true, 0x89, rAX, rSI, int32((sp-1-n+i)*8))
+	}
+	done := a.Len()
+	a.Jmp(0)
+	for _, at := range exits {
+		a.PatchJcc(at)
+	}
+	return []int{done}
 }
 
 // emitNativeCall: the callee frame starts at this frame's end; arguments
@@ -318,6 +381,11 @@ func (g *optGen) gen() error {
 			g.jumpTo(int(ins.imm), func(t int) { a.Jcc(ccE, t) }, 'c')
 		case irCallExit:
 			site := &fn.sites[ins.imm]
+			var fastEnd []int
+			if site.Kind == SiteCallIndirect && site.TableIdx == 0 &&
+				g.fd.NativeFuncs != nil && g.fd.TypeSigIDs != nil {
+				fastEnd = g.emitIndirectFast(site)
+			}
 			a.StCtx(rSI, 8) // ctx.Sp = my frame pointer
 			a.MovImm64(rCX, uint64(g.fd.SelfIdx)<<32|ins.imm)
 			a.StCtx(rCX, 40)
@@ -327,6 +395,9 @@ func (g *optGen) gen() error {
 			}
 			a.MovImm32AX(st)
 			a.Ret()
+			for _, at := range fastEnd {
+				a.PatchJmp(at)
+			}
 			site.Cont = a.Len()
 			// resumed via the trampoline: SI already holds this frame's base
 			g.framePrologue(false)

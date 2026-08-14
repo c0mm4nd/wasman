@@ -20,6 +20,11 @@ dependencies.
 | `Fib` | fib(20), recursive — 13k wasm→wasm calls (call overhead) |
 | `Sum` | 100k-iteration arithmetic loop (dispatch + branching) |
 | `MemRW` | write then read 64KiB of linear memory (load/store) |
+| `Mandel` | f64 escape-time iteration over a 400x400 grid (float) |
+| `Hash` | 1M-round i64 multiply/xor/rotate mixing |
+| `Sort` | recursive quicksort of 10k i32s in linear memory |
+| `Dispatch` | 1M-iteration br_table dispatch loop |
+| `Indirect` | 1M call_indirect invocations through a 4-entry table |
 | `Instantiate` | decode + validate + instantiate a small module |
 
 Every run is checked for the correct result before timing.
@@ -70,6 +75,24 @@ Same workloads, same machine (Apple M3), single run:
 On an amd64 server (dual EPYC 7K62) the picture is similar: `Sum` runs
 2.0x and `MemRW` 1.6x ahead of wazero-compiler, `Fib` 1.6x behind
 (indirect-jump call linkage costs more on that microarchitecture).
+
+Five kernel workloads widen the picture beyond the core loops
+(`BenchmarkKernels`, same machine):
+
+| ns/op | **wasman-jit** | wazero-compiler | note |
+|---|---|---|---|
+| `Sort` (recursive quicksort, memory) | **367,952** | 477,368 | 1.3x ahead |
+| `Dispatch` (br_table-dense loop) | **1,513,461** | 1,536,712 | level |
+| `Hash` (i64 multiply/rotate mixing) | 1,382,997 | **1,268,367** | within 9% |
+| `Indirect` (call_indirect-dense) | 3,926,713 | **2,812,512** | 1.4x behind |
+| `Mandel` (f64 escape-time) | 36,104,628 | **5,911,049** | 6x behind¹ |
+
+¹ float arithmetic runs on the baseline tier today (the optimizing tier
+does not allocate float registers yet); Mandel is the honest cost of
+that gap and the next optimization target. `Indirect` dispatches
+natively through a per-instance table mirror (bounds, null and
+signature checks in generated code) and falls back to the host for
+anything the mirror cannot prove.
 
 The two engines now sit in the same performance class: wasman leads on
 memory-bound code, ties on arithmetic loops and trails within ~10% on

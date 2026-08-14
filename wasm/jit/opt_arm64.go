@@ -261,6 +261,11 @@ func (g *optGen) gen() error {
 			}
 		case irCallExit:
 			site := &fn.sites[ins.imm]
+			var fastEnd []int
+			if site.Kind == SiteCallIndirect && site.TableIdx == 0 &&
+				g.fd.NativeFuncs != nil && g.fd.TypeSigIDs != nil {
+				fastEnd = g.emitIndirectFast(site)
+			}
 			a.StrImm(RegStack, RegCtx, 8) // ctx.Sp = my frame pointer
 			a.MovImm64(RegT0, uint64(g.fd.SelfIdx)<<32|ins.imm)
 			a.StrImm(RegT0, RegCtx, 40)
@@ -270,6 +275,9 @@ func (g *optGen) gen() error {
 			}
 			a.Movz(RegStatus, st, 0)
 			g.trampRet()
+			for _, at := range fastEnd {
+				a.PatchB(at)
+			}
 			site.Cont = a.Len()
 			// resumed via the shim: R1 already holds this frame's base
 			g.framePrologue(false)
@@ -396,8 +404,82 @@ func (g *optGen) frameEpilogue() {
 	}
 	a.StrImm(RegStack, RegCtx, 8) // ctx.Sp = frame pointer
 	a.Movz(RegStatus, StatusOK, 0)
+	// indirect-call return ABI: R7 reports this frame's locals extent so a
+	// dynamic caller can rebase without knowing the callee statically
+	a.Movz(RegT1, uint32(g.fn.nlocals*8), 0)
 	a.LdrImm(30, RegStack, uint32(g.linkSlot()*8))
 	a.Ret()
+}
+
+// emitIndirectFast tries a call_indirect natively: bounds, null and
+// signature checks against the per-instance mirror, then a direct jump to
+// a native-ABI target. Any failure falls through to the host-exit slow
+// path, which reproduces the exact trap semantics and handles non-native
+// callees. Returns patches that skip the exit code on the fast path.
+func (g *optGen) emitIndirectFast(site *CallSite) []int {
+	a := &g.a
+	sig := g.fn.typeSigs[site.TypeIdx]
+	expect := g.fd.TypeSigIDs[site.TypeIdx]
+	if expect >= 4096 {
+		return nil
+	}
+	sp := site.SpBefore
+	n := sig.In
+	frameEnd := (g.linkSlot() + 1) * 8
+	var exits []int
+	// mirror present?
+	a.LdrImm(optScratch2, RegCtx, 88)
+	exits = append(exits, a.Len())
+	a.Cbz(optScratch2, 0)
+	// bounds: idx < len
+	a.LdrImm(RegT0, RegStack, uint32((sp-1)*8))
+	a.Uxtw(RegT0, RegT0)
+	a.LdrImm(RegT1, optScratch2, 0)
+	a.CmpRegX(RegT0, RegT1)
+	exits = append(exits, a.Len())
+	a.Bcond(condHS, 0)
+	// entry & meta
+	a.AddRegLsl(optScratch2, optScratch2, RegT0, 4)
+	a.LdrImm(RegT1, optScratch2, 16) // native entry (0: null or not native)
+	exits = append(exits, a.Len())
+	a.Cbz(RegT1, 0)
+	a.LdrImm(optScratch2, optScratch2, 8) // sigID<<32 | needBytes
+	a.LsrImmX(RegT0, optScratch2, 32)
+	a.CmpImmX(RegT0, expect)
+	exits = append(exits, a.Len())
+	a.Bcond(condNE, 0)
+	// arguments into the callee locals area at this frame's end
+	for i := 0; i < n; i++ {
+		a.LdrImm(RegT0, RegStack, uint32((sp-1-n+i)*8))
+		a.StrImm(RegT0, RegStack, uint32(frameEnd+i*8))
+	}
+	a.Uxtw(optScratch2, optScratch2) // needBytes
+	a.AddImm(RegStack, RegStack, uint32(frameEnd))
+	a.AddRegX(RegStack, RegStack, optScratch2)
+	a.word(0xD63F0000 | RegT1<<5) // BLR
+	// return ABI: R7 = callee needBytes
+	a.word(0xCB000000 | RegT1<<16 | RegStack<<5 | RegStack) // SUB R1, R1, R7
+	a.SubImm(RegStack, RegStack, uint32(frameEnd))
+	g.framePrologue(false)
+	// results back to the caller stack top
+	for i := 0; i < sig.Out; i++ {
+		a.AddRegX(optScratch2, RegStack, RegT1)
+		a.LdrImm(RegT0, optScratch2, uint32(frameEnd+i*8))
+		a.StrImm(RegT0, RegStack, uint32((sp-1-n+i)*8))
+	}
+	done := a.Len()
+	a.B(0) // skip the slow path
+	// failed checks land here, on the host exit; CBZ and B.cond both keep
+	// their 19-bit offset at bit 5, so one fixup form serves either
+	for _, at := range exits {
+		w := binWordAt(&g.a, at)
+		g.a.setWord(at, w|(uint32((a.Len()-at)/4)&0x7ffff)<<5)
+	}
+	return []int{done}
+}
+
+func binWordAt(a *Asm, at int) uint32 {
+	return uint32(a.buf[at]) | uint32(a.buf[at+1])<<8 | uint32(a.buf[at+2])<<16 | uint32(a.buf[at+3])<<24
 }
 
 // emitNativeCall performs a direct call: the callee frame starts at this

@@ -165,10 +165,55 @@ func BenchmarkMemRW(b *testing.B) {
 	})
 }
 
+// --- kernel workloads: float, 64-bit mixing, sorting, dispatch, indirect ---
+
+// BenchmarkKernels widens the comparison beyond the three core loops:
+// Mandel is float-heavy (wasman's optimizing tier does not take floats yet,
+// so it exercises the baseline tier), Hash is 64-bit multiply/rotate
+// mixing, Sort is recursive quicksort over linear memory, Dispatch is a
+// br_table-dense loop and Indirect a call_indirect-dense one. Expected
+// values are cross-checked by every engine.
+func BenchmarkKernels(b *testing.B) {
+	for _, w := range []struct {
+		name, file, fn string
+		arg, want      uint64
+	}{
+		{"Mandel", "testdata/mandel.wasm", "mandel", 400, 1731994},
+		{"Hash", "testdata/hash.wasm", "hash", 1_000_000, 11318551571706244865},
+		{"Sort", "testdata/sort.wasm", "sort", 10_000, 71560854118799477},
+		{"Dispatch", "testdata/vmloop.wasm", "run", 1_000_000, 11911731666142869303},
+		{"Indirect", "testdata/indirect.wasm", "run", 1_000_000, 18163039187268145679},
+	} {
+		wasm := mustRead(w.file)
+		b.Run(w.name+"/wasman", func(b *testing.B) { benchWasman(b, wasm, w.fn, w.arg, w.want) })
+		b.Run(w.name+"/wasman-jit", func(b *testing.B) { benchWasmanJIT(b, wasm, w.fn, w.arg, w.want) })
+		b.Run(w.name+"/wagon", func(b *testing.B) { benchWagon(b, wasm, w.fn, w.arg, w.want) })
+		b.Run(w.name+"/life", func(b *testing.B) { benchLife(b, wasm, w.fn, w.arg, w.want) })
+		b.Run(w.name+"/wazero-interp", func(b *testing.B) {
+			benchWazero(b, wazero.NewRuntimeConfigInterpreter(), wasm, w.fn, w.arg, w.want)
+		})
+		b.Run(w.name+"/wazero-compiler", func(b *testing.B) {
+			benchWazero(b, wazero.NewRuntimeConfigCompiler(), wasm, w.fn, w.arg, w.want)
+		})
+	}
+}
+
 func BenchmarkInstantiate(b *testing.B) {
 	b.Run("wasman", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			mod, err := wasman.NewModule(config.ModuleConfig{}, bytes.NewReader(fibWasm))
+			if err != nil {
+				b.Fatal(err)
+			}
+			if _, err := wasman.NewInstance(mod, nil); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	b.Run("wasman-jit", func(b *testing.B) {
+		// includes native compilation of every function at instantiation
+		for i := 0; i < b.N; i++ {
+			mod, err := wasman.NewModule(config.ModuleConfig{EnableJIT: true}, bytes.NewReader(fibWasm))
 			if err != nil {
 				b.Fatal(err)
 			}

@@ -19,6 +19,7 @@ type Ctx struct {
 	TrampRet   uintptr // trampoline continuation, written by the entry shim
 	Funcs      uintptr // base of the native entry table
 	Depth      uint64  // native call depth (limit baked into prologues)
+	Indirect   uintptr // call_indirect mirror: [len, {sigID<<32|needBytes, entry}...]
 }
 
 // Supported reports whether native codegen exists for this platform.

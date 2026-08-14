@@ -46,6 +46,11 @@ type Instance struct {
 	nativeStack   []uint64
 	nativeEntries []uintptr
 	nativeTop     int // first free slot while a chain is suspended in an exit
+	// indirectMirror lets native code dispatch call_indirect without a host
+	// exit: [len, {sigID<<32|needBytes, entry}...] for table 0. sigIDs
+	// assigns instance-wide structural signature ids.
+	indirectMirror []uint64
+	sigIDs         map[string]uint32
 
 	// interruptFlag is set (atomically, possibly from another goroutine) by
 	// Interrupt and polled by the exec loop; opTick amortizes the atomic load.

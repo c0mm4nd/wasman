@@ -32,6 +32,9 @@ type FuncDesc struct {
 	// into the prologue.
 	SelfIdx    uint32
 	DepthLimit uint64
+	// TypeSigIDs maps type-section indices to instance-wide structural
+	// signature ids (the call_indirect fast path compares them natively).
+	TypeSigIDs []uint32
 }
 
 // FuncSig is a function arity (parameter and result slot counts) plus the

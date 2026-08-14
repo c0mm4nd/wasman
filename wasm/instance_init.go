@@ -68,6 +68,11 @@ func (ins *Instance) buildIndexSpaces(externModules map[string]*Module) error {
 	}
 	ins.applyElemSegments(elemPlans)
 	ins.applyDataSegments(dataPlans)
+	if ins.ModuleConfig.EnableJIT {
+		// the table contents are final now (barring cross-module writes,
+		// which disqualify a table from the mirror anyway)
+		ins.buildNativeIndirect()
+	}
 
 	// publish this instantiation's spaces on the Module so other modules can
 	// import from it (the Module hands out its most recent instantiation);

@@ -53,14 +53,15 @@ type irInstr struct {
 
 // irFunc is the frontend's output.
 type irFunc struct {
-	code    []irInstr
-	nlocals int
-	ntemp   int      // total vregs: [0,nlocals) locals, then boundary+temps
-	maxH    int      // max wasm stack height (memory-stack slots at exits)
-	loops   [][2]int // [start, end) IR ranges of loops, for liveness
-	sites   []CallSite
-	nrets   int
-	sigs    []FuncSig // function index space arities (native call layout)
+	code     []irInstr
+	nlocals  int
+	ntemp    int      // total vregs: [0,nlocals) locals, then boundary+temps
+	maxH     int      // max wasm stack height (memory-stack slots at exits)
+	loops    [][2]int // [start, end) IR ranges of loops, for liveness
+	sites    []CallSite
+	nrets    int
+	sigs     []FuncSig // function index space arities (native call layout)
+	typeSigs []FuncSig // type section arities (indirect fast path)
 }
 
 func (fn *irFunc) callSig(idx int) FuncSig { return fn.sigs[idx] }
@@ -207,6 +208,7 @@ func (f *irFrontend) lower() error {
 	f.fn.nlocals = fd.NumLocals
 	f.fn.nrets = fd.NumRets
 	f.fn.sigs = fd.FuncSigs
+	f.fn.typeSigs = fd.TypeSigs
 	f.ctl = append(f.ctl, irCtl{kind: 0x02, resultN: fd.NumRets, elsePatch: -1})
 	body := fd.Body
 

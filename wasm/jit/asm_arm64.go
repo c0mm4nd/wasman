@@ -238,3 +238,8 @@ func (a *Asm) SubImmW(d, n, imm uint32) { a.word(0x51000000 | imm<<10 | n<<5 | d
 func (a *Asm) Cbnz(x bool, t uint32, rel int) {
 	a.word(pick(x, 0xB5000000, 0x35000000) | (uint32(rel/4)&0x7ffff)<<5 | t)
 }
+
+// AddRegLsl emits ADD Xd, Xn, Xm, LSL #sh.
+func (a *Asm) AddRegLsl(d, n, m, sh uint32) {
+	a.word(0x8B000000 | m<<16 | sh<<10 | n<<5 | d)
+}
