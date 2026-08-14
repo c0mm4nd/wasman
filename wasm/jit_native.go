@@ -94,25 +94,27 @@ func (ins *Instance) callNative(f *wasmFunc) error {
 		return ErrCallStackExhausted
 	}
 
-	frame := ins.acquireFrame()
+	// the arguments already sit contiguously on the operand stack in local
+	// order, so the callee's locals live there in place: only the declared
+	// locals (the tail) need zeroing, and the callee's own stack area
+	// starts right above them. No locals array, no copying.
 	need := int(f.NumLocal) + al
-	if cap(frame.Locals) >= need {
-		frame.Locals = frame.Locals[:need]
-	} else {
-		frame.Locals = make([]uint64, need)
+	cd := f.compiled
+	if want := baseSp + 1 + need + cd.MaxHeight; len(os.Values) < want {
+		os.Values = append(os.Values, make([]uint64, want-len(os.Values))...)
 	}
-	copy(frame.Locals, os.Values[baseSp+1:os.Ptr+1])
-	for i := al; i < need; i++ {
-		frame.Locals[i] = 0 // declared locals start zeroed
+	for i := baseSp + 1 + al; i < baseSp+1+need; i++ {
+		os.Values[i] = 0
 	}
 	os.Ptr = baseSp
 
+	frame := ins.acquireFrame()
 	prev := ins.Active
 	frame.Func = f
 	ins.FrameStack.Push(frame)
 	ins.Active = frame
 
-	err := ins.execNative(f.compiled, frame.Locals, baseSp)
+	err := ins.execNative(cd, nil, baseSp+1, baseSp+need)
 
 	ins.FrameStack.Ptr = prevPtr
 	ins.Active = prev
@@ -122,6 +124,9 @@ func (ins *Instance) callNative(f *wasmFunc) error {
 		ins.OperandStack.Ptr = baseSp
 		return annotateTrap(err, f.name)
 	}
+	// results land above the callee frame; move them to the caller's top
+	copy(os.Values[baseSp+1:], os.Values[baseSp+need+1 : baseSp+need+1+f.compiled.MaxHeight][:len(f.signature.ReturnTypes)])
+	os.Ptr = baseSp + len(f.signature.ReturnTypes)
 	return nil
 }
 
@@ -131,9 +136,12 @@ func (ins *Instance) callNative(f *wasmFunc) error {
 // call machinery and re-enters the native code at the site's continuation;
 // every re-entry refreshes the stack and memory base pointers, since a
 // callee may have regrown either.
-func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, baseSp int) error {
+func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, localsOff, baseSp int) error {
+	// localsOff >= 0 places the locals inside the operand stack itself (the
+	// in-place native frame); the pointer then refreshes with the slice on
+	// every re-entry, since a nested call may regrow it
 	var ctx jit.Ctx
-	if len(locals) > 0 {
+	if localsOff < 0 && len(locals) > 0 {
 		ctx.Locals = uintptr(unsafe.Pointer(&locals[0]))
 	}
 	if len(ins.Globals) > 0 {
@@ -144,6 +152,9 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, baseSp int) e
 		os := ins.OperandStack
 		if need := baseSp + 1 + cd.MaxHeight; len(os.Values) < need {
 			os.Values = append(os.Values, make([]uint64, need-len(os.Values))...)
+		}
+		if localsOff >= 0 {
+			ctx.Locals = uintptr(unsafe.Pointer(&os.Values[localsOff]))
 		}
 		if cd.MaxHeight > 0 {
 			ctx.Stack = uintptr(unsafe.Pointer(&os.Values[baseSp+1]))

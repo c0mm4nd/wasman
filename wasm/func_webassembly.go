@@ -166,7 +166,7 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 		frame.Func = f
 		ins.FrameStack.Push(frame)
 		ins.Active = frame
-		err = ins.execNative(cd, locals, baseSp)
+		err = ins.execNative(cd, locals, -1, baseSp)
 		ins.FrameStack.Ptr = prevPtr
 		ins.Active = prev
 		ins.releaseFrame(frame)
