@@ -51,29 +51,31 @@ dispatch for trap-free hot opcodes.
 ## Compiler class: wasman JIT
 
 `config.ModuleConfig{EnableJIT: true}` compiles function bodies to native
-code at instantiation (arm64 and amd64; anything outside the compiled
-subset falls back to the interpreter per function — across the official
-spec suite, >99% of function bodies compile). Same workloads, same
-machine:
+code at instantiation (arm64 and amd64). The pipeline is tiered: an
+optimizing compiler — virtual-register IR, linear-scan register
+allocation, compare/branch fusion, a native calling convention between
+compiled functions — takes ~86% of the spec suite's function bodies;
+a baseline template compiler covers most of the rest (notably float
+code), and anything else falls back to the interpreter per function.
+The whole official test suite passes with the JIT enabled.
 
-| ns/op (lower is better) | **wasman-jit** | wasman (interp) | wazero-compiler |
+Same workloads, same machine (Apple M3), single run:
+
+| ns/op (lower is better) | **wasman-jit** | wazero-compiler | wasman (interp) |
 |---|---|---|---|
-| `Fib` | 449,170 | 929,032 | **36,281** |
-| `Sum` | 394,724 | 2,910,643 | **26,915** |
-| `MemRW` | 417,285 | 4,574,404 | **71,001** |
+| `Fib` | 41,187 | **37,832** | 1,120,975 |
+| `Sum` | **27,112** | 26,850 | 3,030,506 |
+| `MemRW` | **39,575** | 70,643 | 4,630,009 |
 
-wasman's JIT is a *template* JIT: each opcode expands to a fixed native
-sequence against a memory-resident operand stack, and calls exit to the
-host and re-enter. That removes dispatch and decode overhead entirely
-(2–19× over the interpreter depending on the workload and machine — the
-gap widens on hosts with slower single-thread performance) while staying
-a few thousand lines of dependency-free Go. wazero's compiler is an
-optimizing code generator with register allocation and native calls; it
-remains 6–15× faster on these microbenchmarks and is the right choice
-when raw wasm throughput is the only criterion. wasman's niche is the
-combination: zero dependencies, Go 1.18, full-suite conformance,
-metering/interruption rails — with a JIT that removes most of the
-interpretation cost when the platform allows it.
+On an amd64 server (dual EPYC 7K62) the picture is similar: `Sum` runs
+2.0x and `MemRW` 1.6x ahead of wazero-compiler, `Fib` 1.6x behind
+(indirect-jump call linkage costs more on that microarchitecture).
+
+The two engines now sit in the same performance class: wasman leads on
+memory-bound code, ties on arithmetic loops and trails within ~10% on
+call-heavy recursion (on arm64). wasman remains pure dependency-free Go
+1.18 with full-suite conformance, metering and interruption rails; the
+JIT is simply how fast that package can go when the platform allows it.
 
 ## Running
 

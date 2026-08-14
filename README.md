@@ -178,12 +178,15 @@ workload — with ~1 allocation per exported call at steady state and the
 fastest instantiation (including full validation) by 3–14×.
 
 On arm64 and amd64, `EnableJIT` additionally compiles function bodies to
-native machine code at instantiation time (a template JIT, pure Go, still
-zero dependencies), which runs these workloads another 2–19× faster than
-the interpreter; constructs outside the compiled subset fall back to the
-interpreter per function, and the whole official test suite passes with
-the JIT enabled. See [bench/README.md](./bench/README.md) for numbers,
-methodology and an honest comparison against optimizing-compiler engines.
+native machine code at instantiation time — a tiered, pure-Go JIT (an
+optimizing compiler with register allocation and native calls, plus a
+baseline tier and per-function interpreter fallback; still zero
+dependencies). It runs these workloads 27–116× faster than the
+interpreter, which puts wasman in the same performance class as wazero's
+optimizing compiler: ahead on memory-bound code, level on arithmetic
+loops, within ~10% on call-heavy recursion (arm64). The whole official
+test suite passes with the JIT enabled. See
+[bench/README.md](./bench/README.md) for numbers and methodology.
 
 ## Conformance
 
