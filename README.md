@@ -151,8 +151,23 @@ then trap, misbehave, or (with `Recover` disabled) panic at run time. See
 |---|---|
 | `TollStation` | per-instruction metering with a budget; execution errors on overflow |
 | `CallDepthLimit` | caps call nesting; runaway recursion traps instead of overflowing the Go stack |
+| `MaxMemoryPages` | host-side hard cap on linear memory, regardless of the module's declared limits |
 | `Recover` | converts VM panics into returned errors, keeping the host process alive |
+| `CanonicalizeNaNs` | canonicalizes float-arithmetic NaNs for fully deterministic execution |
 | `SkipValidation` | skips load-time validation (trusted modules only) |
+
+Run-time control on an `Instance`:
+
+| API | effect |
+|---|---|
+| `CallExportedFuncWithContext` | binds a call to a `context.Context`: cancellation/timeout interrupts execution |
+| `Interrupt` | stops the running (or next) execution from any goroutine |
+| `Reset` | restores the post-instantiation snapshot (memory + own globals) for instance pooling |
+| `Module.Exports` | lists exports with resolved function signatures before instantiation |
+
+Host functions defined with `DefineFunc`/`DefineAdvancedFunc` may declare a
+trailing `error` return: a non-nil error traps the calling wasm code. Traps
+carry a wasm backtrace using names from the module's custom `name` section.
 
 ## Conformance
 
