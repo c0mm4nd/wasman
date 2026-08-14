@@ -243,3 +243,57 @@ func TestTrapBacktrace(t *testing.T) {
 		t.Fatalf("wrapped error lost its cause: %v", err)
 	}
 }
+
+func TestInstanceReset(t *testing.T) {
+	mod, err := NewModule(config.ModuleConfig{}, bytes.NewReader(counterModule))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err := NewInstance(mod, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		if _, _, err := ins.CallExportedFunc("run"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := int32(*ins.Globals[0]); got != 3 {
+		t.Fatalf("pre-reset g = %d, want 3", got)
+	}
+
+	ins.Reset()
+	if got := int32(*ins.Globals[0]); got != 0 {
+		t.Fatalf("post-reset g = %d, want 0", got)
+	}
+	// still runnable after reset
+	if _, _, err := ins.CallExportedFunc("run"); err != nil {
+		t.Fatal(err)
+	}
+	if got := int32(*ins.Globals[0]); got != 1 {
+		t.Fatalf("post-reset run g = %d, want 1", got)
+	}
+}
+
+func TestInstanceResetMemory(t *testing.T) {
+	mod, err := NewModule(config.ModuleConfig{}, bytes.NewReader(memModule))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err := NewInstance(mod, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins.Memory.Value[0] = 0xAA
+	if rets, _, err := ins.CallExportedFunc("grow"); err != nil || int32(rets[0]) != 2 {
+		t.Fatalf("grow: %v %v", rets, err)
+	}
+
+	ins.Reset()
+	if pages := len(ins.Memory.Value) / 65536; pages != 2 {
+		t.Fatalf("post-reset pages = %d, want 2", pages)
+	}
+	if ins.Memory.Value[0] != 0 {
+		t.Fatalf("post-reset memory not restored: %#x", ins.Memory.Value[0])
+	}
+}

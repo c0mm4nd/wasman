@@ -9,6 +9,7 @@ import (
 
 	"github.com/c0mm4nd/wasman/config"
 
+	"github.com/c0mm4nd/wasman/segments"
 	"github.com/c0mm4nd/wasman/stacks"
 
 	"github.com/c0mm4nd/wasman/leb128decode"
@@ -44,6 +45,12 @@ type Instance struct {
 	// Interrupt and polled by the exec loop; opTick amortizes the atomic load.
 	interruptFlag uint32
 	opTick        uint32
+
+	// post-instantiation snapshot for Reset: the owned memory's bytes and the
+	// values of the instance's own (non-imported) global cells.
+	memSnapshot     []byte
+	globalSnapshot  []uint64
+	importedGlobals int
 }
 
 // Interrupt requests that the currently running (or next) execution on this
@@ -119,7 +126,48 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 		}
 	}
 
+	// snapshot the post-instantiation state (after data segments and start
+	// functions) so Reset can restore it. Imported memories/globals are shared
+	// with their exporter and are deliberately NOT snapshotted.
+	ownsMemory := len(module.MemorySection) > 0
+	if ins.Memory != nil && ownsMemory {
+		ins.memSnapshot = make([]byte, len(ins.Memory.Value))
+		copy(ins.memSnapshot, ins.Memory.Value)
+	}
+	for _, imp := range module.ImportSection {
+		if imp.Desc.Kind == segments.KindGlobal {
+			ins.importedGlobals++
+		}
+	}
+	ins.globalSnapshot = make([]uint64, 0, len(ins.Globals)-ins.importedGlobals)
+	for i := ins.importedGlobals; i < len(ins.Globals); i++ {
+		ins.globalSnapshot = append(ins.globalSnapshot, *ins.Globals[i])
+	}
+
 	return ins, nil
+}
+
+// Reset restores the instance to its post-instantiation state: the owned
+// linear memory (content and size) and the instance's own globals. Imported
+// memories and globals are shared with their exporter and are left untouched.
+// Useful for pooling: one instance can serve many isolated runs without
+// paying for re-instantiation.
+func (ins *Instance) Reset() {
+	if ins.memSnapshot != nil && ins.Memory != nil {
+		if cap(ins.Memory.Value) >= len(ins.memSnapshot) {
+			ins.Memory.Value = ins.Memory.Value[:len(ins.memSnapshot)]
+		} else {
+			ins.Memory.Value = make([]byte, len(ins.memSnapshot))
+		}
+		copy(ins.Memory.Value, ins.memSnapshot)
+	}
+	for i, v := range ins.globalSnapshot {
+		*ins.Globals[ins.importedGlobals+i] = v
+	}
+	ins.OperandStack.Ptr = -1
+	ins.FrameStack.Ptr = -1
+	ins.Active = nil
+	atomic.StoreUint32(&ins.interruptFlag, 0)
 }
 
 func (ins *Instance) fetchInt32() (int32, error) {
