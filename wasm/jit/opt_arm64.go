@@ -59,6 +59,14 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 		}
 	}
 	g := &optGen{fn: fn, fd: fd, al: al}
+	for _, i2 := range fn.code {
+		if i2.op == irWide {
+			if k, w256 := WideOpKind(uint16(i2.sub)); k == WideMul && w256 {
+				g.frameExtra = 4
+				break
+			}
+		}
+	}
 	if err := g.gen(); err != nil {
 		return nil, err
 	}
@@ -68,7 +76,7 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 	}
 	return &Compiled{Code: code, MaxHeight: fn.maxH + al.spillSlots,
 		CallSites: fn.sites, NativeABI: true,
-		FrameSlots: fn.nlocals + fn.maxH + al.spillSlots + 1,
+		FrameSlots: fn.nlocals + fn.maxH + al.spillSlots + 1 + g.frameExtra,
 		LocalSlots: fn.nlocals}, nil
 }
 
@@ -89,6 +97,9 @@ type optGen struct {
 	lasts   map[int]int
 	patches []optPatch
 	oob     []int
+	// frameExtra reserves scratch slots above the link slot (wide-integer
+	// multiplication temporaries)
+	frameExtra int
 	// pending fusion of a flag/zero test into the following branch
 	pendV    int
 	pendKind byte // 'f' flags+cond, 'z' cbnz on a register
@@ -426,7 +437,7 @@ func (g *optGen) framePrologue(full bool) {
 	a := &g.a
 	need := g.fn.nlocals
 	if full {
-		end := (g.linkSlot() + 1) * 8
+		end := (g.linkSlot() + 1 + g.frameExtra) * 8
 		if end < 4096 {
 			a.AddImm(RegT0, RegStack, uint32(end))
 		} else {
@@ -501,7 +512,7 @@ func (g *optGen) emitIndirectFast(site *CallSite) []int {
 	}
 	sp := site.SpBefore
 	n := sig.In
-	frameEnd := (g.linkSlot() + 1) * 8
+	frameEnd := (g.linkSlot() + 1 + g.frameExtra) * 8
 	var exits []int
 	// mirror present?
 	a.LdrImm(optScratch2, RegCtx, 88)
@@ -568,7 +579,7 @@ func (g *optGen) emitNativeCall(ins *irInstr) {
 	idx := int(ins.imm >> 32)
 	sp := int(uint32(ins.imm))
 	sig := g.fn.sigs[idx]
-	frameEnd := (g.linkSlot() + 1) * 8 // callee locals start here
+	frameEnd := (g.linkSlot() + 1 + g.frameExtra) * 8 // callee locals start here
 	// arguments: caller stack top -> callee locals
 	for i := 0; i < sig.In; i++ {
 		a.LdrImm(RegT0, RegStack, uint32((sp-sig.In+i)*8))

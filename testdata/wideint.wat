@@ -85,4 +85,18 @@
         (local.set $n (i32.sub (local.get $n) (i32.const 1)))
         (br $l)))
     (local.get $acc))
+  (func (export "bench_mul256") (param $n i32)
+    (block $done
+      (loop $l
+        (br_if $done (i32.eqz (local.get $n)))
+        (call $u256_mul (i32.const 0) (i32.const 64) (i32.const 96))
+        (local.set $n (i32.sub (local.get $n) (i32.const 1)))
+        (br $l))))
+  (func (export "bench_div256") (param $n i32)
+    (block $done
+      (loop $l
+        (br_if $done (i32.eqz (local.get $n)))
+        (call $u256_div_u (i32.const 0) (i32.const 64) (i32.const 96))
+        (local.set $n (i32.sub (local.get $n) (i32.const 1)))
+        (br $l))))
 )

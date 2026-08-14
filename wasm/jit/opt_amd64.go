@@ -38,6 +38,14 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 		}
 	}
 	g := &optGen{fn: fn, fd: fd, al: al}
+	for _, i2 := range fn.code {
+		if i2.op == irWide {
+			if k, w256 := WideOpKind(uint16(i2.sub)); k == WideMul && w256 {
+				g.frameExtra = 4
+				break
+			}
+		}
+	}
 	if err := g.gen(); err != nil {
 		return nil, err
 	}
@@ -47,7 +55,7 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 	}
 	return &Compiled{Code: code, MaxHeight: fn.maxH + al.spillSlots,
 		CallSites: fn.sites, NativeABI: true,
-		FrameSlots: fn.nlocals + fn.maxH + al.spillSlots + 1,
+		FrameSlots: fn.nlocals + fn.maxH + al.spillSlots + 1 + g.frameExtra,
 		LocalSlots: fn.nlocals}, nil
 }
 
@@ -66,6 +74,9 @@ type optGen struct {
 	lasts   map[int]int
 	patches []optPatch
 	oob     []int
+	// frameExtra reserves scratch slots above the link slot (wide-integer
+	// multiplication temporaries)
+	frameExtra int
 	// pending fusion of a test into the following branch
 	pendV    int
 	pendKind byte // 'f' flags+cc, 'z' test-and-jnz
@@ -170,7 +181,7 @@ func (g *optGen) framePrologue(full bool) {
 	a := &g.a
 	need := g.fn.nlocals
 	if full {
-		end := int32((g.linkSlot() + 1) * 8)
+		end := int32((g.linkSlot() + 1 + g.frameExtra) * 8)
 		a.modDisp32(true, 0x8D, rCX, rSI, end) // LEA RCX, [SI+end]
 		a.LdCtx(rDX, 56)                       // Ctx.StackLimit
 		a.BinRR(true, 0x39, rCX, rDX)
@@ -238,7 +249,7 @@ func (g *optGen) emitIndirectFast(site *CallSite) []int {
 	expect := g.fd.TypeSigIDs[site.TypeIdx]
 	sp := site.SpBefore
 	n := sig.In
-	frameEnd := (g.linkSlot() + 1) * 8
+	frameEnd := (g.linkSlot() + 1 + g.frameExtra) * 8
 	var exits []int
 	bail := func(cc byte) {
 		exits = append(exits, a.Len())
@@ -297,7 +308,7 @@ func (g *optGen) emitNativeCall(ins *irInstr) {
 	idx := int(ins.imm >> 32)
 	sp := int(uint32(ins.imm))
 	sig := g.fn.sigs[idx]
-	frameEnd := (g.linkSlot() + 1) * 8
+	frameEnd := (g.linkSlot() + 1 + g.frameExtra) * 8
 	for i := 0; i < sig.In; i++ {
 		a.modDisp32(true, 0x8B, rAX, rSI, int32((sp-sig.In+i)*8))
 		a.modDisp32(true, 0x89, rAX, rSI, int32(frameEnd+i*8))

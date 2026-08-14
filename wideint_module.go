@@ -258,6 +258,14 @@ func wideIntModules() map[string]*Module {
 		tag(ns, "iszero", jit.WideIsZero, wide)
 		tag(ns, "cmp_u", jit.WideCmpU, wide)
 		tag(ns, "cmp_s", jit.WideCmpS, wide)
+		tag(ns, "mul", jit.WideMul, wide)
+		tag(ns, "div_u", jit.WideDivU, wide)
+		tag(ns, "div_s", jit.WideDivS, wide)
+		tag(ns, "rem_u", jit.WideRemU, wide)
+		tag(ns, "rem_s", jit.WideRemS, wide)
+		tag(ns, "shl", jit.WideShl, wide)
+		tag(ns, "shr_u", jit.WideShrU, wide)
+		tag(ns, "shr_s", jit.WideShrS, wide)
 	}
 
 	return l.Modules

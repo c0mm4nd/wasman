@@ -163,6 +163,31 @@ func TestWideIntOps(t *testing.T) {
 	}
 }
 
+func benchWide(b *testing.B, fn string) {
+	raw, _ := os.ReadFile("testdata/wideint.wasm")
+	mod, err := wasman.NewModule(config.ModuleConfig{EnableWideInt: true, EnableJIT: true}, bytes.NewReader(raw))
+	if err != nil {
+		b.Fatal(err)
+	}
+	ins, err := wasman.NewInstance(mod, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	// nonzero operands so division does real work
+	for i := 64; i < 128; i++ {
+		ins.Memory.Value[i] = byte(i*37 + 1)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, _, err := ins.CallExportedFunc(fn, 1_000_000); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkWideMul256(b *testing.B) { benchWide(b, "bench_mul256") }
+func BenchmarkWideDiv256(b *testing.B) { benchWide(b, "bench_div256") }
+
 // BenchmarkWideAdd256 measures one u256 add through wasm; the baseline
 // tier keeps the host-call path, the optimizing tier inlines it.
 func BenchmarkWideAdd256(b *testing.B) {

@@ -41,7 +41,9 @@ type FuncDesc struct {
 	WideOps []uint16
 }
 
-// Wide-integer intrinsic ids: 1 + op + width*16 (width 0: u128, 1: u256).
+// Wide-integer intrinsic ids: 1 + op + width*32 (width 0: u128, 1: u256).
+// The first ten (through WideMul) inline as native code in the optimizing
+// tier; the rest dispatch through the reflection-free direct host path.
 const (
 	WideAdd = iota
 	WideSub
@@ -52,16 +54,28 @@ const (
 	WideIsZero
 	WideCmpU
 	WideCmpS
-	wideOpCount
+	WideMul
+	WideDivU
+	WideDivS
+	WideRemU
+	WideRemS
+	WideShl
+	WideShrU
+	WideShrS
 )
 
-// WideOpID builds an intrinsic id; Wide256 selects the 256-bit width.
+// WideOpID builds an intrinsic id; wide256 selects the 256-bit width.
 func WideOpID(op int, wide256 bool) uint16 {
 	id := uint16(1 + op)
 	if wide256 {
-		id += 16
+		id += 32
 	}
 	return id
+}
+
+// WideOpKind splits an id into operation and width.
+func WideOpKind(id uint16) (op int, wide256 bool) {
+	return int(id-1) & 0x1f, id > 32
 }
 
 // FuncSig is a function arity (parameter and result slot counts) plus the

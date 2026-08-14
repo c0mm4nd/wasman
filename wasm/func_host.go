@@ -34,6 +34,10 @@ func (f *HostFunc) getType() *types.FuncType {
 }
 
 func (f *HostFunc) call(ins *Instance) error {
+	if f.wideOp != 0 {
+		// built-in wide-integer operations skip the reflection machinery
+		return wideDirect(ins, f.wideOp)
+	}
 	if f.function == nil {
 		// an unbound host function reports instead of panicking in reflect
 		return fmt.Errorf("host function called before binding")

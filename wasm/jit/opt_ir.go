@@ -548,12 +548,13 @@ func (f *irFrontend) lowerOp(op byte, imm uint64) error {
 			site.FuncIdx = uint32(imm)
 			sig = f.fd.FuncSigs[imm]
 			// built-in wide-integer targets inline as native carry chains
-			if f.fd.WideOps != nil && int(imm) < len(f.fd.WideOps) && f.fd.WideOps[imm] != 0 {
+			if f.fd.WideOps != nil && int(imm) < len(f.fd.WideOps) && f.fd.WideOps[imm] != 0 &&
+				func() bool { k, _ := WideOpKind(f.fd.WideOps[imm]); return k <= WideMul }() {
 				wid := f.fd.WideOps[imm]
-				kind := int(wid-1) & 0xf
+				kind, _ := WideOpKind(wid)
 				ins := irInstr{op: irWide, sub: byte(wid), dst: -1, a: -1, b: -1, c: -1}
 				switch kind {
-				case WideAdd, WideSub, WideAnd, WideOr, WideXor: // (dst, a, b)
+				case WideAdd, WideSub, WideAnd, WideOr, WideXor, WideMul: // (dst, a, b)
 					pb, pa, pd := f.pop(), f.pop(), f.pop()
 					ins.a, ins.b, ins.c = pd.v, pa.v, pb.v
 					f.emit(ins)

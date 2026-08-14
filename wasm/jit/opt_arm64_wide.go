@@ -25,12 +25,19 @@ func (g *optGen) wideEff(v int, w uint32, dest uint32) {
 }
 
 func (g *optGen) emitWide(ins *irInstr) {
+	if k, w256 := WideOpKind(uint16(ins.sub)); k == WideMul {
+		if w256 {
+			g.emitMul256(ins)
+		} else {
+			g.emitMul128(ins)
+		}
+		return
+	}
 	a := &g.a
-	id := int(ins.sub)
-	kind := (id - 1) & 0xf
+	kind, wide256 := WideOpKind(uint16(ins.sub))
 	limbs := 2
 	w := uint32(16)
-	if id > 16 {
+	if wide256 {
 		limbs, w = 4, 32
 	}
 
@@ -129,4 +136,80 @@ func (g *optGen) emitWide(ins *irInstr) {
 			a.StrImm(RegT0, base, off)
 		}
 	}
+}
+
+// emitMul128: lo = a0*b0, hi = umulh(a0,b0) + a0*b1 + a1*b0. R3 borrows as
+// an accumulator and is re-derived afterwards.
+func (g *optGen) emitMul128(ins *irInstr) {
+	a := &g.a
+	g.wideEff(ins.a, 16, optScratch2) // dst: bounds only, reg reused below
+	g.wideEff(ins.b, 16, 17)
+	g.wideEff(ins.c, 16, wideScratch3)
+	a.LdrImm(RegT0, 17, 0)                                                            // a0
+	a.LdrImm(optScratch2, 17, 8)                                                      // a1
+	a.LdrImm(RegT1, wideScratch3, 0)                                                  // b0
+	a.LdrImm(17, wideScratch3, 8)                                                     // b1
+	a.word(0x9B007C00 | RegT1<<16 | RegT0<<5 | RegLocals)                             // MUL r3 = a0*b0
+	a.word(0x9BC07C00 | RegT1<<16 | RegT0<<5 | wideScratch3)                          // UMULH r2
+	a.word(0x9B000000 | 17<<16 | wideScratch3<<10 | RegT0<<5 | wideScratch3)          // MADD += a0*b1
+	a.word(0x9B000000 | RegT1<<16 | wideScratch3<<10 | optScratch2<<5 | wideScratch3) // MADD += a1*b0
+	p := g.read(ins.a, RegT0)                                                         // re-derive the destination
+	a.Uxtw(RegT0, p)
+	a.AddRegX(optScratch2, RegMem, RegT0)
+	a.StrImm(RegLocals, optScratch2, 0)
+	a.StrImm(wideScratch3, optScratch2, 8)
+	a.SubImm(RegLocals, RegStack, uint32(g.fn.nlocals*8)) // restore R3
+}
+
+// emitMul256: column-wise (Comba) accumulation of the low 256 bits. The
+// accumulators borrow R3/R4/R5 (all re-derivable), column results park in
+// the frame's wide-mul scratch slots, and the destination is derived last
+// so it may alias either source.
+func (g *optGen) emitMul256(ins *irInstr) {
+	a := &g.a
+	tmp := uint32((g.linkSlot() + 1) * 8)
+	g.wideEff(ins.a, 32, optScratch2) // dst: bounds only
+	g.wideEff(ins.b, 32, 17)
+	g.wideEff(ins.c, 32, wideScratch3)
+	// acc0=R3, acc1=R5, acc2=R4
+	a.MovImm64(RegLocals, 0)
+	a.MovImm64(RegMemLen, 0)
+	a.MovImm64(RegMem, 0)
+	for k := 0; k < 4; k++ {
+		for i := 0; i <= k; i++ {
+			j := k - i
+			a.LdrImm(RegT0, 17, uint32(i*8))
+			a.LdrImm(RegT1, wideScratch3, uint32(j*8))
+			if k < 3 {
+				a.word(0x9BC07C00 | RegT1<<16 | RegT0<<5 | optScratch2) // UMULH r16
+			}
+			a.word(0x9B007C00 | RegT1<<16 | RegT0<<5 | RegT0)         // MUL r6 (low)
+			a.word(0xAB000000 | RegT0<<16 | RegLocals<<5 | RegLocals) // ADDS acc0
+			if k < 3 {
+				a.word(0xBA000000 | optScratch2<<16 | RegMemLen<<5 | RegMemLen) // ADCS acc1
+				a.word(0x9A1F0000 | RegMem<<5 | RegMem)                         // ADC acc2, xzr
+			}
+		}
+		a.StrImm(RegLocals, RegStack, tmp+uint32(k*8))
+		if k < 3 { // roll the accumulator window
+			a.word(0xAA0003E0 | RegMemLen<<16 | RegLocals) // MOV acc0, acc1
+			a.word(0xAA0003E0 | RegMem<<16 | RegMemLen)    // MOV acc1, acc2
+			a.MovImm64(RegMem, 0)
+		}
+	}
+	g.restoreDerived() // R4/R5 back before deriving the destination
+	p := g.read(ins.a, RegT0)
+	a.Uxtw(RegT0, p)
+	a.AddRegX(optScratch2, RegMem, RegT0)
+	for k := 0; k < 4; k++ {
+		a.LdrImm(RegT0, RegStack, tmp+uint32(k*8))
+		a.StrImm(RegT0, optScratch2, uint32(k*8))
+	}
+	a.SubImm(RegLocals, RegStack, uint32(g.fn.nlocals*8))
+}
+
+// restoreDerived rebuilds the borrowed base registers from the context.
+func (g *optGen) restoreDerived() {
+	g.a.LdrImm(RegMem, RegCtx, 24)
+	g.a.LdrImm(RegMemLen, RegCtx, 32)
 }
