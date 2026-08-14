@@ -19,7 +19,12 @@ type Ctx struct {
 // Supported reports whether native codegen exists for this platform.
 func Supported() bool { return true }
 
-// enter is implemented in enter_$GOARCH.s.
+// enter is implemented in enter_$GOARCH.s. It stores into ctx but does not
+// retain it, so the pointer must not be treated as escaping — that keeps the
+// per-call Ctx on the caller's stack (one heap allocation per call
+// otherwise, which is pure GC pressure on call-heavy workloads).
+//
+//go:noescape
 func enter(code uintptr, ctx *Ctx) uint32
 
 // Call runs an AllocExec mapping against ctx and returns its status code.
