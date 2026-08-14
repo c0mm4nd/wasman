@@ -109,3 +109,48 @@ func (a *Asm) Sxtw(d, n uint32) { a.word(0x93407C00 | n<<5 | d) }
 
 // Uxtw emits MOV Wd, Wn (zero upper 32 bits).
 func (a *Asm) Uxtw(d, n uint32) { a.word(0x2A0003E0 | n<<16 | d) }
+
+// register RegT2 is a third scratch register (select, memory ops).
+const RegT2 = 8
+
+// CmpRegW emits CMP Wn, Wm.
+func (a *Asm) CmpRegW(n, m uint32) { a.word(0x6B00001F | m<<16 | n<<5) }
+
+// CmpRegX emits CMP Xn, Xm.
+func (a *Asm) CmpRegX(n, m uint32) { a.word(0xEB00001F | m<<16 | n<<5) }
+
+// CmpImmW emits CMP Wn, #imm12.
+func (a *Asm) CmpImmW(n, imm uint32) { a.word(0x7100001F | imm<<10 | n<<5) }
+
+// CmpImmX emits CMP Xn, #imm12.
+func (a *Asm) CmpImmX(n, imm uint32) { a.word(0xF100001F | imm<<10 | n<<5) }
+
+// Cset emits CSET Xd, cond.
+func (a *Asm) Cset(d, cond uint32) { a.word(0x9A9F07E0 | (cond^1)<<12 | d) }
+
+// Csel emits CSEL Xd, Xn, Xm, cond.
+func (a *Asm) Csel(d, n, m, cond uint32) { a.word(0x9A800000 | m<<16 | cond<<12 | n<<5 | d) }
+
+// B emits an unconditional branch to a byte offset relative to this
+// instruction (backwards for loop heads, 0 as a forward placeholder).
+func (a *Asm) B(rel int) { a.word(0x14000000 | uint32(rel/4)&0x3ffffff) }
+
+// Cbz emits CBZ Xt with a relative byte offset (0 as a placeholder).
+func (a *Asm) Cbz(t uint32, rel int) { a.word(0xB4000000 | (uint32(rel/4)&0x7ffff)<<5 | t) }
+
+// PatchB rewrites the B placeholder at byte offset `at` to jump here.
+func (a *Asm) PatchB(at int) {
+	a.setWord(at, 0x14000000|uint32((a.Len()-at)/4)&0x3ffffff)
+}
+
+// PatchCbz rewrites the CBZ placeholder at byte offset `at` to jump here.
+func (a *Asm) PatchCbz(at int, t uint32) {
+	a.setWord(at, 0xB4000000|(uint32((a.Len()-at)/4)&0x7ffff)<<5|t)
+}
+
+func (a *Asm) setWord(at int, w uint32) {
+	a.buf[at] = byte(w)
+	a.buf[at+1] = byte(w >> 8)
+	a.buf[at+2] = byte(w >> 16)
+	a.buf[at+3] = byte(w >> 24)
+}

@@ -39,6 +39,8 @@ func assemble(code []ins, numLocals, numParams, numRets int) *FuncDesc {
 		NumLocals: numLocals, NumParams: numParams, NumRets: numRets}
 }
 
+func ptrOf(s []uint64) uintptr { return uintptr(unsafe.Pointer(&s[0])) }
+
 func runCompiled(t *testing.T, cd *Compiled, locals []uint64) []uint64 {
 	t.Helper()
 	stack := make([]uint64, cd.MaxHeight+1)
