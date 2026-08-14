@@ -169,6 +169,15 @@ Host functions defined with `DefineFunc`/`DefineAdvancedFunc` may declare a
 trailing `error` return: a non-nil error traps the calling wasm code. Traps
 carry a wasm backtrace using names from the module's custom `name` section.
 
+## Performance
+
+wasman is a straightforward bytecode interpreter that optimizes for startup
+cost, steady-state allocations and simplicity rather than peak throughput:
+~1 allocation per exported call, and instantiation (including full
+validation) several times faster than warming up other runtimes. A JIT such
+as wazero's compiler executes 40–300× faster — pick accordingly. See
+[bench/README.md](./bench/README.md) for the cross-runtime numbers.
+
 ## Conformance
 
 The [spectest](./spectest) harness converts the official WebAssembly core test
