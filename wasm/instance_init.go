@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/c0mm4nd/wasman/config"
@@ -247,7 +248,7 @@ func (ins *Instance) buildFunctionIndexSpace() error {
 			name:      name,
 		}
 
-		brs, err := ins.parseBlocks(f.body)
+		brs, err := ins.parseBlocks(f, f.body)
 		if err != nil {
 			return fmt.Errorf("parse blocks: %w", err)
 		}
@@ -451,65 +452,81 @@ func (ins *Instance) readBlockType(r *bytes.Reader) (*blockType, uint64, error) 
 	return ret, l, nil
 }
 
-func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
+// parseBlocks scans a function body once, resolving block structure AND
+// pre-decoding every immediate so the exec loop never touches LEB128, a
+// bytes.Reader or a map at run time.
+func (ins *Instance) parseBlocks(f *wasmFunc, body []byte) (map[uint64]*funcBlock, error) {
 	ret := map[uint64]*funcBlock{}
 	stack := make([]*funcBlock, 0)
+	f.imms = make([]uint64, len(body))
+	f.pcEnd = make([]uint32, len(body))
 	for pc := uint64(0); pc < uint64(len(body)); pc++ {
 		rawOc := body[pc]
+		op0 := pc                           // PC of the opcode byte, for the immediate tables
 		if 0x28 <= rawOc && rawOc <= 0x3e { // memory load,store
 			pc++
-			// align
+			// align (validated statically; unused at run time)
 			_, l, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read memory align: %w", err)
 			}
 			pc += l
 			// offset
-			_, l, err = leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
+			off, l, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read memory offset: %w", err)
 			}
 			pc += l - 1
+			f.imms[op0] = uint64(off)
+			f.pcEnd[op0] = uint32(pc)
 			continue
 		} else if 0x41 <= rawOc && rawOc <= 0x44 { // const instructions
 			pc++
 			switch expr.OpCode(rawOc) {
 			case expr.OpCodeI32Const:
-				_, l, err := leb128decode.DecodeInt32(bytes.NewReader(body[pc:]))
+				v, l, err := leb128decode.DecodeInt32(bytes.NewReader(body[pc:]))
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
 				pc += l - 1
+				f.imms[op0] = uint64(v)
 			case expr.OpCodeI64Const:
-				_, l, err := leb128decode.DecodeInt64(bytes.NewReader(body[pc:]))
+				v, l, err := leb128decode.DecodeInt64(bytes.NewReader(body[pc:]))
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
 				pc += l - 1
+				f.imms[op0] = uint64(v)
 			case expr.OpCodeF32Const:
+				f.imms[op0] = uint64(binary.LittleEndian.Uint32(body[pc:]))
 				pc += 3
 			case expr.OpCodeF64Const:
+				f.imms[op0] = binary.LittleEndian.Uint64(body[pc:])
 				pc += 7
 			}
+			f.pcEnd[op0] = uint32(pc)
 			continue
 		} else if (0x3f <= rawOc && rawOc <= 0x40) || // memory grow,size
 			(0x20 <= rawOc && rawOc <= 0x24) || // variable instructions
 			(0x0c <= rawOc && rawOc <= 0x0d) || // br,br_if instructions
 			(0x10 <= rawOc && rawOc <= 0x11) { // call,call_indirect
 			pc++
-			_, l, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
+			v, l, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
 			if err != nil {
 				return nil, fmt.Errorf("read immediate: %w", err)
 			}
 			pc += l - 1
+			f.imms[op0] = uint64(v)
 			if rawOc == 0x11 { // call_indirect has a second immediate: the table index
 				pc++
-				_, l2, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
+				ti, l2, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
 				if err != nil {
 					return nil, fmt.Errorf("read call_indirect table index: %w", err)
 				}
 				pc += l2 - 1
+				f.imms[op0] = uint64(v)<<32 | uint64(ti)
 			}
+			f.pcEnd[op0] = uint32(pc)
 			continue
 		} else if rawOc == 0xfc { // misc prefix (saturating trunc, bulk memory, ...)
 			pc++
@@ -522,6 +539,8 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 				return nil, fmt.Errorf("unknown misc instruction: 0xfc %d", sub)
 			}
 			pc += l - 1
+			f.imms[op0] = uint64(sub)
+			f.pcEnd[op0] = uint32(pc)
 			continue
 		} else if rawOc == 0x0e { // br_table
 			pc++
@@ -531,18 +550,25 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 				return nil, fmt.Errorf("read immediate: %w", err)
 			}
 
+			plan := &brPlan{targets: make([]uint32, nl)}
 			for i := uint32(0); i < nl; i++ {
-				_, n, err := leb128decode.DecodeUint32(r)
+				li, n, err := leb128decode.DecodeUint32(r)
 				if err != nil {
 					return nil, fmt.Errorf("read immediate: %w", err)
 				}
 				num += n
+				plan.targets[i] = li
 			}
 
-			_, l, err := leb128decode.DecodeUint32(r)
+			def, l, err := leb128decode.DecodeUint32(r)
 			if err != nil {
 				return nil, fmt.Errorf("read immediate: %w", err)
 			}
+			plan.def = def
+			if f.brPlans == nil {
+				f.brPlans = map[uint64]*brPlan{}
+			}
+			f.brPlans[op0] = plan
 			pc += l + num - 1
 			continue
 		}
@@ -583,6 +609,11 @@ func (ins *Instance) parseBlocks(body []byte) (map[uint64]*funcBlock, error) {
 
 	if len(stack) > 0 {
 		return nil, fmt.Errorf("ill-nested block exists")
+	}
+
+	f.blocksAt = make([]*funcBlock, len(body))
+	for at, bl := range ret {
+		f.blocksAt[at] = bl
 	}
 
 	return ret, nil

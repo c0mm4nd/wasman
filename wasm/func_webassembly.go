@@ -28,6 +28,21 @@ type wasmFunc struct {
 	// name is the debug name for trap backtraces (from the custom "name"
 	// section, or a synthesized func[N]).
 	name string
+
+	// pre-decoded immediates, indexed by the PC of the opcode byte: imms holds
+	// the (packed) immediate value and pcEnd the PC of the instruction's last
+	// byte, so the exec loop never decodes LEB128 at run time. blocksAt is the
+	// Blocks map flattened for O(1) lookup; brPlans holds br_table targets.
+	imms     []uint64
+	pcEnd    []uint32
+	blocksAt []*funcBlock
+	brPlans  map[uint64]*brPlan
+}
+
+// brPlan is a pre-decoded br_table: its targets and default label.
+type brPlan struct {
+	targets []uint32
+	def     uint32
 }
 
 // maxTraceFrames bounds a trap backtrace so deep recursion (e.g. a call-stack
@@ -201,4 +216,16 @@ func (f *wasmFunc) callCross(caller *Instance) error {
 	}
 
 	return nil
+}
+
+// blockAt resolves the block starting at pc: O(1) through the flattened
+// array when compiled, falling back to the map for hand-built fixtures.
+func (f *wasmFunc) blockAt(pc uint64) *funcBlock {
+	if f.blocksAt != nil {
+		if pc < uint64(len(f.blocksAt)) {
+			return f.blocksAt[pc]
+		}
+		return nil
+	}
+	return f.Blocks[pc]
 }

@@ -30,8 +30,8 @@ func nop(_ *Instance) error {
 
 func block(ins *Instance) error {
 	ctx := ins.Active
-	block, ok := ctx.Func.Blocks[ctx.PC]
-	if !ok {
+	block := ctx.Func.blockAt(ctx.PC)
+	if block == nil {
 		return ErrBlockNotInitialized
 	}
 
@@ -50,8 +50,8 @@ func block(ins *Instance) error {
 
 func loop(ins *Instance) error {
 	ctx := ins.Active
-	block, ok := ctx.Func.Blocks[ctx.PC]
-	if !ok {
+	block := ctx.Func.blockAt(ctx.PC)
+	if block == nil {
 		return ErrBlockNotFound
 	}
 	ctx.PC += block.BlockTypeBytes
@@ -69,8 +69,8 @@ func loop(ins *Instance) error {
 
 func ifOp(ins *Instance) error {
 	ctx := ins.Active
-	block, ok := ctx.Func.Blocks[ins.Active.PC]
-	if !ok {
+	block := ctx.Func.blockAt(ins.Active.PC)
+	if block == nil {
 		return ErrBlockNotInitialized
 	}
 	ctx.PC += block.BlockTypeBytes
@@ -114,12 +114,14 @@ func end(ins *Instance) error {
 }
 
 func br(ins *Instance) error {
+	if f := ins.Active.Func; f.imms != nil {
+		return branchAt(ins, uint32(f.imms[ins.Active.PC]))
+	}
 	ins.Active.PC++
 	index, err := ins.fetchUint32()
 	if err != nil {
 		return err
 	}
-
 	return branchAt(ins, index)
 }
 
@@ -153,21 +155,35 @@ func branchAt(ins *Instance, index uint32) error {
 }
 
 func brIf(ins *Instance) error {
+	if f := ins.Active.Func; f.imms != nil {
+		p := ins.Active.PC
+		if ins.OperandStack.Pop() != 0 {
+			return branchAt(ins, uint32(f.imms[p]))
+		}
+		ins.Active.PC = uint64(f.pcEnd[p])
+		return nil
+	}
 	ins.Active.PC++
 	index, err := ins.fetchUint32()
 	if err != nil {
 		return err
 	}
-
-	c := ins.OperandStack.Pop()
-	if c != 0 {
+	if ins.OperandStack.Pop() != 0 {
 		return branchAt(ins, index)
 	}
-
 	return nil
 }
 
 func brTable(ins *Instance) error {
+	if f := ins.Active.Func; f.brPlans != nil {
+		if plan := f.brPlans[ins.Active.PC]; plan != nil {
+			i := ins.OperandStack.Pop()
+			if i < uint64(len(plan.targets)) {
+				return branchAt(ins, plan.targets[i])
+			}
+			return branchAt(ins, plan.def)
+		}
+	}
 	ins.Active.PC++
 	r := bytes.NewReader(ins.Active.Func.body[ins.Active.PC:])
 	nl, num, err := leb128decode.DecodeUint32(r)
@@ -200,32 +216,40 @@ func brTable(ins *Instance) error {
 }
 
 func call(ins *Instance) error {
+	if f := ins.Active.Func; f.imms != nil {
+		p := ins.Active.PC
+		ins.Active.PC = uint64(f.pcEnd[p])
+		return ins.Functions[f.imms[p]].call(ins)
+	}
 	ins.Active.PC++
 	index, err := ins.fetchUint32()
 	if err != nil {
 		return err
 	}
-
-	err = ins.Functions[index].call(ins)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return ins.Functions[index].call(ins)
 }
 
 func callIndirect(ins *Instance) error {
-	ins.Active.PC++
-	typeIndex, err := ins.fetchUint32()
-	if err != nil {
-		return err
-	}
-
-	// the table index immediate (0 in the MVP, may be non-zero with multi-table)
-	ins.Active.PC++
-	tableIndex, err := ins.fetchUint32()
-	if err != nil {
-		return err
+	var typeIndex, tableIndex uint32
+	if f := ins.Active.Func; f.imms != nil {
+		p := ins.Active.PC
+		packed := f.imms[p]
+		typeIndex, tableIndex = uint32(packed>>32), uint32(packed)
+		ins.Active.PC = uint64(f.pcEnd[p])
+	} else {
+		ins.Active.PC++
+		ti, err := ins.fetchUint32()
+		if err != nil {
+			return err
+		}
+		typeIndex = ti
+		// the table index immediate (0 in the MVP, non-zero with multi-table)
+		ins.Active.PC++
+		tbl, err := ins.fetchUint32()
+		if err != nil {
+			return err
+		}
+		tableIndex = tbl
 	}
 
 	expType := ins.Module.TypeSection[typeIndex]

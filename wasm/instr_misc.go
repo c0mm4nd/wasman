@@ -23,10 +23,18 @@ var miscInstructions = map[uint32]func(ins *Instance) error{
 // miscPrefix handles the 0xfc prefix: it reads the following LEB128 sub-opcode
 // and dispatches to the matching handler.
 func miscPrefix(ins *Instance) error {
-	ins.Active.PC++
-	sub, err := ins.fetchUint32()
-	if err != nil {
-		return err
+	var sub uint32
+	if f := ins.Active.Func; f.imms != nil {
+		p := ins.Active.PC
+		sub = uint32(f.imms[p])
+		ins.Active.PC = uint64(f.pcEnd[p])
+	} else {
+		ins.Active.PC++
+		v, err := ins.fetchUint32()
+		if err != nil {
+			return err
+		}
+		sub = v
 	}
 	fn := miscInstructions[sub]
 	if fn == nil {

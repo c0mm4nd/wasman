@@ -14,20 +14,27 @@ var ErrPtrOutOfBounds = errors.New("pointer is out of bounds")
 // effective address, bounds-checked for an access of the given width so that
 // partially out-of-range accesses trap instead of panicking.
 func memoryBase(ins *Instance, width uint64) (uint64, error) {
-	ins.Active.PC++
-	_, err := ins.fetchUint32() // ignore align
-	if err != nil {
-		return 0, err
-	}
-	ins.Active.PC++
-	v, err := ins.fetchUint32()
-	if err != nil {
-		return 0, err
+	var off uint64
+	if f := ins.Active.Func; f.imms != nil {
+		p := ins.Active.PC
+		off = f.imms[p]
+		ins.Active.PC = uint64(f.pcEnd[p])
+	} else {
+		ins.Active.PC++
+		if _, err := ins.fetchUint32(); err != nil { // ignore align
+			return 0, err
+		}
+		ins.Active.PC++
+		v, err := ins.fetchUint32()
+		if err != nil {
+			return 0, err
+		}
+		off = uint64(v)
 	}
 
 	// the address operand is an i32 interpreted as unsigned; masking to 32 bits
 	// also makes the base+width comparison below overflow-free.
-	base := uint64(v) + uint64(uint32(ins.OperandStack.Pop()))
+	base := off + uint64(uint32(ins.OperandStack.Pop()))
 	if base+width > uint64(len(ins.Memory.Value)) {
 		return 0, ErrPtrOutOfBounds
 	}
@@ -284,6 +291,12 @@ func i64Store32(ins *Instance) error {
 }
 
 func memorySize(ins *Instance) error {
+	if f := ins.Active.Func; f != nil && f.imms != nil {
+		p := ins.Active.PC
+		ins.OperandStack.Push(uint64(int32(len(ins.Memory.Value) / config.DefaultMemoryPageSize)))
+		ins.Active.PC = uint64(f.pcEnd[p])
+		return nil
+	}
 	ins.Active.PC++
 	ins.OperandStack.Push(uint64(int32(len(ins.Memory.Value) / config.DefaultMemoryPageSize)))
 
@@ -291,7 +304,16 @@ func memorySize(ins *Instance) error {
 }
 
 func memoryGrow(ins *Instance) error {
-	ins.Active.PC++
+	if f := ins.Active.Func; f != nil && f.imms != nil {
+		ins.Active.PC = uint64(f.pcEnd[ins.Active.PC])
+	} else {
+		ins.Active.PC++
+	}
+	return memoryGrowBody(ins)
+}
+
+func memoryGrowBody(ins *Instance) error {
+	_ = ins
 	n := uint64(uint32(ins.OperandStack.Pop()))
 
 	current := uint64(len(ins.Memory.Value)) / config.DefaultMemoryPageSize

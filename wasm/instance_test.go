@@ -1061,7 +1061,7 @@ func TestModule_parseBlocks(t *testing.T) {
 		},
 	} {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			actual, err := (&Instance{Module: m, IndexSpace: m.IndexSpace}).parseBlocks(c.body)
+			actual, err := (&Instance{Module: m, IndexSpace: m.IndexSpace}).parseBlocks(&wasmFunc{}, c.body)
 			if err != nil {
 				t.Fail()
 			}
