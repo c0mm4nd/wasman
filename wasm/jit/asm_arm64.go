@@ -103,3 +103,9 @@ func (a *Asm) PopReg(r uint32) {
 	a.SubImm(RegSp, RegSp, 1)
 	a.LdrIdx(r, RegStack, RegSp)
 }
+
+// Sxtw emits SXTW Xd, Wn (sign-extend 32->64).
+func (a *Asm) Sxtw(d, n uint32) { a.word(0x93407C00 | n<<5 | d) }
+
+// Uxtw emits MOV Wd, Wn (zero upper 32 bits).
+func (a *Asm) Uxtw(d, n uint32) { a.word(0x2A0003E0 | n<<16 | d) }
