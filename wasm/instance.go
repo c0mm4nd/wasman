@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sync/atomic"
 
 	"github.com/c0mm4nd/wasman/config"
 
@@ -38,6 +39,19 @@ type Instance struct {
 	// bytes.Reader for every immediate-carrying instruction in the hot loop.
 	// The zero value is ready to use after a Reset.
 	reader bytes.Reader
+
+	// interruptFlag is set (atomically, possibly from another goroutine) by
+	// Interrupt and polled by the exec loop; opTick amortizes the atomic load.
+	interruptFlag uint32
+	opTick        uint32
+}
+
+// Interrupt requests that the currently running (or next) execution on this
+// instance stops with ErrInterrupted. It is safe to call from any goroutine.
+// Note: a cross-module call executes on the callee's own instance; an
+// interrupt takes effect there once control returns to this instance.
+func (ins *Instance) Interrupt() {
+	atomic.StoreUint32(&ins.interruptFlag, 1)
 }
 
 // NewInstance will instantiate the module with extern modules

@@ -2,8 +2,10 @@ package wasm
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 
 	"github.com/c0mm4nd/wasman/expr"
 	"github.com/c0mm4nd/wasman/leb128decode"
@@ -18,6 +20,9 @@ var (
 	ErrFuncIndexOutOfRange  = errors.New("function index out of range")
 	ErrInvalidArgNum        = errors.New("invalid number of arguments")
 	ErrUnknownOpcode        = errors.New("unknown opcode")
+	// ErrInterrupted is returned when execution is stopped by Instance.Interrupt
+	// (e.g. a context cancellation in CallExportedFuncWithContext).
+	ErrInterrupted = errors.New("execution interrupted")
 )
 
 func (ins *Instance) execExpr(expression *expr.Expression) (v interface{}, err error) {
@@ -167,6 +172,13 @@ func constArith(op expr.OpCode, a, b interface{}) (interface{}, error) {
 
 func (ins *Instance) execFunc() error {
 	for ; int(ins.Active.PC) < len(ins.Active.Func.body); ins.Active.PC++ {
+		// poll the interrupt flag every 256 instructions: cheap enough for the
+		// hot loop, responsive enough for timeouts
+		ins.opTick++
+		if ins.opTick&0xff == 0 && atomic.LoadUint32(&ins.interruptFlag) != 0 {
+			return ErrInterrupted
+		}
+
 		opByte := ins.Active.Func.body[ins.Active.PC]
 		op := expr.OpCode(opByte)
 		instr := instructions[op]
@@ -212,6 +224,9 @@ func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []ui
 		return nil, nil, ErrInvalidArgNum
 	}
 
+	// a fresh call starts with any stale interrupt request cleared
+	atomic.StoreUint32(&ins.interruptFlag, 0)
+
 	// on any error, restore the operand stack to its pre-call height so a
 	// trapped call leaves the instance reusable with no leaked values
 	baseSp := ins.OperandStack.Ptr
@@ -238,4 +253,30 @@ func (ins *Instance) CallExportedFunc(name string, args ...uint64) (returns []ui
 	}
 
 	return ret, f.getType().ReturnTypes, nil
+}
+
+// CallExportedFuncWithContext is CallExportedFunc bound to a context: when the
+// context is cancelled or times out, execution is interrupted and the call
+// returns an error wrapping ErrInterrupted.
+func (ins *Instance) CallExportedFuncWithContext(ctx context.Context, name string, args ...uint64) ([]uint64, []types.ValueType, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			ins.Interrupt()
+		case <-done:
+		}
+	}()
+
+	rets, retTypes, err := ins.CallExportedFunc(name, args...)
+	close(done)
+
+	if err != nil && errors.Is(err, ErrInterrupted) && ctx.Err() != nil {
+		return nil, nil, fmt.Errorf("%w: %v", ErrInterrupted, ctx.Err())
+	}
+	return rets, retTypes, err
 }
