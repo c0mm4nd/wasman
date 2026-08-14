@@ -261,7 +261,14 @@ func getSignature(p reflect.Type) (*types.FuncType, error) {
 		}
 	}
 
-	out := make([]types.ValueType, p.NumOut())
+	// a trailing error return is host-side only: a non-nil error traps the
+	// wasm caller instead of being pushed as a value
+	numOut := p.NumOut()
+	if numOut > 0 && p.Out(numOut-1) == errorType {
+		numOut--
+	}
+
+	out := make([]types.ValueType, numOut)
 	for i := range out {
 		out[i], err = getTypeOf(p.Out(i).Kind())
 		if err != nil {
@@ -271,6 +278,8 @@ func getSignature(p reflect.Type) (*types.FuncType, error) {
 
 	return &types.FuncType{InputTypes: in, ReturnTypes: out}, nil
 }
+
+var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
 const is64Bit = uint64(^uintptr(0)) == ^uint64(0)
 

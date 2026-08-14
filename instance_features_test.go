@@ -77,3 +77,57 @@ func TestCallWithCancelledContext(t *testing.T) {
 		t.Fatalf("want context.Canceled, got %v", err)
 	}
 }
+
+// hostCallModule is (module (import "env" "f" (func $f (result i32)))
+//
+//	(func (export "run") (result i32) (call $f)))
+var hostCallModule = []byte{
+	0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+	0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7f, // type () -> i32
+	0x02, 0x09, 0x01, 0x03, 0x65, 0x6e, 0x76, 0x01, 0x66, 0x00, 0x00, // import env.f
+	0x03, 0x02, 0x01, 0x00, // func: run
+	0x07, 0x07, 0x01, 0x03, 0x72, 0x75, 0x6e, 0x00, 0x01, // export "run" -> func 1
+	0x0a, 0x06, 0x01, 0x04, 0x00, 0x10, 0x00, 0x0b, // run: call 0
+}
+
+func TestHostFuncError(t *testing.T) {
+	boom := errors.New("boom")
+	fail := false
+
+	linker := NewLinker(config.LinkerConfig{})
+	if err := linker.DefineFunc("env", "f", func() (int32, error) {
+		if fail {
+			return 0, boom
+		}
+		return 42, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	mod, err := NewModule(config.ModuleConfig{}, bytes.NewReader(hostCallModule))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err := linker.Instantiate(mod)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// nil error: the value comes through, the error is not pushed
+	rets, _, err := ins.CallExportedFunc("run")
+	if err != nil || int32(rets[0]) != 42 {
+		t.Fatalf("want 42, got %v (err %v)", rets, err)
+	}
+
+	// non-nil error: the wasm caller traps with the host's error
+	fail = true
+	if _, _, err := ins.CallExportedFunc("run"); !errors.Is(err, boom) {
+		t.Fatalf("want boom, got %v", err)
+	}
+
+	// the instance stays usable
+	fail = false
+	if rets, _, err := ins.CallExportedFunc("run"); err != nil || int32(rets[0]) != 42 {
+		t.Fatalf("instance unusable after host error: %v %v", rets, err)
+	}
+}

@@ -47,7 +47,17 @@ func (f *HostFunc) call(ins *Instance) error {
 		in[i] = val
 	}
 
-	for _, val := range fnVal.Call(in) {
+	results := fnVal.Call(in)
+
+	// a trailing error return traps the caller instead of pushing a value
+	if n := len(results); n > 0 && ty.Out(n-1) == errorReflectType {
+		if e := results[n-1]; !e.IsNil() {
+			return e.Interface().(error)
+		}
+		results = results[:n-1]
+	}
+
+	for _, val := range results {
 		switch val.Kind() {
 		case reflect.Float64, reflect.Float32:
 			ins.OperandStack.Push(math.Float64bits(val.Float()))
@@ -62,3 +72,5 @@ func (f *HostFunc) call(ins *Instance) error {
 
 	return nil
 }
+
+var errorReflectType = reflect.TypeOf((*error)(nil)).Elem()
