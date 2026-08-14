@@ -11,9 +11,15 @@
 //   AX, CX, DX, R11 = scratch
 // The generated prologue loads SI/R8/R9/R10 from Ctx, the epilogue stores
 // the final stack index into Ctx and sets the status in AX, then RET.
+// The zeroed AX is the sentinel "software link register": native calls
+// pass the return address in AX and save it in the callee frame, so a
+// zero tells an epilogue to return through the hardware stack (balancing
+// this trampoline's CALL). SI seeds the entry frame's stack base.
 TEXT ·enter(SB), NOSPLIT, $0-20
 	MOVQ code+0(FP), R11
 	MOVQ ctx+8(FP), DI
+	XORL AX, AX
+	MOVQ 0(DI), SI
 	CALL R11
 	MOVL AX, ret+16(FP)
 	RET

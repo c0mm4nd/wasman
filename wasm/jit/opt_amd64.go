@@ -31,7 +31,7 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 			fmt.Printf("IR%02d op=%d sub=%#x dst=%d a=%d b=%d imm=%d\n", i, ins.op, ins.sub, ins.dst, ins.a, ins.b, ins.imm)
 		}
 	}
-	g := &optGen{fn: fn, al: al}
+	g := &optGen{fn: fn, fd: fd, al: al}
 	if err := g.gen(); err != nil {
 		return nil, err
 	}
@@ -40,7 +40,9 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 		return nil, err
 	}
 	return &Compiled{Code: code, MaxHeight: fn.maxH + al.spillSlots,
-		CallSites: fn.sites}, nil
+		CallSites: fn.sites, NativeABI: true,
+		FrameSlots: fn.nlocals + fn.maxH + al.spillSlots + 1,
+		LocalSlots: fn.nlocals}, nil
 }
 
 type optPatch struct {
@@ -51,9 +53,11 @@ type optPatch struct {
 
 type optGen struct {
 	fn      *irFunc
+	fd      *FuncDesc
 	al      *allocation
 	a       Asm
 	irOff   []int
+	lasts   map[int]int
 	patches []optPatch
 	oob     []int
 	// pending fusion of a test into the following branch
@@ -103,11 +107,100 @@ func (g *optGen) dst(v int, scratch int) (int, func()) {
 	return scratch, func() { g.a.modDisp32(true, 0x89, scratch, base, off) }
 }
 
-func (g *optGen) prologue() {
-	g.a.LdCtx(rSI, 0)
-	g.a.LdCtx(rR8, 16)
-	g.a.LdCtx(rR9, 24)
-	g.a.LdCtx(rR10, 32)
+// linkSlot is the frame slot holding the saved software link register.
+func (g *optGen) linkSlot() int { return g.fn.maxH + g.al.spillSlots }
+
+// framePrologue establishes the in-stack frame: SI arrives as this frame's
+// stack base (from a native caller or the trampoline), AX carries the
+// return address (zero when entered through the trampoline's CALL). The
+// full form checks capacity/depth, saves AX and zeroes declared locals;
+// continuations only rebuild the derived registers.
+func (g *optGen) framePrologue(full bool) {
+	a := &g.a
+	need := g.fn.nlocals
+	if full {
+		end := int32((g.linkSlot() + 1) * 8)
+		a.modDisp32(true, 0x8D, rCX, rSI, end) // LEA RCX, [SI+end]
+		a.LdCtx(rDX, 56)                       // Ctx.StackLimit
+		a.BinRR(true, 0x39, rCX, rDX)
+		ok := a.Len()
+		a.Jcc(ccBE, 0)
+		a.MovImm32AX(StatusExhausted)
+		a.Ret()
+		a.PatchJcc(ok)
+		if lim := g.fd.DepthLimit; lim != 0 {
+			a.LdCtx(rCX, 80) // Ctx.Depth
+			a.ArithImm32(true, 0, rCX, 1)
+			a.StCtx(rCX, 80)
+			a.MovImm64(rDX, lim)
+			a.BinRR(true, 0x39, rCX, rDX)
+			ok2 := a.Len()
+			a.Jcc(ccB, 0)
+			a.MovImm32AX(StatusExhausted)
+			a.Ret()
+			a.PatchJcc(ok2)
+		}
+		a.modDisp32(true, 0x89, rAX, rSI, int32(g.linkSlot()*8)) // save soft-LR
+		if need > g.fd.NumParams {
+			a.BinRR(true, 0x31, rCX, rCX) // XOR: zero source
+		}
+	}
+	a.modDisp32(true, 0x8D, rR8, rSI, int32(-need*8)) // LEA R8, [SI-need*8]
+	if full {
+		for i := g.fd.NumParams; i < need; i++ {
+			a.modDisp32(true, 0x89, rCX, rR8, int32(i*8))
+		}
+	}
+	a.LdCtx(rR9, 24)
+	a.LdCtx(rR10, 32)
+}
+
+// frameEpilogue returns through the saved software link register, or the
+// hardware stack when the sentinel says the trampoline called directly.
+func (g *optGen) frameEpilogue() {
+	a := &g.a
+	if g.fd.DepthLimit != 0 {
+		a.LdCtx(rCX, 80)
+		a.ArithImm32(true, 5, rCX, 1)
+		a.StCtx(rCX, 80)
+	}
+	a.StCtx(rSI, 8) // ctx.Sp = frame pointer
+	a.MovImm32AX(StatusOK)
+	a.modDisp32(true, 0x8B, rCX, rSI, int32(g.linkSlot()*8))
+	a.TestRR(true, rCX)
+	nz := a.Len()
+	a.Jcc(ccNE, 0)
+	a.Ret() // sentinel: balance the trampoline's CALL
+	a.PatchJcc(nz)
+	a.bytes(0xFF, 0xE1) // JMP RCX
+}
+
+// emitNativeCall: the callee frame starts at this frame's end; arguments
+// copy into the callee's locals, the return address travels in AX, and
+// results copy back afterwards.
+func (g *optGen) emitNativeCall(ins *irInstr) {
+	a := &g.a
+	idx := int(ins.imm >> 32)
+	sp := int(uint32(ins.imm))
+	sig := g.fn.sigs[idx]
+	frameEnd := (g.linkSlot() + 1) * 8
+	for i := 0; i < sig.In; i++ {
+		a.modDisp32(true, 0x8B, rAX, rSI, int32((sp-sig.In+i)*8))
+		a.modDisp32(true, 0x89, rAX, rSI, int32(frameEnd+i*8))
+	}
+	off := frameEnd + sig.Locals*8
+	a.ArithImm32(true, 0, rSI, uint32(off))
+	a.LdCtx(rCX, 72) // Ctx.Funcs
+	a.modDisp32(true, 0x8B, rCX, rCX, int32(idx*8))
+	a.bytes(0x48, 0x8D, 0x05) // LEA RAX, [RIP+2]: the address after JMP RCX
+	a.u32(2)
+	a.bytes(0xFF, 0xE1) // JMP RCX
+	a.ArithImm32(true, 5, rSI, uint32(off))
+	g.framePrologue(false)
+	for i := 0; i < sig.Out; i++ {
+		a.modDisp32(true, 0x8B, rAX, rSI, int32(off+i*8))
+		a.modDisp32(true, 0x89, rAX, rSI, int32((sp-sig.In+i)*8))
+	}
 }
 
 func (g *optGen) jumpTo(target int, emitJ func(int), kind byte) {
@@ -128,7 +221,7 @@ func (g *optGen) gen() error {
 	g.pendV = -1
 	a := &g.a
 
-	g.prologue()
+	g.framePrologue(true)
 	for j := 0; j < fn.nlocals; j++ {
 		if r, ok := g.loc(j); ok && r >= 0 {
 			a.modDisp32(true, 0x8B, optPool[r], rR8, int32(j*8))
@@ -225,9 +318,8 @@ func (g *optGen) gen() error {
 			g.jumpTo(int(ins.imm), func(t int) { a.Jcc(ccE, t) }, 'c')
 		case irCallExit:
 			site := &fn.sites[ins.imm]
-			a.MovImm64(rCX, uint64(site.SpBefore))
-			a.StCtx(rCX, 8)
-			a.MovImm64(rCX, ins.imm)
+			a.StCtx(rSI, 8) // ctx.Sp = my frame pointer
+			a.MovImm64(rCX, uint64(g.fd.SelfIdx)<<32|ins.imm)
 			a.StCtx(rCX, 40)
 			st := uint32(StatusCall)
 			if site.Kind == SiteCallIndirect {
@@ -236,15 +328,26 @@ func (g *optGen) gen() error {
 			a.MovImm32AX(st)
 			a.Ret()
 			site.Cont = a.Len()
-			g.prologue()
+			// resumed via the trampoline: SI already holds this frame's base
+			g.framePrologue(false)
+		case irCallNative:
+			g.emitNativeCall(ins)
+		case irGlobalGet: // cells are *uint64: double indirection
+			a.LdCtx(rDX, 48)
+			a.modDisp32(true, 0x8B, rDX, rDX, int32(ins.imm*8))
+			d, commit := g.dst(ins.dst, rAX)
+			a.modDisp32(true, 0x8B, d, rDX, 0)
+			commit()
+		case irGlobalSet:
+			v := g.read(ins.a, rAX)
+			a.LdCtx(rDX, 48)
+			a.modDisp32(true, 0x8B, rDX, rDX, int32(ins.imm*8))
+			a.modDisp32(true, 0x89, v, rDX, 0)
 		case irTrap:
 			a.MovImm32AX(uint32(ins.sub))
 			a.Ret()
 		case irRet:
-			a.MovImm64(rCX, uint64(fn.nrets))
-			a.StCtx(rCX, 8)
-			a.MovImm32AX(StatusOK)
-			a.Ret()
+			g.frameEpilogue()
 		}
 		if ins.op != irBin && ins.op != irBinImm && ins.op != irUn {
 			g.pendV = -1
@@ -316,14 +419,13 @@ func (g *optGen) setPend(v int, kind byte, cc byte, reg int, w bool) {
 }
 
 func (g *optGen) lastUse(v int) int {
-	last := -1
-	for i := range g.fn.code {
-		ins := &g.fn.code[i]
-		if ins.a == v || ins.b == v || ins.c == v || ins.dst == v {
-			last = i
-		}
+	if g.lasts == nil {
+		g.lasts = g.fn.lastUses()
 	}
-	return last
+	if at, ok := g.lasts[v]; ok {
+		return at
+	}
+	return -1
 }
 
 func isCmpOp(sub byte) bool {

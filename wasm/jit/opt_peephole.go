@@ -15,8 +15,8 @@ package jit
 // stack code produces — and nops keep the IR indices (branch targets)
 // stable.
 
-const irNop = irRet + 1
-const irBinImm = irRet + 2 // dst = a <sub> imm
+const irNop = irGlobalSet + 1
+const irBinImm = irGlobalSet + 2 // dst = a <sub> imm
 
 // foldableImm reports whether sub has an immediate form for imm.
 func foldableImm(sub byte, imm uint64) bool {

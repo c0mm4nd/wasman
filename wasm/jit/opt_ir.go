@@ -38,6 +38,8 @@ const (
 	irCallNative             // direct native call; imm = funcIdx<<32 | spBefore
 	irTrap                   // sub = status
 	irRet                    // return; results already canonicalized
+	irGlobalGet              // dst = *globals[imm]
+	irGlobalSet              // *globals[imm] = a
 )
 
 type irInstr struct {
@@ -62,6 +64,28 @@ type irFunc struct {
 }
 
 func (fn *irFunc) callSig(idx int) FuncSig { return fn.sigs[idx] }
+
+// lastUses computes the final IR index touching each vreg in one pass
+// (codegen consults it per instruction; scanning there would be O(n^2)).
+func (fn *irFunc) lastUses() map[int]int {
+	last := make(map[int]int)
+	for i := range fn.code {
+		ins := &fn.code[i]
+		if ins.a >= 0 {
+			last[ins.a] = i
+		}
+		if ins.b >= 0 {
+			last[ins.b] = i
+		}
+		if ins.c >= 0 {
+			last[ins.c] = i
+		}
+		if ins.dst >= 0 {
+			last[ins.dst] = i
+		}
+	}
+	return last
+}
 
 const maxOptHeight = 512 // wasm stack height cap for the fixed boundary map
 
@@ -89,6 +113,7 @@ type irFrontend struct {
 	ctl     []irCtl
 	unreach bool
 	skip    int
+	op0     int // PC of the opcode being lowered (side-table lookups)
 }
 
 func (f *irFrontend) stackReg(i int) int { return f.fn.nlocals + i }
@@ -187,6 +212,7 @@ func (f *irFrontend) lower() error {
 
 	for pc := 0; pc < len(body); pc++ {
 		op := body[pc]
+		f.op0 = pc
 		imm := uint64(0)
 		if opHasImm[op] {
 			imm = fd.Imms[pc]
@@ -332,6 +358,31 @@ func (f *irFrontend) lowerOp(op byte, imm uint64) error {
 		t := f.newTemp()
 		f.emit(irInstr{op: irSelect, dst: t, a: v1.v, b: v2.v, c: cond.v})
 		f.push(t, -1)
+
+	case 0x0e: // br_table: a compare chain of br_if lowerings
+		plan, ok := f.fd.BrTables[f.op0]
+		if !ok || len(plan.Targets) > 512 {
+			return fmt.Errorf("%w: br_table", ErrUnsupported)
+		}
+		cond := f.pop()
+		f.canonicalize()
+		for i, depth := range plan.Targets {
+			t := f.newTemp()
+			f.emit(irInstr{op: irBinImm, sub: 0x46, dst: t, a: cond.v, b: -1, c: -1, imm: uint64(i)})
+			skip := f.emit(irInstr{op: irBrIfNot, dst: -1, a: t, b: -1, c: -1})
+			f.emitBrIR(int(depth))
+			f.patchBr(skip)
+		}
+		f.emitBrIR(int(plan.Def))
+		f.unreach = true
+
+	case 0x23: // global.get
+		t := f.newTemp()
+		f.emit(irInstr{op: irGlobalGet, dst: t, a: -1, b: -1, c: -1, imm: imm})
+		f.push(t, -1)
+	case 0x24: // global.set
+		e := f.pop()
+		f.emit(irInstr{op: irGlobalSet, dst: -1, a: e.v, b: -1, c: -1, imm: imm})
 
 	case 0x20: // local.get: alias, no copy
 		f.push(int(imm), int(imm))

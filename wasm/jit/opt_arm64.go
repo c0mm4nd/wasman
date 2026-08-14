@@ -73,6 +73,7 @@ type optGen struct {
 	al      *allocation
 	a       Asm
 	irOff   []int
+	lasts   map[int]int
 	patches []optPatch
 	oob     []int
 	// pending fusion of a flag/zero test into the following branch
@@ -274,6 +275,17 @@ func (g *optGen) gen() error {
 			g.framePrologue(false)
 		case irCallNative:
 			g.emitNativeCall(ins)
+		case irGlobalGet: // cells are *uint64: double indirection
+			a.LdrImm(optScratch2, RegCtx, 48)
+			a.LdrImm(optScratch2, optScratch2, uint32(ins.imm*8))
+			d, commit := g.dst(ins.dst, RegT0)
+			a.LdrImm(d, optScratch2, 0)
+			commit()
+		case irGlobalSet:
+			v := g.read(ins.a, RegT0)
+			a.LdrImm(optScratch2, RegCtx, 48)
+			a.LdrImm(optScratch2, optScratch2, uint32(ins.imm*8))
+			a.StrImm(v, optScratch2, 0)
 		case irTrap:
 			a.Movz(RegStatus, uint32(ins.sub), 0)
 			g.trampRet()
@@ -499,14 +511,13 @@ func (g *optGen) emitCmpImmFlags(sub byte, n, imm uint32) {
 
 // lastUse reports the final IR index touching v.
 func (g *optGen) lastUse(v int) int {
-	last := -1
-	for i := range g.fn.code {
-		ins := &g.fn.code[i]
-		if ins.a == v || ins.b == v || ins.c == v || ins.dst == v {
-			last = i
-		}
+	if g.lasts == nil {
+		g.lasts = g.fn.lastUses()
 	}
-	return last
+	if at, ok := g.lasts[v]; ok {
+		return at
+	}
+	return -1
 }
 
 func isCmpOp(sub byte) bool {
