@@ -37,6 +37,11 @@ type wasmFunc struct {
 	pcEnd    []uint32
 	blocksAt []*funcBlock
 	brPlans  map[uint64]*brPlan
+	// brFast, indexed like imms, holds resumePC+1 for br/br_if sites whose
+	// target is an enclosing loop: the branch can then jump straight to the
+	// loop's first inner instruction, keeping the loop label in place instead
+	// of popping it and re-executing the loop opcode every iteration.
+	brFast []uint32
 }
 
 // brPlan is a pre-decoded br_table: its targets and default label.

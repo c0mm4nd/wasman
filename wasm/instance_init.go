@@ -460,6 +460,7 @@ func (ins *Instance) parseBlocks(f *wasmFunc, body []byte) (map[uint64]*funcBloc
 	stack := make([]*funcBlock, 0)
 	f.imms = make([]uint64, len(body))
 	f.pcEnd = make([]uint32, len(body))
+	f.brFast = make([]uint32, len(body))
 	for pc := uint64(0); pc < uint64(len(body)); pc++ {
 		rawOc := body[pc]
 		op0 := pc                           // PC of the opcode byte, for the immediate tables
@@ -517,6 +518,16 @@ func (ins *Instance) parseBlocks(f *wasmFunc, body []byte) (map[uint64]*funcBloc
 			}
 			pc += l - 1
 			f.imms[op0] = uint64(v)
+			if rawOc == 0x0c || rawOc == 0x0d { // br / br_if
+				// if the target is an enclosing loop, precompute the direct
+				// jump past its opcode and blocktype
+				if int(v) < len(stack) {
+					target := stack[len(stack)-1-int(v)]
+					if body[target.StartAt] == 0x03 { // loop
+						f.brFast[op0] = uint32(target.StartAt+target.BlockTypeBytes) + 1
+					}
+				}
+			}
 			if rawOc == 0x11 { // call_indirect has a second immediate: the table index
 				pc++
 				ti, l2, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))

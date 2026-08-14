@@ -113,8 +113,32 @@ func end(ins *Instance) error {
 	return nil
 }
 
+// brLoopFast takes a branch to an enclosing loop: drop the inner labels,
+// KEEP the loop label, carry its params and jump straight into the body.
+func brLoopFast(ins *Instance, depth uint32, resume uint32) {
+	frame := ins.Active
+	ls := frame.LabelStack
+	ls.Ptr -= int(depth)
+	l := &ls.Values[ls.Ptr]
+	os := ins.OperandStack
+	if l.Arity > 0 {
+		src := os.Ptr - l.Arity + 1
+		dst := l.Sp + 1
+		if dst != src {
+			copy(os.Values[dst:dst+l.Arity], os.Values[src:src+l.Arity])
+		}
+	}
+	os.Ptr = l.Sp + l.Arity
+	frame.PC = uint64(resume - 1)
+}
+
 func br(ins *Instance) error {
 	if f := ins.Active.Func; f.imms != nil {
+		p := ins.Active.PC
+		if r := f.brFast[p]; r != 0 {
+			brLoopFast(ins, uint32(f.imms[p]), r)
+			return nil
+		}
 		return branchAt(ins, uint32(f.imms[ins.Active.PC]))
 	}
 	ins.Active.PC++
@@ -158,6 +182,10 @@ func brIf(ins *Instance) error {
 	if f := ins.Active.Func; f.imms != nil {
 		p := ins.Active.PC
 		if ins.OperandStack.Pop() != 0 {
+			if r := f.brFast[p]; r != 0 {
+				brLoopFast(ins, uint32(f.imms[p]), r)
+				return nil
+			}
 			return branchAt(ins, uint32(f.imms[p]))
 		}
 		ins.Active.PC = uint64(f.pcEnd[p])
