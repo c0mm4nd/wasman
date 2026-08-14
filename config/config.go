@@ -34,6 +34,12 @@ type ModuleConfig struct {
 	// instantiation fails if the initial memory already exceeds it and
 	// memory.grow beyond it returns -1.
 	MaxMemoryPages uint32
+	// CanonicalizeNaNs, when set, canonicalizes every NaN produced by float
+	// arithmetic (add/sub/mul/div/min/max/sqrt/ceil/floor/trunc/nearest and
+	// demote/promote), making float execution fully deterministic across
+	// hosts — useful for consensus-critical embedding. Bit-preserving ops
+	// (const, load, reinterpret, abs/neg/copysign) are unaffected.
+	CanonicalizeNaNs bool
 	// SkipValidation disables the full static validation (type checking etc.)
 	// that NewModule performs after decoding. Only use it for trusted modules
 	// that a strict validator would reject; invalid code may then trap, return

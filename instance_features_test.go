@@ -326,3 +326,42 @@ func BenchmarkTollCharging(b *testing.B) {
 		}
 	}
 }
+
+// addF32Module is (module (func (export "add") (param f32 f32) (result f32)
+//
+//	(f32.add (local.get 0) (local.get 1))))
+var addF32Module = []byte{
+	0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+	0x01, 0x07, 0x01, 0x60, 0x02, 0x7d, 0x7d, 0x01, 0x7d,
+	0x03, 0x02, 0x01, 0x00,
+	0x07, 0x07, 0x01, 0x03, 0x61, 0x64, 0x64, 0x00, 0x00,
+	0x0a, 0x09, 0x01, 0x07, 0x00, 0x20, 0x00, 0x20, 0x01, 0x92, 0x0b,
+}
+
+func TestCanonicalizeNaNs(t *testing.T) {
+	mod, err := NewModule(config.ModuleConfig{CanonicalizeNaNs: true}, bytes.NewReader(addF32Module))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err := NewInstance(mod, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// a NaN with a payload propagated through f32.add must come out canonical
+	payloadNaN := uint64(0x7f912345)
+	one := uint64(0x3f800000) // 1.0f
+	rets, _, err := ins.CallExportedFunc("add", payloadNaN, one)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uint32(rets[0]) != 0x7fc00000 {
+		t.Fatalf("want canonical NaN 0x7fc00000, got %#x", uint32(rets[0]))
+	}
+
+	// non-NaN results are untouched
+	rets, _, err = ins.CallExportedFunc("add", one, one)
+	if err != nil || uint32(rets[0]) != 0x40000000 { // 2.0f
+		t.Fatalf("want 2.0, got %#x (err %v)", uint32(rets[0]), err)
+	}
+}

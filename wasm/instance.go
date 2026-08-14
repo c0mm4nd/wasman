@@ -51,6 +51,9 @@ type Instance struct {
 	memSnapshot     []byte
 	globalSnapshot  []uint64
 	importedGlobals int
+
+	// canonNaN mirrors ModuleConfig.CanonicalizeNaNs (hot-loop friendly copy)
+	canonNaN bool
 }
 
 // Interrupt requests that the currently running (or next) execution on this
@@ -71,6 +74,8 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 			Values: make([]*Frame, stacks.InitialLabelStackHeight),
 		},
 	}
+
+	ins.canonNaN = module.ModuleConfig.CanonicalizeNaNs
 
 	if err := ins.buildIndexSpaces(externModules); err != nil {
 		return nil, fmt.Errorf("build index space: %w", err)

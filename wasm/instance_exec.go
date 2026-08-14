@@ -170,6 +170,23 @@ func constArith(op expr.OpCode, a, b interface{}) (interface{}, error) {
 	}
 }
 
+// nanCanonKind marks opcodes whose float result may carry a nondeterministic
+// NaN payload (1 = f32 result, 2 = f64 result); with CanonicalizeNaNs set,
+// such results are rewritten to the canonical NaN.
+var nanCanonKind = buildNanCanonKind()
+
+func buildNanCanonKind() (t [256]byte) {
+	for op := 0x8d; op <= 0x97; op++ { // f32 ceil..max (excl. bitwise abs/neg/copysign)
+		t[op] = 1
+	}
+	for op := 0x9b; op <= 0xa5; op++ { // f64 ceil..max
+		t[op] = 2
+	}
+	t[0xb6] = 1 // f32.demote_f64
+	t[0xbb] = 2 // f64.promote_f32
+	return t
+}
+
 // opCharger is the optional single-call charging fast path a TollStation may
 // implement (SimpleTollStation does); it must be equivalent to
 // AddToll(GetOpPrice(op)).
@@ -199,6 +216,19 @@ func (ins *Instance) execFunc() error {
 		err := instr(ins)
 		if err != nil {
 			return err
+		}
+
+		if ins.canonNaN {
+			switch nanCanonKind[op] {
+			case 1:
+				if v := uint32(ins.OperandStack.Peek()); v&0x7f800000 == 0x7f800000 && v&0x007fffff != 0 {
+					ins.OperandStack.Values[ins.OperandStack.Ptr] = 0x7fc00000
+				}
+			case 2:
+				if v := ins.OperandStack.Peek(); v&0x7ff0000000000000 == 0x7ff0000000000000 && v&0x000fffffffffffff != 0 {
+					ins.OperandStack.Values[ins.OperandStack.Ptr] = 0x7ff8000000000000
+				}
+			}
 		}
 
 		// Toll
