@@ -201,7 +201,8 @@ func buildOpHasImm() (t [256]bool) {
 		0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, // loads (offsets)
 		0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
 		0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, // stores
-		0x3f, // memory.size
+		0x3f, 0x40, // memory.size, memory.grow
+		0xfc, // misc prefix (sub-opcode pre-decoded)
 	} {
 		t[op] = true
 	}
@@ -304,7 +305,10 @@ func (c *compiler) emit(op byte, imm uint64) error {
 	// call machinery — interpreter, JIT or host function — and re-enters at
 	// the continuation, whose fresh prologue reloads every base pointer)
 	case 0x10, 0x11:
-		site := CallSite{SpBefore: c.h, Indirect: op == 0x11}
+		site := CallSite{SpBefore: c.h, Kind: SiteCall}
+		if op == 0x11 {
+			site.Kind = SiteCallIndirect
+		}
 		var sig FuncSig
 		if op == 0x10 {
 			if int(imm) >= len(c.fd.FuncSigs) {
@@ -618,12 +622,33 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		c.memAddr(imm, m.width)
 		a.memSIB(m.pre, m.wide, m.op, rDX, rAX)
 
+	case 0x40: // memory.grow: a host exit like a call (pops n, pushes result)
+		site := CallSite{Kind: SiteMemGrow, SpBefore: c.h, SpAfter: c.h}
+		a.MovImm64(rCX, uint64(site.SpBefore))
+		a.StCtx(rCX, 8)
+		a.MovImm64(rCX, uint64(len(c.sites)))
+		a.StCtx(rCX, 40)
+		a.MovImm32AX(StatusCall)
+		a.Ret()
+		site.Cont = a.Len()
+		c.prologue()
+		c.sites = append(c.sites, site)
+
+	case 0xfc: // misc: trunc_sat family
+		if imm > 7 {
+			return fmt.Errorf("%w: misc sub-opcode %d", ErrUnsupported, imm)
+		}
+		c.emitTruncSat(byte(imm))
+
 	case 0x3f: // memory.size (pages)
 		a.BinRR(true, 0x89, rAX, rR10) // MOV RAX, R10
 		a.ShiftImm(true, 5, rAX, 16)   // SHR RAX, 16
 		a.StSlot(rAX, c.push())
 
 	default:
+		if op >= 0x5b && op <= 0x66 || op >= 0x8b && op <= 0xbf {
+			return c.emitFloat(op)
+		}
 		return fmt.Errorf("%w: opcode %#x", ErrUnsupported, op)
 	}
 	return nil

@@ -192,7 +192,8 @@ func buildOpHasImm() (t [256]bool) {
 		0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, // loads (offsets)
 		0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
 		0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, // stores
-		0x3f, // memory.size
+		0x3f, 0x40, // memory.size, memory.grow
+		0xfc, // misc prefix (sub-opcode pre-decoded)
 	} {
 		t[op] = true
 	}
@@ -295,7 +296,10 @@ func (c *compiler) emit(op byte, imm uint64) error {
 	// call machinery — interpreter, JIT or host function — and re-enters at
 	// the continuation, whose fresh prologue reloads every base pointer)
 	case 0x10, 0x11:
-		site := CallSite{SpBefore: c.h, Indirect: op == 0x11}
+		site := CallSite{SpBefore: c.h, Kind: SiteCall}
+		if op == 0x11 {
+			site.Kind = SiteCallIndirect
+		}
 		var sig FuncSig
 		if op == 0x10 {
 			if int(imm) >= len(c.fd.FuncSigs) {
@@ -586,11 +590,48 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		c.memAddr(imm, m.width)
 		a.MemOp(m.word, RegT2, RegMem, RegT0)
 
+	case 0x40: // memory.grow: a host exit like a call (pops n, pushes result)
+		site := CallSite{Kind: SiteMemGrow, SpBefore: c.h, SpAfter: c.h}
+		a.MovImm64(RegSp, uint64(site.SpBefore))
+		a.StrImm(RegSp, RegCtx, 8)
+		a.MovImm64(RegT0, uint64(len(c.sites)))
+		a.StrImm(RegT0, RegCtx, 40)
+		a.Movz(RegCtx, StatusCall, 0)
+		a.Ret()
+		site.Cont = a.Len()
+		a.Prologue()
+		c.sites = append(c.sites, site)
+
+	case 0xfc: // misc: trunc_sat family (FCVTZ* saturates exactly like wasm)
+		if imm > 7 {
+			return fmt.Errorf("%w: misc sub-opcode %d", ErrUnsupported, imm)
+		}
+		toI64 := imm >= 4
+		fromF64 := imm&2 != 0
+		signed := imm&1 == 0
+		c.ldr(RegT0, c.h-1)
+		a.FMovToFP(fromF64, 0, RegT0)
+		w := uint32(0x1E380000) // FCVTZS Wd, Sn
+		if !signed {
+			w = 0x1E390000
+		}
+		if fromF64 {
+			w |= 0x00400000
+		}
+		if toI64 {
+			w |= 0x80000000
+		}
+		a.word(w | 0<<5 | RegT0)
+		c.str(RegT0, c.h-1)
+
 	case 0x3f: // memory.size (pages; the length register is loop-invariant)
 		a.LsrImmX(RegT0, RegMemLen, 16)
 		c.str(RegT0, c.push())
 
 	default:
+		if op >= 0x5b && op <= 0x66 || op >= 0x8b && op <= 0xbf {
+			return c.emitFloat(op)
+		}
 		return fmt.Errorf("%w: opcode %#x", ErrUnsupported, op)
 	}
 	return nil

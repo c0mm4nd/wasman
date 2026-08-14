@@ -13,7 +13,9 @@ import (
 // keep compiled == nil and run in the interpreter; on unsupported platforms
 // jit.Compile rejects everything.
 func (ins *Instance) compileNativeAll() {
-	if !jit.Supported() {
+	// native float arithmetic keeps hardware NaN payloads, so deterministic
+	// NaN canonicalization stays on the interpreter
+	if !jit.Supported() || ins.canonNaN {
 		return
 	}
 	funcSigs := make([]jit.FuncSig, len(ins.IndexSpace.Functions))
@@ -101,9 +103,12 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, baseSp int) e
 			site := &cd.CallSites[ctx.TrapInfo]
 			os.Ptr = baseSp + site.SpBefore
 			var err error
-			if site.Indirect {
+			switch site.Kind {
+			case jit.SiteCallIndirect:
 				err = callIndirectCore(ins, site.TypeIdx, site.TableIdx)
-			} else {
+			case jit.SiteMemGrow:
+				err = memoryGrowBody(ins)
+			default:
 				err = ins.IndexSpace.Functions[site.FuncIdx].call(ins)
 			}
 			if err != nil {
@@ -121,6 +126,10 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, baseSp int) e
 			return ErrUnreachable
 		case jit.StatusMemOOB:
 			return ErrPtrOutOfBounds
+		case jit.StatusConvInvalid:
+			return ErrInvalidConversionToInt
+		case jit.StatusConvOverflow:
+			return ErrIntegerOverflow
 		default: // div-by-zero / overflow trap the same way the interpreter does
 			return ErrUndefined
 		}

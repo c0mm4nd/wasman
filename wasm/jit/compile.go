@@ -34,12 +34,19 @@ type FuncSig struct {
 type CallSite struct {
 	Cont     int // code offset of the continuation (starts with a prologue)
 	SpBefore int // stack height at the exit (args, and index if indirect)
-	SpAfter  int // stack height expected after the call returns
-	Indirect bool
+	SpAfter  int // stack height expected after the exit completes
+	Kind     byte
 	FuncIdx  uint32 // direct calls
 	TypeIdx  uint32 // indirect calls
 	TableIdx uint32
 }
+
+// CallSite kinds.
+const (
+	SiteCall = iota
+	SiteCallIndirect
+	SiteMemGrow
+)
 
 // BrTable is a pre-decoded br_table: label depths per index plus a default.
 type BrTable struct {

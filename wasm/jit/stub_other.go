@@ -39,6 +39,8 @@ const (
 	StatusIntOverflow  = 4
 	StatusCall         = 5
 	StatusCallIndirect = 6
+	StatusConvInvalid  = 7
+	StatusConvOverflow = 8
 )
 
 // CallAt is unavailable on this platform.

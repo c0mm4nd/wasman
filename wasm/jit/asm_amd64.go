@@ -232,3 +232,78 @@ func (a *Asm) MovImm32(reg int, v uint32) {
 	a.bytes(0xB8 | byte(reg&7))
 	a.u32(v)
 }
+
+// --- SSE scalar float support (xmm0-2 only, so no REX for the xmm side) ---
+
+// sse emits pre 0F op modrm for xmm-xmm forms (pre 0 = no prefix).
+func (a *Asm) sse(pre byte, op byte, dst, src int) {
+	if pre != 0 {
+		a.bytes(pre)
+	}
+	a.bytes(0x0F, op, 0xC0|byte(dst&7)<<3|byte(src&7))
+}
+
+// MovqXR / MovqRX move 64-bit patterns between xmm and GP registers.
+func (a *Asm) MovqXR(x, r int) {
+	a.bytes(0x66, rex(true, x, 0, r), 0x0F, 0x6E, 0xC0|byte(x&7)<<3|byte(r&7))
+}
+func (a *Asm) MovqRX(r, x int) {
+	a.bytes(0x66, rex(true, x, 0, r), 0x0F, 0x7E, 0xC0|byte(x&7)<<3|byte(r&7))
+}
+
+// MovdXR / MovdRX are the 32-bit versions (MovdRX zero-extends the GP).
+func (a *Asm) MovdXR(x, r int) { a.bytes(0x66, 0x0F, 0x6E, 0xC0|byte(x&7)<<3|byte(r&7)) }
+func (a *Asm) MovdRX(r, x int) { a.bytes(0x66, 0x0F, 0x7E, 0xC0|byte(x&7)<<3|byte(r&7)) }
+
+// Rounds emits ROUNDSS/ROUNDSD dst, src, mode (SSE4.1).
+func (a *Asm) Rounds(dbl bool, dst, src int, mode byte) {
+	op := byte(0x0A)
+	if dbl {
+		op = 0x0B
+	}
+	a.bytes(0x66, 0x0F, 0x3A, op, 0xC0|byte(dst&7)<<3|byte(src&7), mode)
+}
+
+// Ucomis emits UCOMISS/UCOMISD a, b.
+func (a *Asm) Ucomis(dbl bool, x1, x2 int) {
+	if dbl {
+		a.bytes(0x66)
+	}
+	a.bytes(0x0F, 0x2E, 0xC0|byte(x1&7)<<3|byte(x2&7))
+}
+
+// Cvtsi2f emits CVTSI2SS/SD xmm, r (from64 selects the 64-bit GP source).
+func (a *Asm) Cvtsi2f(dbl, from64 bool, x, r int) {
+	pre := byte(0xF3)
+	if dbl {
+		pre = 0xF2
+	}
+	a.bytes(pre)
+	if from64 || r >= 8 {
+		a.bytes(rex(from64, x, 0, r))
+	}
+	a.bytes(0x0F, 0x2A, 0xC0|byte(x&7)<<3|byte(r&7))
+}
+
+// Cvttf2i emits CVTTSS2SI/CVTTSD2SI r, xmm (truncating).
+func (a *Asm) Cvttf2i(dbl, to64 bool, r, x int) {
+	pre := byte(0xF3)
+	if dbl {
+		pre = 0xF2
+	}
+	a.bytes(pre)
+	if to64 || r >= 8 {
+		a.bytes(rex(to64, r, 0, x))
+	}
+	a.bytes(0x0F, 0x2C, 0xC0|byte(r&7)<<3|byte(x&7))
+}
+
+// AndImm32 emits AND reg, imm32.
+func (a *Asm) AndImm32(w bool, reg int, v uint32) {
+	a.bytes(rex(w, 0, 0, reg), 0x81, 0xC0|4<<3|byte(reg&7))
+	a.u32(v)
+}
+
+// AndByteAL / OrByteAL combine AL with CL (float eq/ne parity fixups).
+func (a *Asm) AndByteAL() { a.bytes(0x20, 0xC8) }
+func (a *Asm) OrByteAL()  { a.bytes(0x08, 0xC8) }

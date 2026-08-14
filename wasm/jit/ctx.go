@@ -41,6 +41,8 @@ const (
 	StatusIntOverflow  = 4
 	StatusCall         = 5 // call site: Ctx.TrapInfo holds the site id
 	StatusCallIndirect = 6
+	StatusConvInvalid  = 7 // float->int conversion of NaN
+	StatusConvOverflow = 8 // float->int conversion out of range
 )
 
 // CallAt runs generated code starting at a continuation offset.
