@@ -95,16 +95,20 @@ func (g *optGen) emitFBin(ins *irInstr, idx int) error {
 		rel = sub - 0xa0
 	}
 	switch rel {
-	case 0, 1, 2, 3: // add sub mul div (SSE ops are two-address: via xmm0)
+	case 0, 1, 2, 3: // add sub mul div (two-address: dst = dst op src)
 		ops := [4]byte{0x58, 0x5C, 0x59, 0x5E}
 		vn := g.readF(ins.a, xmm0)
 		vm := g.readF(ins.b, xmm1)
-		if vn != xmm0 {
-			a.sse(0xF2, 0x10, xmm0, vn) // MOVSD xmm0, vn
-		}
-		a.sse(ssePre(d), ops[rel], xmm0, vm)
 		vd, commit := g.dstF(ins.dst, xmm0)
-		if vd != xmm0 {
+		switch {
+		case vd == vn: // accumulate in place (the common coalesced shape)
+			a.sse(ssePre(d), ops[rel], vd, vm)
+		case vd != vm:
+			a.sse(0xF2, 0x10, vd, vn) // MOVSD vd, vn
+			a.sse(ssePre(d), ops[rel], vd, vm)
+		default: // vd aliases the right operand: stage
+			a.sse(0xF2, 0x10, xmm0, vn)
+			a.sse(ssePre(d), ops[rel], xmm0, vm)
 			a.sse(0xF2, 0x10, vd, xmm0)
 		}
 		commit()
