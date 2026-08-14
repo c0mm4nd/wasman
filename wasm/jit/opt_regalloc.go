@@ -114,14 +114,41 @@ func (fn *irFunc) allocate(nregs int) *allocation {
 		}
 	}
 
-	// loop extension: a value defined before a loop and touched inside it
-	// stays live for the whole loop (the back edge re-reads it)
+	// locals are defined at entry: the prologue materializes them before
+	// instruction 0, so their intervals start at -1. That keeps two locals
+	// from sharing a register (the later prologue load would clobber the
+	// earlier one) and makes an interval reaching past a host exit at
+	// index 0 count as crossing it.
+	for v, r := range ranges {
+		if v < fn.nlocals {
+			r.start = -1
+		}
+	}
+
+	// loop extension. Two rules keep back edges sound: any value defined
+	// before a loop and touched inside stays live through it; and mutable
+	// slots — locals and stack-boundary vregs — touched anywhere inside a
+	// loop are live around the whole loop (iteration N+1 re-reads what
+	// iteration N left, so their tight ranges would lie).
 	for changed := true; changed; {
 		changed = false
 		for _, lp := range fn.loops {
 			s, e := lp[0], lp[1]
-			for _, r := range ranges {
-				if r.start < s && r.end >= s && r.end < e {
+			for v, r := range ranges {
+				overlaps := r.start < e && r.end >= s
+				if !overlaps {
+					continue
+				}
+				if v < fn.nlocals+maxOptHeight { // local or boundary vreg
+					if r.start > s {
+						r.start = s
+						changed = true
+					}
+					if r.end < e {
+						r.end = e
+						changed = true
+					}
+				} else if r.start < s && r.end < e { // temp crossing entry
 					r.end = e
 					changed = true
 				}

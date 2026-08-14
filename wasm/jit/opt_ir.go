@@ -267,8 +267,11 @@ func (f *irFrontend) lowerOp(op byte, imm uint64) error {
 
 	case 0x0b: // end
 		c := f.ctl[len(f.ctl)-1]
-		if !f.unreach && c.kind != 0x03 {
-			f.canonicalize() // ends of blocks/ifs are merge points
+		if !f.unreach {
+			// every end is followed by a canonical stack model: blocks and
+			// ifs because branches merge here, loops because the fallthrough
+			// results must land in their boundary registers
+			f.canonicalize()
 		}
 		f.ctl = f.ctl[:len(f.ctl)-1]
 		if c.kind == 0x03 {

@@ -9,7 +9,7 @@ func blk(params, results int) uint64 { return uint64(params)<<32 | uint64(result
 
 func compileRun(t *testing.T, fd *FuncDesc, locals []uint64) []uint64 {
 	t.Helper()
-	cd, err := CompileBaseline(fd)
+	cd, err := compileUnderTest(fd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestComparisons(t *testing.T) {
 // TestUnreachableTrap checks the trap status path.
 func TestUnreachableTrap(t *testing.T) {
 	fd := assemble([]ins{{0x00, 0, 0}, {0x0b, 0, 0}}, 0, 0, 0)
-	cd, err := CompileBaseline(fd)
+	cd, err := compileUnderTest(fd)
 	if err != nil {
 		t.Fatal(err)
 	}

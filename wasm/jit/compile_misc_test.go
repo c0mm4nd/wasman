@@ -20,7 +20,7 @@ func TestGlobals(t *testing.T) {
 		{0x23, 1, 1}, // global.get 1
 		{0x0b, 0, 0},
 	}, 0, 0, 1)
-	cd, err := CompileBaseline(fd)
+	cd, err := compileUnderTest(fd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestBrTable(t *testing.T) {
 	fd.BrTables = map[int]BrTable{pc0e: {Targets: []uint32{0, 1}, Def: 1}}
 
 	run := func(idx uint64) uint64 {
-		cd, err := CompileBaseline(fd)
+		cd, err := compileUnderTest(fd)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -153,7 +153,7 @@ func TestTruncTraps(t *testing.T) {
 		fd := assemble([]ins{
 			{0x20, 0, 1}, {tc.op, 0, 0}, {0x1a, 0, 0}, {0x0b, 0, 0},
 		}, 1, 1, 0)
-		cd, err := CompileBaseline(fd)
+		cd, err := compileUnderTest(fd)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -179,7 +179,7 @@ func truncSat(t *testing.T, sub byte, v uint64) uint64 {
 	fd := assemble([]ins{
 		{0x20, 0, 1}, {0xfc, uint64(sub), 1}, {0x0b, 0, 0},
 	}, 1, 1, 1)
-	cd, err := CompileBaseline(fd)
+	cd, err := compileUnderTest(fd)
 	if err != nil {
 		t.Fatal(err)
 	}
