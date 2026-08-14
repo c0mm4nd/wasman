@@ -1,6 +1,9 @@
 package jit
 
-import "errors"
+import (
+	"errors"
+	"runtime"
+)
 
 // ErrUnsupported marks a function the template compiler cannot translate;
 // the engine falls back to the interpreter for it.
@@ -109,6 +112,14 @@ const (
 type BrTable struct {
 	Targets []uint32
 	Def     uint32
+}
+
+// finishCompiled wraps a mapping in a Compiled whose executable pages are
+// returned to the OS when the value becomes unreachable (compilation is
+// per instance, so without this every NewInstance would leak RX pages).
+func finishCompiled(cd *Compiled) *Compiled {
+	runtime.SetFinalizer(cd, func(c *Compiled) { _ = Free(c.Code) })
+	return cd
 }
 
 // Compiled is a translated function.

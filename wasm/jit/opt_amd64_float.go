@@ -5,9 +5,14 @@ package jit
 import "math"
 
 // Float code generation for the optimizing tier on amd64: values live in
-// XMM3-XMM7 (XMM0-2 stage), the instruction selection ports the baseline
-// float lowering with free register choice, and the slot representation
-// stays bit-identical (f32 patterns zero-extended).
+// XMM3-XMM7 (XMM0-2 stage) and the instruction selection ports the
+// baseline float lowering with free register choice. The f32 contract is
+// loose, like i32: only the low 32 bits are meaningful and every consumer
+// truncates. Legacy scalar SSE preserves a destination's upper bits, so
+// operations whose result register may hold stale data apply a MOVD round
+// trip (f32fix); pass-through paths (arithmetic seeded from a source
+// copy, reinterpret no-ops) may carry a source's upper bits along, which
+// no wasm-visible observer can distinguish.
 
 func isFloatBinOp(sub byte) bool {
 	return sub >= 0x5b && sub <= 0x66 ||

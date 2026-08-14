@@ -20,7 +20,7 @@ func CompileBaseline(fd *FuncDesc) (*Compiled, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Compiled{Code: code, MaxHeight: c.maxH, CallSites: c.sites}, nil
+	return finishCompiled(&Compiled{Code: code, MaxHeight: c.maxH, CallSites: c.sites}), nil
 }
 
 type ctl struct {

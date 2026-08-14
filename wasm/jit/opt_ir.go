@@ -121,13 +121,14 @@ type irCtl struct {
 }
 
 type irFrontend struct {
-	fd      *FuncDesc
-	fn      irFunc
-	stack   []stackEnt
-	ctl     []irCtl
-	unreach bool
-	skip    int
-	op0     int // PC of the opcode being lowered (side-table lookups)
+	fd       *FuncDesc
+	fn       irFunc
+	stack    []stackEnt
+	ctl      []irCtl
+	unreach  bool
+	skip     int
+	op0      int  // PC of the opcode being lowered (side-table lookups)
+	overflow bool // stack height exceeded the boundary-vreg namespace
 }
 
 func (f *irFrontend) stackReg(i int) int { return f.fn.nlocals + i }
@@ -144,6 +145,11 @@ func (f *irFrontend) emit(i irInstr) int {
 }
 
 func (f *irFrontend) push(v, local int) {
+	// heights past maxOptHeight would collide with the temporary vreg
+	// namespace; such functions fall back to the baseline tier
+	if len(f.stack) >= maxOptHeight {
+		f.overflow = true
+	}
 	f.stack = append(f.stack, stackEnt{v: v, local: local})
 	if len(f.stack) > f.fn.maxH {
 		f.fn.maxH = len(f.stack)
@@ -259,6 +265,9 @@ func (f *irFrontend) lower() error {
 
 		if err := f.lowerOp(op, imm); err != nil {
 			return err
+		}
+		if f.overflow {
+			return fmt.Errorf("%w: stack deeper than %d slots", ErrUnsupported, maxOptHeight)
 		}
 		if len(f.ctl) == 0 {
 			return nil

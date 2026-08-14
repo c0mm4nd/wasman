@@ -363,9 +363,16 @@ func (ins *Instance) execNativeABI(f *wasmFunc) error {
 			for i := 0; i < nin; i++ {
 				osk.Push(ns[argBase+i])
 			}
-			// the callee may re-enter native code; its frames go above ours
+			// the callee may re-enter native code; its frames go above ours,
+			// and the generic depth accounting must see the suspended native
+			// frames (ctx.Depth carries the chain's true depth when a limit
+			// is configured)
 			prevTop := ins.nativeTop
 			ins.nativeTop = fb + ef.compiled.FrameSlots - ef.compiled.LocalSlots
+			prevFrames := ins.FrameStack.Ptr
+			if d := int(ctx.Depth); d > prevFrames+1 {
+				ins.FrameStack.Ptr = d - 1
+			}
 			var err error
 			switch site.Kind {
 			case jit.SiteCallIndirect:
@@ -376,6 +383,7 @@ func (ins *Instance) execNativeABI(f *wasmFunc) error {
 				err = ins.IndexSpace.Functions[site.FuncIdx].call(ins)
 			}
 			ins.nativeTop = prevTop
+			ins.FrameStack.Ptr = prevFrames
 			if err != nil {
 				return err
 			}

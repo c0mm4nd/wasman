@@ -4,7 +4,9 @@ package jit
 
 import (
 	"os"
+	"runtime"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -219,4 +221,58 @@ func TestWideMul256SpilledDst(t *testing.T) {
 	if mem[0] != 21 || mem[1] != 68 || mem[2] != 55 || mem[3] != 0 {
 		t.Fatalf("mul256 result %v, want [21 68 55 0]", mem[0:4])
 	}
+}
+
+// TestDeepStackFallsBack: stack heights past the boundary-vreg namespace
+// (512 slots) must reject cleanly instead of colliding with temporaries
+// (the reviewed scenario: 600 pushed aliases, then a constant carried out
+// by a branch would silently return the wrong value).
+func TestDeepStackFallsBack(t *testing.T) {
+	var code []ins
+	code = append(code, ins{0x02, blk(0, 1), 1}) // block (result i32)
+	for i := 0; i < 600; i++ {
+		code = append(code, ins{0x20, 0, 1})
+	}
+	code = append(code, ins{0x41, 42, 1}, ins{0x0c, 0, 1}) // const 42; br 0
+	for i := 0; i < 600; i++ {
+		code = append(code, ins{0x1a, 0, 0}) // dead drops (skipped)
+	}
+	code = append(code, ins{0x0b, 0, 0}, ins{0x0b, 0, 0})
+	fd := assemble(code, 1, 1, 1)
+	if _, err := CompileOpt(fd); err == nil {
+		t.Fatal("deep stack must be rejected by the optimizing tier")
+	}
+	// the baseline tier handles it and must return the carried constant
+	got, st := runFD(t, fd, []uint64{7}, nil, 0, nil)
+	if st != StatusOK || got[0] != 42 {
+		t.Fatalf("baseline: got %v st %d, want [42]", got, st)
+	}
+}
+
+// TestCompiledFinalizer: executable mappings must return to the OS when a
+// Compiled becomes unreachable (compilation is per instance).
+func TestCompiledFinalizer(t *testing.T) {
+	fd := assemble([]ins{{0x41, 7, 1}, {0x0b, 0, 0}}, 0, 0, 1)
+	freed := make(chan struct{})
+	func() {
+		cd, err := CompileOpt(fd)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime.SetFinalizer(cd, nil) // replace to observe the collection
+		runtime.SetFinalizer(cd, func(c *Compiled) {
+			_ = Free(c.Code)
+			close(freed)
+		})
+	}()
+	for i := 0; i < 50; i++ {
+		runtime.GC()
+		select {
+		case <-freed:
+			return
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	t.Fatal("compiled mapping was never finalized")
 }

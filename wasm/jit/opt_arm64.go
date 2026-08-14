@@ -9,7 +9,9 @@ import (
 
 // arm64 code generation for the optimizing tier. Machine registers R8-R15
 // hold register-allocated vregs; R6/R7/R16 stage memory-homed operands and
-// intermediates (they never overlap the allocatable pool).
+// intermediates, and the wide-integer intrinsics additionally use R17 and
+// R2 (the latter only carries state at host exits, which rewrite it).
+// None of these overlap the allocatable pool.
 
 const optNumRegs = 8
 
@@ -82,10 +84,10 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Compiled{Code: code, MaxHeight: fn.maxH + al.spillSlots,
+	return finishCompiled(&Compiled{Code: code, MaxHeight: fn.maxH + al.spillSlots,
 		CallSites: fn.sites, NativeABI: true,
 		FrameSlots: fn.nlocals + fn.maxH + al.spillSlots + 1 + g.frameExtra,
-		LocalSlots: fn.nlocals}, nil
+		LocalSlots: fn.nlocals}), nil
 }
 
 type optPatch struct {
@@ -466,10 +468,10 @@ func (g *optGen) framePrologue(full bool) {
 			a.MovImm64(RegT1, lim)
 			a.CmpRegX(RegT0, RegT1)
 			ok2 := a.Len()
-			a.Bcond(condLO, 0)
+			a.Bcond(condLS, 0) // count <= limit matches the generic check
 			a.Movz(RegStatus, StatusExhausted, 0)
 			g.trampRet()
-			a.PatchBcond(ok2, condLO)
+			a.PatchBcond(ok2, condLS)
 		}
 		a.StrImm(30, RegStack, uint32(g.linkSlot()*8)) // save LR
 	}

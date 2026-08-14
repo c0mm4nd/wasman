@@ -61,10 +61,10 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Compiled{Code: code, MaxHeight: fn.maxH + al.spillSlots,
+	return finishCompiled(&Compiled{Code: code, MaxHeight: fn.maxH + al.spillSlots,
 		CallSites: fn.sites, NativeABI: true,
 		FrameSlots: fn.nlocals + fn.maxH + al.spillSlots + 1 + g.frameExtra,
-		LocalSlots: fn.nlocals}, nil
+		LocalSlots: fn.nlocals}), nil
 }
 
 type optPatch struct {
@@ -205,7 +205,7 @@ func (g *optGen) framePrologue(full bool) {
 			a.MovImm64(rDX, lim)
 			a.BinRR(true, 0x39, rCX, rDX)
 			ok2 := a.Len()
-			a.Jcc(ccB, 0)
+			a.Jcc(ccBE, 0) // count <= limit matches the generic check
 			a.MovImm32AX(StatusExhausted)
 			a.Ret()
 			a.PatchJcc(ok2)
