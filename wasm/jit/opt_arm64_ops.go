@@ -90,7 +90,7 @@ func (g *optGen) emitDivRem(op byte, d, n, m uint32) {
 		a.CmpImmW(m, 0)
 	}
 	a.Bcond(condNE, 12)
-	a.Movz(RegCtx, StatusDivZero, 0)
+	a.Movz(RegStatus, StatusDivZero, 0)
 	a.Ret()
 	switch op {
 	case 0x6d, 0x7f: // div_s with the MinInt/-1 overflow trap
@@ -104,7 +104,7 @@ func (g *optGen) emitDivRem(op byte, d, n, m uint32) {
 			a.CmpRegW(n, optScratch2)
 		}
 		a.Bcond(condNE, 12)
-		a.Movz(RegCtx, StatusIntOverflow, 0)
+		a.Movz(RegStatus, StatusIntOverflow, 0)
 		a.Ret()
 		a.Sdiv(w, d, n, m)
 		if !w {

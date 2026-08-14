@@ -253,12 +253,12 @@ func (g *optGen) gen() error {
 			if site.Kind == SiteCallIndirect {
 				st = StatusCallIndirect
 			}
-			a.Movz(RegCtx, st, 0)
+			a.Movz(RegStatus, st, 0)
 			a.Ret()
 			site.Cont = a.Len()
 			a.Prologue()
 		case irTrap:
-			a.Movz(RegCtx, uint32(ins.sub), 0)
+			a.Movz(RegStatus, uint32(ins.sub), 0)
 			a.Ret()
 		case irRet:
 			a.MovImm64(RegSp, uint64(fn.nrets))
@@ -289,7 +289,7 @@ func (g *optGen) gen() error {
 		for _, at := range g.oob {
 			a.PatchBcond(at, condHI)
 		}
-		a.Movz(RegCtx, StatusMemOOB, 0)
+		a.Movz(RegStatus, StatusMemOOB, 0)
 		a.Ret()
 	}
 	return nil

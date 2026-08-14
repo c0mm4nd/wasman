@@ -4,13 +4,17 @@ package jit
 
 // Ctx mirrors the arm64 layout on unsupported platforms.
 type Ctx struct {
-	Stack    uintptr
-	Sp       uint64
-	Locals   uintptr
-	Mem      uintptr
-	MemLen   uint64
-	TrapInfo uint64
-	Globals  uintptr
+	Stack      uintptr
+	Sp         uint64
+	Locals     uintptr
+	Mem        uintptr
+	MemLen     uint64
+	TrapInfo   uint64
+	Globals    uintptr
+	StackLimit uintptr
+	TrampRet   uintptr
+	Funcs      uintptr
+	Depth      uint64
 }
 
 // Supported reports whether native codegen exists for this platform.

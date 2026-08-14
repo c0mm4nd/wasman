@@ -14,6 +14,11 @@ type Ctx struct {
 	MemLen   uint64  // linear memory length in bytes
 	TrapInfo uint64  // extra trap detail (e.g. faulting offset)
 	Globals  uintptr // base of the []*uint64 global cells
+	// native-call machinery (offsets are ABI with generated code):
+	StackLimit uintptr // just past the usable native stack
+	TrampRet   uintptr // trampoline continuation, written by the entry shim
+	Funcs      uintptr // base of the native entry table
+	Depth      uint64  // native call depth (limit baked into prologues)
 }
 
 // Supported reports whether native codegen exists for this platform.

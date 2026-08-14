@@ -66,6 +66,7 @@ func (a *Asm) Ret() { a.word(0xD65F03C0) }
 
 // register assignment shared with the trampoline contract
 const (
+	RegStatus = 27 // exit status (keeps R0/ctx intact across native calls)
 	RegCtx    = 0
 	RegStack  = 1
 	RegSp     = 2
@@ -88,7 +89,7 @@ func (a *Asm) Prologue() {
 // Epilogue stores the stack index back and returns the given status.
 func (a *Asm) Epilogue(status uint32) {
 	a.StrImm(RegSp, RegCtx, 8)
-	a.Movz(RegCtx, status, 0) // status into R0
+	a.Movz(RegStatus, status, 0)
 	a.Ret()
 }
 

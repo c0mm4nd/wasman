@@ -159,7 +159,7 @@ func (c *compiler) finish() error {
 		for _, at := range c.oob {
 			c.a.PatchBcond(at, condHI)
 		}
-		c.a.Movz(RegCtx, StatusMemOOB, 0)
+		c.a.Movz(RegStatus, StatusMemOOB, 0)
 		c.a.Ret()
 	}
 	return nil
@@ -224,7 +224,7 @@ func (c *compiler) emit(op byte, imm uint64) error {
 	case 0x01: // nop
 
 	case 0x00: // unreachable
-		a.Movz(RegCtx, StatusUnreachable, 0)
+		a.Movz(RegStatus, StatusUnreachable, 0)
 		a.Ret()
 		c.unreach = true
 
@@ -327,9 +327,9 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		a.MovImm64(RegT0, uint64(len(c.sites)))
 		a.StrImm(RegT0, RegCtx, 40) // Ctx.TrapInfo = site id
 		if op == 0x10 {
-			a.Movz(RegCtx, StatusCall, 0)
+			a.Movz(RegStatus, StatusCall, 0)
 		} else {
-			a.Movz(RegCtx, StatusCallIndirect, 0)
+			a.Movz(RegStatus, StatusCallIndirect, 0)
 		}
 		a.Ret()
 		site.Cont = a.Len()
@@ -476,7 +476,7 @@ func (c *compiler) emit(op byte, imm uint64) error {
 			a.CmpImmW(RegT1, 0)
 		}
 		a.Bcond(condNE, 12) // skip the trap when the divisor is nonzero
-		a.Movz(RegCtx, StatusDivZero, 0)
+		a.Movz(RegStatus, StatusDivZero, 0)
 		a.Ret()
 		switch op {
 		case 0x6d, 0x7f: // div_s: MinInt / -1 overflows
@@ -490,7 +490,7 @@ func (c *compiler) emit(op byte, imm uint64) error {
 				a.CmpRegW(RegT0, RegT2)
 			}
 			a.Bcond(condNE, 12)
-			a.Movz(RegCtx, StatusIntOverflow, 0)
+			a.Movz(RegStatus, StatusIntOverflow, 0)
 			a.Ret()
 			a.Sdiv(w, RegT0, RegT0, RegT1)
 			if !w {
@@ -596,7 +596,7 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		a.StrImm(RegSp, RegCtx, 8)
 		a.MovImm64(RegT0, uint64(len(c.sites)))
 		a.StrImm(RegT0, RegCtx, 40)
-		a.Movz(RegCtx, StatusCall, 0)
+		a.Movz(RegStatus, StatusCall, 0)
 		a.Ret()
 		site.Cont = a.Len()
 		a.Prologue()
