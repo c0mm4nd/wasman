@@ -18,9 +18,9 @@ type Label struct {
 }
 
 // NewLabelStack creates a new LabelStack
-func NewLabelStack() *Stack[*Label] {
-	return &Stack[*Label]{
-		Values: make([]*Label, InitialLabelStackHeight),
+func NewLabelStack() *Stack[Label] {
+	return &Stack[Label]{
+		Values: make([]Label, InitialLabelStackHeight),
 		Ptr:    -1,
 	}
 }

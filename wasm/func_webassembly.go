@@ -82,8 +82,20 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 		return f.callCross(ins)
 	}
 
+	// frames (with their label stacks and locals arrays) are pooled per
+	// instance: call-heavy code would otherwise allocate three objects per call
+	frame := ins.acquireFrame()
 	al := len(f.signature.InputTypes)
-	locals := make([]uint64, f.NumLocal+uint32(al))
+	need := int(f.NumLocal) + al
+	if cap(frame.Locals) >= need {
+		frame.Locals = frame.Locals[:need]
+		for i := range frame.Locals {
+			frame.Locals[i] = 0 // wasm locals start zeroed
+		}
+	} else {
+		frame.Locals = make([]uint64, need)
+	}
+	locals := frame.Locals
 	for i := 0; i < al; i++ {
 		locals[al-1-i] = ins.OperandStack.Pop()
 	}
@@ -98,6 +110,7 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 	// wasm "call stack exhausted" instead of fatally overflowing the Go stack.
 	if limit := ins.Module.ModuleConfig.CallDepthLimit; limit != nil &&
 		uint64(prevPtr+1) >= *limit {
+		ins.releaseFrame(frame)
 		return ErrCallStackExhausted
 	}
 
@@ -118,15 +131,11 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 		}()
 	}
 
-	frame := &Frame{
-		Func:       f,
-		Locals:     locals,
-		LabelStack: stacks.NewLabelStack(),
-	}
+	frame.Func = f
 	// push the implicit label for the function body so that a `br` targeting the
 	// function scope (or an early `return`-style branch) unwinds correctly: its
 	// continuation is the end of the body and its arity is the result count.
-	frame.LabelStack.Push(&stacks.Label{
+	frame.LabelStack.Push(stacks.Label{
 		Arity:          len(f.signature.ReturnTypes),
 		Sp:             ins.OperandStack.Ptr,
 		ContinuationPC: uint64(len(f.body)),
@@ -142,6 +151,7 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 	// a returned trap error).
 	ins.FrameStack.Ptr = prevPtr
 	ins.Active = prev
+	ins.releaseFrame(frame)
 
 	// a trap discards whatever the failing body left on the operand stack, so
 	// repeated traps on a long-lived instance cannot grow the stack unboundedly

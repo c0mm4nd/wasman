@@ -36,7 +36,7 @@ func block(ins *Instance) error {
 	}
 
 	ctx.PC += block.BlockTypeBytes
-	ctx.LabelStack.Push(&stacks.Label{
+	ctx.LabelStack.Push(stacks.Label{
 		Arity: len(block.BlockType.ReturnTypes),
 		// Sp is captured below the block's parameters so a forward branch keeps
 		// the result values (multi-value: a block may take parameters).
@@ -55,7 +55,7 @@ func loop(ins *Instance) error {
 		return ErrBlockNotFound
 	}
 	ctx.PC += block.BlockTypeBytes
-	ctx.LabelStack.Push(&stacks.Label{
+	ctx.LabelStack.Push(stacks.Label{
 		// branching to a loop targets its start, carrying back the loop's
 		// parameters (0 in the MVP, non-zero with multi-value loops).
 		Arity:          len(block.BlockType.InputTypes),
@@ -88,7 +88,7 @@ func ifOp(ins *Instance) error {
 		}
 	}
 
-	ctx.LabelStack.Push(&stacks.Label{
+	ctx.LabelStack.Push(stacks.Label{
 		Arity:          len(block.BlockType.ReturnTypes),
 		Sp:             ins.OperandStack.Ptr - len(block.BlockType.InputTypes),
 		ContinuationPC: block.EndAt,
@@ -129,7 +129,7 @@ func branchAt(ins *Instance, index uint32) error {
 		return ErrLabelNotFound
 	}
 
-	var l *stacks.Label
+	var l stacks.Label
 	for i := uint32(0); i < index+1; i++ {
 		l = ls.Pop()
 	}

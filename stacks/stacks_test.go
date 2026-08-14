@@ -53,7 +53,7 @@ func TestVirtualMachineLabelStack(t *testing.T) {
 		t.Fail()
 	}
 
-	exp := &stacks.Label{Arity: 100}
+	exp := stacks.Label{Arity: 100}
 	s.Push(exp)
 	if !reflect.DeepEqual(exp, s.Pop()) {
 		t.Fail()
@@ -61,7 +61,7 @@ func TestVirtualMachineLabelStack(t *testing.T) {
 
 	// verify the length grows
 	for i := 0; i < stacks.InitialLabelStackHeight+1; i++ {
-		s.Push(&stacks.Label{})
+		s.Push(stacks.Label{})
 	}
 	if len(s.Values) <= stacks.InitialLabelStackHeight {
 		t.Fail()

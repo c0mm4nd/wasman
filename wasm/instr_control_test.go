@@ -27,7 +27,7 @@ func Test_block(t *testing.T) {
 	if block(&Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}) != nil {
 		t.Fail()
 	}
-	if !reflect.DeepEqual(&stacks.Label{
+	if !reflect.DeepEqual(stacks.Label{
 		Arity:          1,
 		Sp:             -1,
 		ContinuationPC: 100,
@@ -58,7 +58,7 @@ func Test_loop(t *testing.T) {
 	if loop(&Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}) != nil {
 		t.Fail()
 	}
-	if !reflect.DeepEqual(&stacks.Label{
+	if !reflect.DeepEqual(stacks.Label{
 		Arity:          0,
 		Sp:             -1,
 		ContinuationPC: 0,
@@ -92,7 +92,7 @@ func Test_ifOp(t *testing.T) {
 		if ifOp(vm) != nil {
 			t.Fail()
 		}
-		if !reflect.DeepEqual(&stacks.Label{
+		if !reflect.DeepEqual(stacks.Label{
 			Arity:          1,
 			Sp:             -1,
 			ContinuationPC: 100,
@@ -125,7 +125,7 @@ func Test_ifOp(t *testing.T) {
 		if ifOp(vm) != nil {
 			t.Fail()
 		}
-		if !reflect.DeepEqual(&stacks.Label{
+		if !reflect.DeepEqual(stacks.Label{
 			Arity:          1,
 			Sp:             -1,
 			ContinuationPC: 100,
@@ -144,7 +144,7 @@ func Test_elseOp(t *testing.T) {
 		LabelStack: stacks.NewLabelStack(),
 	}
 
-	ctx.LabelStack.Push(&stacks.Label{EndPC: 100000})
+	ctx.LabelStack.Push(stacks.Label{EndPC: 100000})
 	if elseOp(&Instance{Active: ctx}) != nil {
 		t.Fail()
 	}
@@ -155,7 +155,7 @@ func Test_elseOp(t *testing.T) {
 
 func Test_end(t *testing.T) {
 	ctx := &Frame{LabelStack: stacks.NewLabelStack()}
-	ctx.LabelStack.Push(&stacks.Label{EndPC: 100000})
+	ctx.LabelStack.Push(stacks.Label{EndPC: 100000})
 	if end(&Instance{Active: ctx}) != nil {
 		t.Fail()
 	}
@@ -172,8 +172,8 @@ func Test_br(t *testing.T) {
 	vm := &Instance{
 		Active:       ctx,
 		OperandStack: stacks.NewOperandStack()}
-	ctx.LabelStack.Push(&stacks.Label{ContinuationPC: 5})
-	ctx.LabelStack.Push(&stacks.Label{})
+	ctx.LabelStack.Push(stacks.Label{ContinuationPC: 5})
+	ctx.LabelStack.Push(stacks.Label{})
 	if br(vm) != nil {
 		t.Fail()
 	}
@@ -191,8 +191,8 @@ func Test_brIf(t *testing.T) {
 
 		vm := &Instance{Active: ctx, OperandStack: stacks.NewOperandStack()}
 		vm.OperandStack.Push(1)
-		ctx.LabelStack.Push(&stacks.Label{ContinuationPC: 5})
-		ctx.LabelStack.Push(&stacks.Label{})
+		ctx.LabelStack.Push(stacks.Label{ContinuationPC: 5})
+		ctx.LabelStack.Push(stacks.Label{})
 		if brIf(vm) != nil {
 			t.Fail()
 		}

@@ -54,6 +54,28 @@ type Instance struct {
 
 	// canonNaN mirrors ModuleConfig.CanonicalizeNaNs (hot-loop friendly copy)
 	canonNaN bool
+
+	// framePool recycles call frames (with their label stacks and locals
+	// backing arrays); instances are single-goroutine so no locking is needed.
+	framePool []*Frame
+}
+
+// acquireFrame takes a recycled frame or makes a fresh one.
+func (ins *Instance) acquireFrame() *Frame {
+	if n := len(ins.framePool); n > 0 {
+		fr := ins.framePool[n-1]
+		ins.framePool = ins.framePool[:n-1]
+		fr.PC = 0
+		fr.LabelStack.Ptr = -1
+		return fr
+	}
+	return &Frame{LabelStack: stacks.NewLabelStack()}
+}
+
+// releaseFrame returns a frame to the pool.
+func (ins *Instance) releaseFrame(fr *Frame) {
+	fr.Func = nil
+	ins.framePool = append(ins.framePool, fr)
 }
 
 // Interrupt requests that the currently running (or next) execution on this
