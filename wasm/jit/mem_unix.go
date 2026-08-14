@@ -1,4 +1,4 @@
-//go:build (darwin || linux) && arm64
+//go:build (darwin || linux) && (arm64 || amd64)
 
 // Package jit provides native code generation for the wasman engine
 // (template JIT: each wasm opcode expands to a fixed native sequence).

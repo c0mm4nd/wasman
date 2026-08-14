@@ -1,4 +1,4 @@
-//go:build (darwin || linux) && arm64
+//go:build (darwin || linux) && (arm64 || amd64)
 
 package jit
 
@@ -18,7 +18,7 @@ type Ctx struct {
 // Supported reports whether native codegen exists for this platform.
 func Supported() bool { return true }
 
-// enter is implemented in enter_arm64.s.
+// enter is implemented in enter_$GOARCH.s.
 func enter(code uintptr, ctx *Ctx) uint32
 
 // Call runs an AllocExec mapping against ctx and returns its status code.
