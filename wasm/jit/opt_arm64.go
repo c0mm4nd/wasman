@@ -13,6 +13,12 @@ import (
 
 const optNumRegs = 8
 
+// optFloatSupported gates frontend acceptance of float opcodes.
+const optFloatSupported = true
+
+// optNumFRegs sizes the float pool: V2-V7 (V0/V1 stage, popcnt uses V0).
+const optNumFRegs = 6
+
 const optScratch2 = 16 // third scratch, outside the pool and the ABI set
 
 // CompileOpt lowers, allocates and generates native code for fd.
@@ -23,7 +29,7 @@ func CompileOpt(fd *FuncDesc) (*Compiled, error) {
 	}
 	fn := &fe.fn
 	fn.peephole()
-	al := fn.allocate(optNumRegs)
+	al := fn.allocate2(optNumRegs, optNumFRegs)
 	if os.Getenv("WASMAN_OPT_DEBUG") == "1" {
 		for i, ins := range fn.code {
 			fmt.Printf("IR%02d op=%d sub=%#x dst=%d a=%d b=%d imm=%d\n", i, ins.op, ins.sub, ins.dst, ins.a, ins.b, ins.imm)
@@ -106,24 +112,69 @@ func (g *optGen) homeAddr(v int) (uint32, uint32) {
 	}
 }
 
-// read makes v available in a register, staging from memory into scratch.
+// vlocOf fetches the full location record.
+func (g *optGen) vlocOf(v int) (vloc, bool) {
+	ci, ok := g.al.compact[v]
+	if !ok {
+		return vloc{reg: -1}, false
+	}
+	return g.al.loc[ci], true
+}
+
+// read makes v available in an integer register, staging from memory or
+// bridging from the float file into scratch.
 func (g *optGen) read(v int, scratch uint32) uint32 {
-	if r, ok := g.loc(v); ok && r >= 0 {
-		return uint32(8 + r)
+	if l, ok := g.vlocOf(v); ok && l.reg >= 0 {
+		if l.freg {
+			g.a.FMovFromFP(true, scratch, uint32(2+l.reg))
+			return scratch
+		}
+		return uint32(8 + l.reg)
 	}
 	base, off := g.homeAddr(v)
 	g.a.LdrImm(scratch, base, off)
 	return scratch
 }
 
-// dst returns the register to compute v into plus a commit step for
-// memory-homed destinations.
+// dst returns the integer register to compute v into plus a commit step for
+// memory homes and float-file destinations.
 func (g *optGen) dst(v int, scratch uint32) (uint32, func()) {
-	if r, ok := g.loc(v); ok && r >= 0 {
-		return uint32(8 + r), func() {}
+	if l, ok := g.vlocOf(v); ok && l.reg >= 0 {
+		if l.freg {
+			fr := uint32(2 + l.reg)
+			return scratch, func() { g.a.FMovToFP(true, fr, scratch) }
+		}
+		return uint32(8 + l.reg), func() {}
 	}
 	base, off := g.homeAddr(v)
 	return scratch, func() { g.a.StrImm(scratch, base, off) }
+}
+
+// readF makes v available in a float register (V0/V1 stage).
+func (g *optGen) readF(v int, vscratch uint32) uint32 {
+	if l, ok := g.vlocOf(v); ok && l.reg >= 0 {
+		if l.freg {
+			return uint32(2 + l.reg)
+		}
+		g.a.FMovToFP(true, vscratch, uint32(8+l.reg))
+		return vscratch
+	}
+	base, off := g.homeAddr(v)
+	g.a.LdrF(vscratch, base, off)
+	return vscratch
+}
+
+// dstF returns the float register to compute v into plus its commit.
+func (g *optGen) dstF(v int, vscratch uint32) (uint32, func()) {
+	if l, ok := g.vlocOf(v); ok && l.reg >= 0 {
+		if l.freg {
+			return uint32(2 + l.reg), func() {}
+		}
+		gr := uint32(8 + l.reg)
+		return vscratch, func() { g.a.FMovFromFP(true, gr, vscratch) }
+	}
+	base, off := g.homeAddr(v)
+	return vscratch, func() { g.a.StrF(vscratch, base, off) }
 }
 
 func (g *optGen) branchTo(target int, emit func(rel int)) {
@@ -147,8 +198,12 @@ func (g *optGen) gen() error {
 	g.framePrologue(true)
 	// register-allocated locals load once here
 	for j := 0; j < fn.nlocals; j++ {
-		if r, ok := g.loc(j); ok && r >= 0 {
-			a.LdrImm(uint32(8+r), RegLocals, uint32(j*8))
+		if l, ok := g.vlocOf(j); ok && l.reg >= 0 {
+			if l.freg {
+				a.LdrF(uint32(2+l.reg), RegLocals, uint32(j*8))
+			} else {
+				a.LdrImm(uint32(8+l.reg), RegLocals, uint32(j*8))
+			}
 		}
 	}
 
@@ -172,6 +227,12 @@ func (g *optGen) gen() error {
 			commit()
 		case irNop:
 		case irBin:
+			if isFloatBinOp(ins.sub) {
+				if err := g.emitFBin(ins, idx); err != nil {
+					return err
+				}
+				break
+			}
 			// comparison feeding the next branch fuses into flags
 			if isCmpOp(ins.sub) && g.branchFeeds(fn, idx, ins.dst) {
 				n := g.read(ins.a, RegT0)
@@ -194,6 +255,12 @@ func (g *optGen) gen() error {
 				return err
 			}
 		case irUn:
+			if isFloatUnOp(ins.sub) {
+				if err := g.emitFUn(ins); err != nil {
+					return err
+				}
+				break
+			}
 			// eqz feeding the next branch becomes a bare cbnz: br_if-not on
 			// (x == 0) branches exactly when x != 0
 			if (ins.sub == 0x45 || ins.sub == 0x50) && g.branchFeeds(fn, idx, ins.dst) {

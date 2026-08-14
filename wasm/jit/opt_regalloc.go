@@ -18,7 +18,8 @@ import "sort"
 
 // assignment for one vreg.
 type vloc struct {
-	reg   int16 // >= 0: machine register index (into the arch's pool)
+	reg   int16 // >= 0: machine register index (into the class's pool)
+	freg  bool  // reg indexes the float file
 	spill int32 // when reg < 0: home slot (see homeOf)
 }
 
@@ -26,6 +27,7 @@ type interval struct {
 	v          int
 	start, end int
 	mem        bool // forced to its memory home
+	fclass     bool // prefers the float register file
 }
 
 type allocation struct {
@@ -64,8 +66,13 @@ func (i *irInstr) uses(f func(v int)) {
 	}
 }
 
-// allocate computes intervals and runs linear scan over nregs registers.
+// allocate computes intervals and runs linear scan; the integer and float
+// files are scanned independently over their class's intervals.
 func (fn *irFunc) allocate(nregs int) *allocation {
+	return fn.allocate2(nregs, 0)
+}
+
+func (fn *irFunc) allocate2(nregs, nfregs int) *allocation {
 	type rng struct{ start, end int }
 	ranges := map[int]*rng{}
 	forced := map[int]bool{}
@@ -178,7 +185,12 @@ func (fn *irFunc) allocate(nregs int) *allocation {
 
 	ivs := make([]interval, 0, len(ranges))
 	for v, r := range ranges {
-		ivs = append(ivs, interval{v: v, start: r.start, end: r.end, mem: forced[v]})
+		fc := fn.fclass[v]
+		if fc && nfregs == 0 {
+			forced[v] = true // no float file on this backend yet
+		}
+		ivs = append(ivs, interval{v: v, start: r.start, end: r.end,
+			mem: forced[v], fclass: fc})
 	}
 	sort.Slice(ivs, func(i, j int) bool { return ivs[i].start < ivs[j].start })
 
@@ -188,17 +200,7 @@ func (fn *irFunc) allocate(nregs int) *allocation {
 		al.loc = append(al.loc, vloc{reg: -1, spill: -1})
 	}
 
-	// linear scan
-	type act struct {
-		end int
-		reg int16
-		ci  int
-	}
-	var active []act
-	free := make([]int16, 0, nregs)
-	for r := nregs - 1; r >= 0; r-- {
-		free = append(free, int16(r))
-	}
+	// linear scan, one pass per register file
 	spillCount := 0
 	home := func(ci int, v int) {
 		kind, _ := fn.homeOf(v)
@@ -207,45 +209,62 @@ func (fn *irFunc) allocate(nregs int) *allocation {
 			spillCount++
 		}
 	}
-	for _, iv := range ivs {
-		ci := al.compact[iv.v]
-		// expire finished intervals
-		na := active[:0]
-		for _, a := range active {
-			if a.end < iv.start {
-				free = append(free, a.reg)
-			} else {
-				na = append(na, a)
+	scan := func(fclass bool, pool int) {
+		type act struct {
+			end int
+			reg int16
+			ci  int
+		}
+		var active []act
+		free := make([]int16, 0, pool)
+		for r := pool - 1; r >= 0; r-- {
+			free = append(free, int16(r))
+		}
+		for _, iv := range ivs {
+			if iv.fclass != fclass {
+				continue
 			}
-		}
-		active = na
-		if iv.mem {
-			home(ci, iv.v)
-			continue
-		}
-		if len(free) == 0 {
-			// spill the active interval that ends last (or this one)
-			far, fi := iv.end, -1
-			for i, a := range active {
-				if a.end > far {
-					far, fi = a.end, i
+			ci := al.compact[iv.v]
+			na := active[:0]
+			for _, a := range active {
+				if a.end < iv.start {
+					free = append(free, a.reg)
+				} else {
+					na = append(na, a)
 				}
 			}
-			if fi < 0 {
+			active = na
+			if iv.mem {
 				home(ci, iv.v)
 				continue
 			}
-			victim := active[fi]
-			al.loc[victim.ci] = vloc{reg: -1, spill: -1}
-			home(victim.ci, ivByCompact(ivs, al, victim.ci))
-			active[fi] = act{end: iv.end, reg: victim.reg, ci: ci}
-			al.loc[ci].reg = victim.reg
-			continue
+			if len(free) == 0 {
+				far, fi := iv.end, -1
+				for i, a := range active {
+					if a.end > far {
+						far, fi = a.end, i
+					}
+				}
+				if fi < 0 {
+					home(ci, iv.v)
+					continue
+				}
+				victim := active[fi]
+				al.loc[victim.ci] = vloc{reg: -1, spill: -1}
+				home(victim.ci, ivByCompact(ivs, al, victim.ci))
+				active[fi] = act{end: iv.end, reg: victim.reg, ci: ci}
+				al.loc[ci] = vloc{reg: victim.reg, freg: fclass, spill: -1}
+				continue
+			}
+			r := free[len(free)-1]
+			free = free[:len(free)-1]
+			al.loc[ci] = vloc{reg: r, freg: fclass, spill: -1}
+			active = append(active, act{end: iv.end, reg: r, ci: ci})
 		}
-		r := free[len(free)-1]
-		free = free[:len(free)-1]
-		al.loc[ci].reg = r
-		active = append(active, act{end: iv.end, reg: r, ci: ci})
+	}
+	scan(false, nregs)
+	if nfregs > 0 {
+		scan(true, nfregs)
 	}
 	al.spillSlots = spillCount
 	return al

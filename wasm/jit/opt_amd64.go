@@ -15,6 +15,9 @@ import (
 
 const optNumRegs = 5
 
+// optFloatSupported: the amd64 float register file port is pending.
+const optFloatSupported = false
+
 var optPool = [optNumRegs]int{3, 11, 12, 13, 15} // BX, R11, R12, R13, R15
 
 // CompileOpt lowers, allocates and generates native code for fd.

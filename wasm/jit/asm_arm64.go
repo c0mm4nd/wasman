@@ -243,3 +243,24 @@ func (a *Asm) Cbnz(x bool, t uint32, rel int) {
 func (a *Asm) AddRegLsl(d, n, m, sh uint32) {
 	a.word(0x8B000000 | m<<16 | sh<<10 | n<<5 | d)
 }
+
+// LdrF / StrF move 64-bit patterns between memory and the float file.
+func (a *Asm) LdrF(t, n uint32, off uint32) { a.word(0xFD400000 | (off/8)<<10 | n<<5 | t) }
+func (a *Asm) StrF(t, n uint32, off uint32) { a.word(0xFD000000 | (off/8)<<10 | n<<5 | t) }
+
+// FBin3 emits a two-operand float op with explicit registers (base holds
+// the S-form; d selects the D-form).
+func (a *Asm) FBin3(dbl bool, base, vd, vn, vm uint32) {
+	if dbl {
+		base |= 0x00400000
+	}
+	a.word(base | vm<<16 | vn<<5 | vd)
+}
+
+// FUn2 emits a one-operand float op with explicit registers.
+func (a *Asm) FUn2(dbl bool, base, vd, vn uint32) {
+	if dbl {
+		base |= 0x00400000
+	}
+	a.word(base | vn<<5 | vd)
+}

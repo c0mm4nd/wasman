@@ -62,6 +62,18 @@ type irFunc struct {
 	nrets    int
 	sigs     []FuncSig // function index space arities (native call layout)
 	typeSigs []FuncSig // type section arities (indirect fast path)
+	// fclass marks vregs preferring the float register file. The class is
+	// a preference, not a constraint: cross-class access bridges through
+	// FMOV-style moves and memory homes serve both files, so type punning
+	// (reinterpret, mixed-type stack slots) needs no special analysis.
+	fclass map[int]bool
+}
+
+func (fn *irFunc) markF(v int) {
+	if fn.fclass == nil {
+		fn.fclass = make(map[int]bool)
+	}
+	fn.fclass[v] = true
 }
 
 func (fn *irFunc) callSig(idx int) FuncSig { return fn.sigs[idx] }
@@ -416,6 +428,67 @@ func (f *irFrontend) lowerOp(op byte, imm uint64) error {
 		f.emit(irInstr{op: irUn, sub: op, dst: t, a: e.v, b: -1, c: -1})
 		f.push(t, -1)
 
+	// float unary: abs/neg/round/sqrt keep the float file; demote/promote too
+	case 0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x90, 0x91,
+		0x99, 0x9a, 0x9b, 0x9c, 0x9d, 0x9e, 0x9f, 0xb6, 0xbb:
+		if !optFloatSupported {
+			return fmt.Errorf("%w: float ops", ErrUnsupported)
+		}
+		e := f.pop()
+		t := f.newTemp()
+		f.fn.markF(e.v)
+		f.fn.markF(t)
+		f.emit(irInstr{op: irUn, sub: op, dst: t, a: e.v, b: -1, c: -1})
+		f.push(t, -1)
+
+	// float -> int: trunc (trapping) and int -> float conversions
+	case 0xa8, 0xa9, 0xaa, 0xab, 0xae, 0xaf, 0xb0, 0xb1:
+		if !optFloatSupported {
+			return fmt.Errorf("%w: float ops", ErrUnsupported)
+		}
+		e := f.pop()
+		t := f.newTemp()
+		f.fn.markF(e.v)
+		f.emit(irInstr{op: irUn, sub: op, dst: t, a: e.v, b: -1, c: -1})
+		f.push(t, -1)
+	case 0xb2, 0xb3, 0xb4, 0xb5, 0xb7, 0xb8, 0xb9, 0xba:
+		if !optFloatSupported {
+			return fmt.Errorf("%w: float ops", ErrUnsupported)
+		}
+		e := f.pop()
+		t := f.newTemp()
+		f.fn.markF(t)
+		f.emit(irInstr{op: irUn, sub: op, dst: t, a: e.v, b: -1, c: -1})
+		f.push(t, -1)
+
+	case 0xbc, 0xbd, 0xbe, 0xbf: // reinterpret: bit-preserving no-ops
+
+	// float binary arithmetic and min/max/copysign
+	case 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98,
+		0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6:
+		if !optFloatSupported {
+			return fmt.Errorf("%w: float ops", ErrUnsupported)
+		}
+		v2, v1 := f.pop(), f.pop()
+		t := f.newTemp()
+		f.fn.markF(v1.v)
+		f.fn.markF(v2.v)
+		f.fn.markF(t)
+		f.emit(irInstr{op: irBin, sub: op, dst: t, a: v1.v, b: v2.v, c: -1})
+		f.push(t, -1)
+
+	// float comparisons produce an integer
+	case 0x5b, 0x5c, 0x5d, 0x5e, 0x5f, 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66:
+		if !optFloatSupported {
+			return fmt.Errorf("%w: float ops", ErrUnsupported)
+		}
+		v2, v1 := f.pop(), f.pop()
+		t := f.newTemp()
+		f.fn.markF(v1.v)
+		f.fn.markF(v2.v)
+		f.emit(irInstr{op: irBin, sub: op, dst: t, a: v1.v, b: v2.v, c: -1})
+		f.push(t, -1)
+
 	// integer binops and comparisons
 	case 0x46, 0x47, 0x48, 0x49, 0x4a, 0x4b, 0x4c, 0x4d, 0x4e, 0x4f,
 		0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a,
@@ -438,6 +511,19 @@ func (f *irFrontend) lowerOp(op byte, imm uint64) error {
 	case 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e:
 		val, addr := f.pop(), f.pop()
 		f.emit(irInstr{op: irStore, sub: op, dst: -1, a: addr.v, b: val.v, c: -1, imm: imm})
+
+	case 0xfc: // misc: trunc_sat family (sub-opcode pre-decoded)
+		if !optFloatSupported {
+			return fmt.Errorf("%w: float ops", ErrUnsupported)
+		}
+		if imm > 7 {
+			return fmt.Errorf("%w: misc sub-opcode %d", ErrUnsupported, imm)
+		}
+		e := f.pop()
+		t := f.newTemp()
+		f.fn.markF(e.v)
+		f.emit(irInstr{op: irUn, sub: byte(0xe0 | imm), dst: t, a: e.v, b: -1, c: -1})
+		f.push(t, -1)
 
 	case 0x3f: // memory.size
 		t := f.newTemp()
