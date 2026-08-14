@@ -65,6 +65,53 @@ func (ins *Instance) compileNative(f *wasmFunc, funcSigs, typeSigs []jit.FuncSig
 	}
 }
 
+// callNative invokes a same-instance JIT-compiled callee from native code:
+// the moral equivalent of wasmFunc.call without the interpreter frame setup —
+// arguments are block-copied into the pooled frame's locals and the depth
+// accounting matches the generic path exactly. Panics (with Recover on)
+// unwind to the exported call's recover, which restores the outer state.
+func (ins *Instance) callNative(f *wasmFunc) error {
+	os := ins.OperandStack
+	al := len(f.signature.InputTypes)
+	baseSp := os.Ptr - al
+
+	prevPtr := ins.FrameStack.Ptr
+	if limit := ins.Module.ModuleConfig.CallDepthLimit; limit != nil &&
+		uint64(prevPtr+1) >= *limit {
+		return ErrCallStackExhausted
+	}
+
+	frame := ins.acquireFrame()
+	need := int(f.NumLocal) + al
+	if cap(frame.Locals) >= need {
+		frame.Locals = frame.Locals[:need]
+	} else {
+		frame.Locals = make([]uint64, need)
+	}
+	copy(frame.Locals, os.Values[baseSp+1:os.Ptr+1])
+	for i := al; i < need; i++ {
+		frame.Locals[i] = 0 // declared locals start zeroed
+	}
+	os.Ptr = baseSp
+
+	prev := ins.Active
+	frame.Func = f
+	ins.FrameStack.Push(frame)
+	ins.Active = frame
+
+	err := ins.execNative(f.compiled, frame.Locals, baseSp)
+
+	ins.FrameStack.Ptr = prevPtr
+	ins.Active = prev
+	ins.releaseFrame(frame)
+
+	if err != nil {
+		ins.OperandStack.Ptr = baseSp
+		return annotateTrap(err, f.name)
+	}
+	return nil
+}
+
 // execNative runs a JIT-compiled body: the native code works directly on the
 // instance's operand stack slots above baseSp and on the frame's locals.
 // Calls exit to this loop, which invokes the callee through the ordinary
@@ -109,7 +156,14 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, baseSp int) e
 			case jit.SiteMemGrow:
 				err = memoryGrowBody(ins)
 			default:
-				err = ins.IndexSpace.Functions[site.FuncIdx].call(ins)
+				fn := ins.IndexSpace.Functions[site.FuncIdx]
+				// same-instance native callees skip the generic call
+				// ceremony (reflection-free arg copy, no per-level recover)
+				if wf, ok := fn.(*wasmFunc); ok && wf.compiled != nil && wf.owner == ins {
+					err = ins.callNative(wf)
+				} else {
+					err = fn.call(ins)
+				}
 			}
 			if err != nil {
 				return err
