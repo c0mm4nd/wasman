@@ -208,6 +208,11 @@ func (ins *Instance) execFunc() error {
 	// so the frame and body can be hoisted out of the loop
 	frame := ins.Active
 	body := frame.Func.body
+	f := frame.Func
+	os := ins.OperandStack
+	// the inline fast path needs pre-decoded immediates and no per-op
+	// bookkeeping (metering / NaN canonicalization)
+	fast := f.imms != nil && ts == nil && !ins.canonNaN
 
 	for ; int(frame.PC) < len(body); frame.PC++ {
 		// poll the interrupt flag every 256 instructions: cheap enough for the
@@ -218,6 +223,94 @@ func (ins *Instance) execFunc() error {
 		}
 
 		op := expr.OpCode(body[frame.PC])
+
+		// trap-free hot opcodes inlined: no indirect call, no error return
+		if fast {
+			switch op {
+			case expr.OpCodeLocalGet:
+				p := frame.PC
+				os.Push(frame.Locals[f.imms[p]])
+				frame.PC = uint64(f.pcEnd[p])
+				continue
+			case expr.OpCodeLocalSet:
+				p := frame.PC
+				frame.Locals[f.imms[p]] = os.Pop()
+				frame.PC = uint64(f.pcEnd[p])
+				continue
+			case expr.OpCodeLocalTee:
+				p := frame.PC
+				frame.Locals[f.imms[p]] = os.Peek()
+				frame.PC = uint64(f.pcEnd[p])
+				continue
+			case expr.OpCodeI32Const, expr.OpCodeI64Const, expr.OpCodeF32Const, expr.OpCodeF64Const:
+				p := frame.PC
+				os.Push(f.imms[p])
+				frame.PC = uint64(f.pcEnd[p])
+				continue
+			case expr.OpCodeI32Add:
+				v2 := os.Pop()
+				os.Values[os.Ptr] = uint64(int32(os.Values[os.Ptr]) + int32(v2))
+				continue
+			case expr.OpCodeI32Sub:
+				v2 := os.Pop()
+				os.Values[os.Ptr] = uint64(int32(os.Values[os.Ptr]) - int32(v2))
+				continue
+			case expr.OpCodeI32Mul:
+				v2 := os.Pop()
+				os.Values[os.Ptr] = uint64(int32(os.Values[os.Ptr]) * int32(v2))
+				continue
+			case expr.OpCodeI32And:
+				v2 := os.Pop()
+				os.Values[os.Ptr] = uint64(uint32(os.Values[os.Ptr]) & uint32(v2))
+				continue
+			case expr.OpCodeI32Or:
+				v2 := os.Pop()
+				os.Values[os.Ptr] = uint64(uint32(os.Values[os.Ptr]) | uint32(v2))
+				continue
+			case expr.OpCodeI32Xor:
+				v2 := os.Pop()
+				os.Values[os.Ptr] = uint64(uint32(os.Values[os.Ptr]) ^ uint32(v2))
+				continue
+			case expr.OpCodeI32Eqz:
+				if uint32(os.Values[os.Ptr]) == 0 {
+					os.Values[os.Ptr] = 1
+				} else {
+					os.Values[os.Ptr] = 0
+				}
+				continue
+			case expr.OpCodeI32LtU:
+				v2 := os.Pop()
+				if uint32(os.Values[os.Ptr]) < uint32(v2) {
+					os.Values[os.Ptr] = 1
+				} else {
+					os.Values[os.Ptr] = 0
+				}
+				continue
+			case expr.OpCodeI32GeU:
+				v2 := os.Pop()
+				if uint32(os.Values[os.Ptr]) >= uint32(v2) {
+					os.Values[os.Ptr] = 1
+				} else {
+					os.Values[os.Ptr] = 0
+				}
+				continue
+			case expr.OpCodeI64Add:
+				v2 := os.Pop()
+				os.Values[os.Ptr] += v2
+				continue
+			case expr.OpCodeI64Sub:
+				v2 := os.Pop()
+				os.Values[os.Ptr] -= v2
+				continue
+			case expr.OpCodeI64ExtendI32U:
+				os.Values[os.Ptr] = uint64(uint32(os.Values[os.Ptr]))
+				continue
+			case expr.OpCodeI32WrapI64:
+				os.Values[os.Ptr] = uint64(uint32(os.Values[os.Ptr]))
+				continue
+			}
+		}
+
 		instr := instructions[op]
 		if instr == nil {
 			return fmt.Errorf("%w: %#x", ErrUnknownOpcode, body[frame.PC])
