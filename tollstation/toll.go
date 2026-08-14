@@ -49,6 +49,16 @@ func (ts *SimpleTollStation) GetToll() uint64 {
 	return ts.total
 }
 
+// ChargeOp charges one op in a single call (the exec loop's fast path,
+// avoiding the separate GetOpPrice+AddToll interface dispatches).
+func (ts *SimpleTollStation) ChargeOp(_ expr.OpCode) error {
+	if ts.total+1 > ts.max {
+		return ErrTollOverflow
+	}
+	ts.total++
+	return nil
+}
+
 // AddToll adds 1 unit toll per opcode
 func (ts *SimpleTollStation) AddToll(toll uint64) error {
 	if ts.total > ts.max-toll {

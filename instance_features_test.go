@@ -10,6 +10,7 @@ import (
 
 	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/segments"
+	"github.com/c0mm4nd/wasman/tollstation"
 	"github.com/c0mm4nd/wasman/wasm"
 )
 
@@ -295,5 +296,33 @@ func TestInstanceResetMemory(t *testing.T) {
 	}
 	if ins.Memory.Value[0] != 0 {
 		t.Fatalf("post-reset memory not restored: %#x", ins.Memory.Value[0])
+	}
+}
+
+func BenchmarkTollCharging(b *testing.B) {
+	// burn body: (func (param i32) (block (loop ...))) — from examples/gas
+	burn := []byte{
+		0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+		0x01, 0x05, 0x01, 0x60, 0x01, 0x7f, 0x00,
+		0x03, 0x02, 0x01, 0x00,
+		0x07, 0x08, 0x01, 0x04, 0x62, 0x75, 0x72, 0x6e, 0x00, 0x00,
+		0x0a, 0x18, 0x01, 0x16, 0x00, 0x02, 0x40, 0x03, 0x40,
+		0x20, 0x00, 0x45, 0x0d, 0x01, 0x20, 0x00, 0x41, 0x01, 0x6b, 0x21, 0x00,
+		0x0c, 0x00, 0x0b, 0x0b, 0x0b,
+	}
+	ts := tollstation.NewSimpleTollStation(0)
+	mod, err := NewModule(config.ModuleConfig{TollStation: ts}, bytes.NewReader(burn))
+	if err != nil {
+		b.Fatal(err)
+	}
+	ins, err := NewInstance(mod, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, _, err := ins.CallExportedFunc("burn", 1000); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

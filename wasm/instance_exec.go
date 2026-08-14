@@ -170,7 +170,18 @@ func constArith(op expr.OpCode, a, b interface{}) (interface{}, error) {
 	}
 }
 
+// opCharger is the optional single-call charging fast path a TollStation may
+// implement (SimpleTollStation does); it must be equivalent to
+// AddToll(GetOpPrice(op)).
+type opCharger interface {
+	ChargeOp(expr.OpCode) error
+}
+
 func (ins *Instance) execFunc() error {
+	// hoist the toll station (and its fast path) out of the hot loop
+	ts := ins.Module.ModuleConfig.TollStation
+	charger, fastToll := ts.(opCharger)
+
 	for ; int(ins.Active.PC) < len(ins.Active.Func.body); ins.Active.PC++ {
 		// poll the interrupt flag every 256 instructions: cheap enough for the
 		// hot loop, responsive enough for timeouts
@@ -191,9 +202,12 @@ func (ins *Instance) execFunc() error {
 		}
 
 		// Toll
-		if ins.Module.ModuleConfig.TollStation != nil {
-			price := ins.TollStation.GetOpPrice(op)
-			err := ins.TollStation.AddToll(price)
+		if ts != nil {
+			if fastToll {
+				err = charger.ChargeOp(op)
+			} else {
+				err = ts.AddToll(ts.GetOpPrice(op))
+			}
 			if err != nil {
 				return err
 			}
