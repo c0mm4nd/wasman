@@ -154,3 +154,21 @@ func (a *Asm) setWord(at int, w uint32) {
 	a.buf[at+2] = byte(w >> 16)
 	a.buf[at+3] = byte(w >> 24)
 }
+
+// AddRegX emits ADD Xd, Xn, Xm.
+func (a *Asm) AddRegX(d, n, m uint32) { a.word(0x8B000000 | m<<16 | n<<5 | d) }
+
+// Bcond emits B.cond with a relative byte offset (0 as a placeholder).
+func (a *Asm) Bcond(cond uint32, rel int) { a.word(0x54000000 | (uint32(rel/4)&0x7ffff)<<5 | cond) }
+
+// PatchBcond rewrites the B.cond placeholder at `at` to jump here.
+func (a *Asm) PatchBcond(at int, cond uint32) {
+	a.setWord(at, 0x54000000|(uint32((a.Len()-at)/4)&0x7ffff)<<5|cond)
+}
+
+// LsrImmX emits LSR Xd, Xn, #sh.
+func (a *Asm) LsrImmX(d, n, sh uint32) { a.word(0xD3400000 | sh<<16 | 63<<10 | n<<5 | d) }
+
+// MemLd emits a load of the given kind from [Xn + Xm] into a register.
+// Kinds index the memLd table below.
+func (a *Asm) MemOp(base uint32, t, n, m uint32) { a.word(base | m<<16 | n<<5 | t) }

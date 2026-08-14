@@ -40,7 +40,8 @@ type compiler struct {
 	maxH    int
 	ctl     []ctl
 	unreach bool
-	skip    int // nesting depth of blocks opened inside unreachable code
+	skip    int   // nesting depth of blocks opened inside unreachable code
+	oob     []int // B.HI placeholders jumping to the shared OOB trap stub
 }
 
 func (c *compiler) push() int {
@@ -128,6 +129,13 @@ func (c *compiler) run() error {
 		if len(c.ctl) == 0 { // the implicit block closed: function end
 			c.a.MovImm64(RegSp, uint64(c.h))
 			c.a.Epilogue(StatusOK)
+			if len(c.oob) > 0 { // shared out-of-bounds trap stub
+				for _, at := range c.oob {
+					c.a.PatchBcond(at, condHI)
+				}
+				c.a.Movz(RegCtx, StatusMemOOB, 0)
+				c.a.Ret()
+			}
 			return nil
 		}
 	}
@@ -143,6 +151,10 @@ func buildOpHasImm() (t [256]bool) {
 		0x0c, 0x0d, // br, br_if
 		0x20, 0x21, 0x22, // locals
 		0x41, 0x42, 0x43, 0x44, // consts
+		0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, // loads (offsets)
+		0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
+		0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, // stores
+		0x3f, // memory.size
 	} {
 		t[op] = true
 	}
@@ -353,8 +365,84 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		a.Uxtw(RegT0, RegT0)
 		c.str(RegT0, c.h-1)
 
+	// loads: pop addr, bounds-check off+addr+width, push extended value
+	case 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
+		0x30, 0x31, 0x32, 0x33, 0x34, 0x35:
+		m := memAccess[op-0x28]
+		c.ldr(RegT0, c.pop())
+		c.memAddr(imm, m.width)
+		a.MemOp(m.word, RegT2, RegMem, RegT0)
+		c.str(RegT2, c.push())
+
+	// stores: pop value then addr, bounds-check, store truncated
+	case 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e:
+		m := memAccess[op-0x28]
+		c.ldr(RegT2, c.pop()) // value
+		c.ldr(RegT0, c.pop()) // addr
+		c.memAddr(imm, m.width)
+		a.MemOp(m.word, RegT2, RegMem, RegT0)
+
+	case 0x3f: // memory.size (pages; the length register is loop-invariant)
+		a.LsrImmX(RegT0, RegMemLen, 16)
+		c.str(RegT0, c.push())
+
 	default:
 		return fmt.Errorf("%w: opcode %#x", ErrUnsupported, op)
 	}
 	return nil
+}
+
+// memAccess describes loads/stores 0x28..0x3e: access width and the
+// register-offset instruction encoding ([Xn + Xm]).
+var memAccess = [23]struct {
+	width uint32
+	word  uint32
+}{
+	{4, 0xB8606800}, // i32.load        LDR  W
+	{8, 0xF8606800}, // i64.load        LDR  X
+	{4, 0xB8606800}, // f32.load        LDR  W
+	{8, 0xF8606800}, // f64.load        LDR  X
+	{1, 0x38E06800}, // i32.load8_s     LDRSB W (sign to 32, zero to 64)
+	{1, 0x38606800}, // i32.load8_u     LDRB  W
+	{2, 0x78E06800}, // i32.load16_s    LDRSH W
+	{2, 0x78606800}, // i32.load16_u    LDRH  W
+	{1, 0x38A06800}, // i64.load8_s     LDRSB X
+	{1, 0x38606800}, // i64.load8_u     LDRB  W
+	{2, 0x78A06800}, // i64.load16_s    LDRSH X
+	{2, 0x78606800}, // i64.load16_u    LDRH  W
+	{4, 0xB8A06800}, // i64.load32_s    LDRSW X
+	{4, 0xB8606800}, // i64.load32_u    LDR   W
+	{4, 0xB8206800}, // i32.store       STR  W
+	{8, 0xF8206800}, // i64.store       STR  X
+	{4, 0xB8206800}, // f32.store       STR  W
+	{8, 0xF8206800}, // f64.store       STR  X
+	{1, 0x38206800}, // i32.store8      STRB
+	{2, 0x78206800}, // i32.store16     STRH
+	{1, 0x38206800}, // i64.store8      STRB
+	{2, 0x78206800}, // i64.store16     STRH
+	{4, 0xB8206800}, // i64.store32     STR  W
+}
+
+// memAddr turns the u32 address in RegT0 into a bounds-checked effective
+// address (RegT0 = offset + addr, trapping when RegT0+width > MemLen).
+func (c *compiler) memAddr(offset uint64, width uint32) {
+	a := &c.a
+	a.Uxtw(RegT0, RegT0) // address operand is unsigned i32
+	if end := offset + uint64(width); end < 4096 {
+		a.AddImm(RegT1, RegT0, uint32(end))
+	} else {
+		a.MovImm64(RegT1, end)
+		a.AddRegX(RegT1, RegT0, RegT1)
+	}
+	a.CmpRegX(RegT1, RegMemLen)
+	c.oob = append(c.oob, a.Len())
+	a.Bcond(condHI, 0) // patched to the shared trap stub
+	if offset != 0 {
+		if offset < 4096 {
+			a.AddImm(RegT0, RegT0, uint32(offset))
+		} else {
+			a.MovImm64(RegT1, offset)
+			a.AddRegX(RegT0, RegT0, RegT1)
+		}
+	}
 }
