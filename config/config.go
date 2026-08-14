@@ -49,6 +49,13 @@ type ModuleConfig struct {
 	// disables the JIT path) and cannot be interrupted mid-loop by
 	// Interrupt/context cancellation until they return.
 	EnableJIT bool
+	// EnableWideInt makes the optional wide-integer host modules ("u128"
+	// and "u256" import namespaces) available to the module: 128/256-bit
+	// add/sub/mul/div/rem/compare/shift/bitwise operations over
+	// little-endian values in linear memory, following EVM division
+	// conventions. Off by default; modules that do not import them are
+	// unaffected either way.
+	EnableWideInt bool
 	// SkipValidation disables the full static validation (type checking etc.)
 	// that NewModule performs after decoding. Only use it for trusted modules
 	// that a strict validator would reject; invalid code may then trap, return

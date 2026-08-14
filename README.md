@@ -155,6 +155,7 @@ then trap, misbehave, or (with `Recover` disabled) panic at run time. See
 | `Recover` | converts VM panics into returned errors, keeping the host process alive |
 | `CanonicalizeNaNs` | canonicalizes float-arithmetic NaNs for fully deterministic execution |
 | `EnableJIT` | compiles function bodies to native code at instantiation (arm64/amd64); unsupported constructs fall back to the interpreter per function |
+| `EnableWideInt` | exposes the optional `u128`/`u256` import namespaces: 128/256-bit add/sub/mul/div/rem/compare/shift/bitwise host operations over little-endian values in linear memory (EVM division conventions; signed variants use the `_s` suffix) |
 | `SkipValidation` | skips load-time validation (trusted modules only) |
 
 Run-time control on an `Instance`:

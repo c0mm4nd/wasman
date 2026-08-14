@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 
@@ -25,6 +26,10 @@ func (f *HostFunc) getType() *types.FuncType {
 }
 
 func (f *HostFunc) call(ins *Instance) error {
+	if f.function == nil {
+		// an unbound host function reports instead of panicking in reflect
+		return fmt.Errorf("host function called before binding")
+	}
 	fnVal := reflect.ValueOf(f.function)
 	ty := fnVal.Type()
 	in := make([]reflect.Value, ty.NumIn())
