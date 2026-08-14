@@ -297,10 +297,14 @@ func memoryGrow(ins *Instance) error {
 	current := uint64(len(ins.Memory.Value)) / config.DefaultMemoryPageSize
 
 	// the ceiling is the declared max, otherwise the architectural limit of
-	// 65536 pages (a wasm32 linear memory can be at most 4 GiB).
+	// 65536 pages (a wasm32 linear memory can be at most 4 GiB); a host-side
+	// MaxMemoryPages caps both.
 	max := uint64(config.DefaultMemoryMaxPages)
 	if ins.Memory.Max != nil && uint64(*ins.Memory.Max) < max {
 		max = uint64(*ins.Memory.Max)
+	}
+	if hostMax := uint64(ins.Module.ModuleConfig.MaxMemoryPages); hostMax != 0 && hostMax < max {
+		max = hostMax
 	}
 
 	// uint64 math avoids the uint32 overflow that would let a huge n wrap

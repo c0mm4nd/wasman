@@ -131,3 +131,56 @@ func TestHostFuncError(t *testing.T) {
 		t.Fatalf("instance unusable after host error: %v %v", rets, err)
 	}
 }
+
+// memModule is (module (memory (export "mem") 2)
+//
+//	(func (export "grow") (result i32) (memory.grow (i32.const 1))))
+var memModule = []byte{
+	0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+	0x01, 0x05, 0x01, 0x60, 0x00, 0x01, 0x7f, // type () -> i32
+	0x03, 0x02, 0x01, 0x00, // func: grow
+	0x05, 0x03, 0x01, 0x00, 0x02, // memory min 2
+	0x07, 0x0e, 0x02, 0x03, 0x6d, 0x65, 0x6d, 0x02, 0x00, 0x04, 0x67, 0x72, 0x6f, 0x77, 0x00, 0x00, // exports
+	0x0a, 0x08, 0x01, 0x06, 0x00, 0x41, 0x01, 0x40, 0x00, 0x0b, // grow: i32.const 1; memory.grow
+}
+
+func TestMaxMemoryPages(t *testing.T) {
+	// initial memory above the host cap: instantiation fails
+	mod, err := NewModule(config.ModuleConfig{MaxMemoryPages: 1}, bytes.NewReader(memModule))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewInstance(mod, nil); err == nil {
+		t.Fatal("want instantiation failure for min 2 > cap 1")
+	}
+
+	// growth beyond the cap returns -1 and does not allocate
+	mod, err = NewModule(config.ModuleConfig{MaxMemoryPages: 2}, bytes.NewReader(memModule))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err := NewInstance(mod, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rets, _, err := ins.CallExportedFunc("grow")
+	if err != nil || int32(rets[0]) != -1 {
+		t.Fatalf("grow beyond host cap: want -1, got %v (err %v)", rets, err)
+	}
+	if pages := len(ins.Memory.Value) / 65536; pages != 2 {
+		t.Fatalf("memory grew past the cap: %d pages", pages)
+	}
+
+	// without a cap the same growth succeeds
+	mod, err = NewModule(config.ModuleConfig{}, bytes.NewReader(memModule))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err = NewInstance(mod, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rets, _, err := ins.CallExportedFunc("grow"); err != nil || int32(rets[0]) != 2 {
+		t.Fatalf("uncapped grow: want 2, got %v (err %v)", rets, err)
+	}
+}

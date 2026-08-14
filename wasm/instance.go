@@ -72,6 +72,10 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 	// initializing memory (a module is not required to define or import one)
 	if len(ins.IndexSpace.Memories) > 0 {
 		ins.Memory = ins.IndexSpace.Memories[0]
+		if hostMax := uint64(module.ModuleConfig.MaxMemoryPages); hostMax != 0 &&
+			uint64(len(ins.Memory.Value))/uint64(config.DefaultMemoryPageSize) > hostMax {
+			return nil, fmt.Errorf("memory size exceeds the host limit of %d pages", hostMax)
+		}
 		if len(ins.Module.MemorySection) > 0 {
 			if diff := uint64(ins.Module.MemorySection[0].Min)*uint64(config.DefaultMemoryPageSize) - uint64(len(ins.Memory.Value)); diff > 0 {
 				ins.Memory.Value = append(ins.Memory.Value, make([]byte, diff)...)

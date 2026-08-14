@@ -29,6 +29,11 @@ type ModuleConfig struct {
 	TollStation       tollstation.TollStation
 	CallDepthLimit    *uint64
 	Recover           bool // avoid panic inside vm
+	// MaxMemoryPages, when non-zero, is a host-side hard cap on the linear
+	// memory size in 64KiB pages, regardless of what the module declares:
+	// instantiation fails if the initial memory already exceeds it and
+	// memory.grow beyond it returns -1.
+	MaxMemoryPages uint32
 	// SkipValidation disables the full static validation (type checking etc.)
 	// that NewModule performs after decoding. Only use it for trusted modules
 	// that a strict validator would reject; invalid code may then trap, return
