@@ -203,6 +203,9 @@ func (g *optGen) gen() error {
 			a.Csel(d, v1, v2, condNE)
 			commit()
 		case irBr:
+			if g.rotateBackEdge(fn, idx, int(ins.imm)) {
+				break
+			}
 			g.branchTo(int(ins.imm), a.B)
 		case irBrIfNot:
 			if g.pendV == ins.a && g.pendKind == 'z' { // fused eqz: cbnz
@@ -290,6 +293,41 @@ func (g *optGen) gen() error {
 		a.Ret()
 	}
 	return nil
+}
+
+// rotateBackEdge rewrites a back edge to a rotatable loop head: the head's
+// test runs again at the bottom and branches straight to the body, so the
+// steady state takes one branch per iteration instead of two.
+func (g *optGen) rotateBackEdge(fn *irFunc, idx, h int) bool {
+	if h >= idx { // only backward edges
+		return false
+	}
+	exit, ok := fn.rotatableHead(h, g.lastUse)
+	if !ok {
+		return false
+	}
+	if os.Getenv("WASMAN_OPT_DEBUG") == "1" {
+		println("ROTATED loop at IR", h)
+	}
+	a := &g.a
+	h0 := &fn.code[h]
+	body := g.irOff[h+3] // always emitted before a backward edge
+	switch h0.op {
+	case irUn: // eqz: continue while the operand is nonzero
+		r := g.read(h0.a, RegT0)
+		a.Cbnz(h0.sub == 0x50, r, body-a.Len())
+	case irBin:
+		n := g.read(h0.a, RegT0)
+		m := g.read(h0.b, RegT1)
+		g.emitCmpFlags(h0.sub, n, m)
+		a.Bcond(cmpCondOf(h0.sub)^1, body-a.Len())
+	case irBinImm:
+		n := g.read(h0.a, RegT0)
+		g.emitCmpImmFlags(h0.sub, n, uint32(h0.imm))
+		a.Bcond(cmpCondOf(h0.sub)^1, body-a.Len())
+	}
+	g.branchTo(exit, a.B)
+	return true
 }
 
 // branchFeeds reports whether code[idx]'s result is consumed solely by an

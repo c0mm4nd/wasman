@@ -203,6 +203,9 @@ func (g *optGen) gen() error {
 			a.CmoveRR(d, v2)
 			commit()
 		case irBr:
+			if g.rotateBackEdge(fn, idx, int(ins.imm)) {
+				break
+			}
 			g.jumpTo(int(ins.imm), a.Jmp, 'b')
 		case irBrIfNot:
 			if g.pendV == ins.a && g.pendKind == 'z' {
@@ -265,6 +268,39 @@ func (g *optGen) gen() error {
 		a.Ret()
 	}
 	return nil
+}
+
+// rotateBackEdge rewrites a back edge to a rotatable loop head: the head's
+// test runs again at the bottom and branches straight to the body, so the
+// steady state takes one branch per iteration instead of two.
+func (g *optGen) rotateBackEdge(fn *irFunc, idx, h int) bool {
+	if h >= idx {
+		return false
+	}
+	exit, ok := fn.rotatableHead(h, g.lastUse)
+	if !ok {
+		return false
+	}
+	a := &g.a
+	h0 := &fn.code[h]
+	body := g.irOff[h+3]
+	switch h0.op {
+	case irUn:
+		r := g.read(h0.a, rAX)
+		a.TestRR(h0.sub == 0x50, r)
+		a.Jcc(ccNE, body)
+	case irBin:
+		n := g.read(h0.a, rAX)
+		m := g.read(h0.b, rCX)
+		a.BinRR(h0.sub >= 0x51, 0x39, n, m)
+		a.Jcc(amdCond(h0.sub)^1, body)
+	case irBinImm:
+		n := g.read(h0.a, rAX)
+		a.CmpImm32(h0.sub >= 0x51, n, uint32(h0.imm))
+		a.Jcc(amdCond(h0.sub)^1, body)
+	}
+	g.jumpTo(exit, a.Jmp, 'b')
+	return true
 }
 
 func (g *optGen) branchFeeds(fn *irFunc, idx, dst int) bool {

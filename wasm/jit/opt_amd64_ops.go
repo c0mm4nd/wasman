@@ -72,9 +72,9 @@ func (g *optGen) emitBin(ins *irInstr) error {
 		} else {
 			r = g.bin3(w, alu, d, n, m)
 		}
-		if !w && (op == 0x6a || op == 0x6b || op == 0x6c) {
-			a.Movsxd(r, r)
-		} else if !w {
+		// i32 results stay zero-extended (the 32-bit write): the loose i32
+		// contract needs only the low half
+		if !w && op != 0x6a && op != 0x6b && op != 0x6c {
 			a.MovRR32(r, r)
 		}
 		g.viaFrom(d, r)
@@ -92,7 +92,6 @@ func (g *optGen) emitBin(ins *irInstr) error {
 			a.ShiftCL(false, 4, rAX)
 		case 0x75:
 			a.ShiftCL(false, 7, rAX)
-			a.Movsxd(rAX, rAX)
 		case 0x76:
 			a.ShiftCL(false, 5, rAX)
 		case 0x86:
@@ -235,9 +234,6 @@ func (g *optGen) emitBinImm(ins *irInstr) error {
 			sub = 5
 		}
 		a.ArithImm32(w, sub, d, imm)
-		if !w {
-			a.Movsxd(d, d)
-		}
 	default:
 		if !isCmpOp(ins.sub) {
 			return fmt.Errorf("%w: immediate form %#x", ErrUnsupported, ins.sub)

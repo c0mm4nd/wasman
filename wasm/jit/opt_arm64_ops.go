@@ -15,15 +15,15 @@ func (g *optGen) emitBin(ins *irInstr) error {
 	d, commit := g.dst(ins.dst, RegT0)
 	op := ins.sub
 	switch op {
+	// i32 results stay zero-extended (the W-form write): the i32 contract
+	// is loose — every consumer truncates to 32 bits — so the interpreter's
+	// per-op sign extension is not re-created here
 	case 0x6a:
 		a.word(0x0B000000 | m<<16 | n<<5 | d)
-		a.Sxtw(d, d)
 	case 0x6b:
 		a.word(0x4B000000 | m<<16 | n<<5 | d)
-		a.Sxtw(d, d)
 	case 0x6c:
 		a.word(0x1B007C00 | m<<16 | n<<5 | d)
-		a.Sxtw(d, d)
 	case 0x71:
 		a.word(0x0A000000 | m<<16 | n<<5 | d)
 	case 0x72:
@@ -34,7 +34,6 @@ func (g *optGen) emitBin(ins *irInstr) error {
 		a.word(0x1AC02000 | m<<16 | n<<5 | d)
 	case 0x75:
 		a.word(0x1AC02800 | m<<16 | n<<5 | d)
-		a.Sxtw(d, d)
 	case 0x76:
 		a.word(0x1AC02400 | m<<16 | n<<5 | d)
 	case 0x7c:
@@ -218,10 +217,8 @@ func (g *optGen) emitBinImm(ins *irInstr) error {
 	switch ins.sub {
 	case 0x6a:
 		a.AddImmW(d, n, imm)
-		a.Sxtw(d, d)
 	case 0x6b:
 		a.SubImmW(d, n, imm)
-		a.Sxtw(d, d)
 	case 0x7c:
 		a.AddImm(d, n, imm)
 	case 0x7d:

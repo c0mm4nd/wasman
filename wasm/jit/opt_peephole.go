@@ -74,3 +74,37 @@ func (fn *irFunc) peephole() {
 		}
 	}
 }
+
+// rotatableHead recognizes the canonical while-loop head at IR index h:
+//
+//	h:   t = <test>            (eqz or a comparison)
+//	h+1: br_if_not t -> h+3    (skip the exit branch while looping)
+//	h+2: br -> exit
+//
+// A back edge targeting h can then duplicate the test and branch straight
+// to the body (h+3), turning two branches per iteration into one; the
+// fallthrough goes to the exit like the original head. Returns the exit's
+// IR target and ok.
+func (fn *irFunc) rotatableHead(h int, lastUse func(int) int) (exit int, ok bool) {
+	if h+2 >= len(fn.code) {
+		return 0, false
+	}
+	h0, h1, h2 := &fn.code[h], &fn.code[h+1], &fn.code[h+2]
+	switch h0.op {
+	case irUn:
+		if h0.sub != 0x45 && h0.sub != 0x50 {
+			return 0, false
+		}
+	case irBin, irBinImm:
+		if !isCmpOp(h0.sub) {
+			return 0, false
+		}
+	default:
+		return 0, false
+	}
+	if h1.op != irBrIfNot || h1.a != h0.dst || int(h1.imm) != h+3 ||
+		lastUse(h0.dst) != h+1 || h2.op != irBr {
+		return 0, false
+	}
+	return int(h2.imm), true
+}

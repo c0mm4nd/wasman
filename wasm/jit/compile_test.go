@@ -81,8 +81,11 @@ func TestStraightLineI32(t *testing.T) {
 	}
 }
 
-// TestSignExtension checks i32 results are sign-extended exactly like the
-// interpreter (0 - 1 must sit on the stack as 0xffffffffffffffff).
+// TestSignExtension checks the i32 representation contract: the low 32
+// bits carry the value and every consumer truncates, so 0 - 1 may sit on
+// the stack sign- or zero-extended (the baseline tier mirrors the
+// interpreter's sign extension, the optimizing tier keeps the zero
+// extension of 32-bit register writes).
 func TestSignExtension(t *testing.T) {
 	fd := assemble([]ins{
 		{0x41, 0, 1}, // i32.const 0
@@ -96,8 +99,8 @@ func TestSignExtension(t *testing.T) {
 	}
 	defer Free(cd.Code)
 	got := runCompiled(t, cd, nil)
-	if got[0] != 0xffffffffffffffff {
-		t.Fatalf("got %#x, want sign-extended -1", got[0])
+	if uint32(got[0]) != 0xffffffff {
+		t.Fatalf("got %#x, want -1 in the low 32 bits", got[0])
 	}
 
 	// and zero-extension for the logical group: -1 & -1 keeps only 32 bits? no —
