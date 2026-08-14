@@ -10,6 +10,7 @@ type Ctx struct {
 	Mem      uintptr
 	MemLen   uint64
 	TrapInfo uint64
+	Globals  uintptr
 }
 
 // Supported reports whether native codegen exists for this platform.

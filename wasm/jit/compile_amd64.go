@@ -40,6 +40,7 @@ type compiler struct {
 	unreach bool
 	skip    int   // nesting depth of blocks opened inside unreachable code
 	oob     []int // JA placeholders jumping to the shared OOB trap stub
+	op0     int   // PC of the opcode being compiled
 }
 
 func (c *compiler) push() int {
@@ -121,6 +122,7 @@ func (c *compiler) run() error {
 
 	for pc := 0; pc < len(body); pc++ {
 		op := body[pc]
+		c.op0 = pc // opcode PC, for side tables keyed by position (br_table)
 		imm := uint64(0)
 		if opHasImm[op] {
 			imm = c.fd.Imms[pc]
@@ -192,7 +194,7 @@ func buildOpHasImm() (t [256]bool) {
 	for _, op := range []byte{
 		0x02, 0x03, 0x04, // block/loop/if (packed param/result counts)
 		0x0c, 0x0d, // br, br_if
-		0x20, 0x21, 0x22, // locals
+		0x20, 0x21, 0x22, 0x23, 0x24, // locals, globals
 		0x41, 0x42, 0x43, 0x44, // consts
 		0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, // loads (offsets)
 		0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
@@ -295,6 +297,36 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		a.TestRR(true, rDX)
 		a.CmoveRR(rAX, rCX) // cond == 0 -> v2
 		a.StSlot(rAX, c.push())
+
+	case 0x0e: // br_table: compare chain over the pre-decoded plan
+		plan, ok := c.fd.BrTables[c.op0]
+		if !ok || len(plan.Targets) > 512 {
+			return fmt.Errorf("%w: br_table", ErrUnsupported)
+		}
+		a.LdSlot(rAX, c.pop())
+		patches := make([]int, len(plan.Targets))
+		for i := range plan.Targets {
+			a.CmpImm32(false, rAX, uint32(i))
+			patches[i] = a.Len()
+			a.Jcc(ccE, 0) // patched to this index's branch code
+		}
+		c.emitBr(int(plan.Def))
+		for i, depth := range plan.Targets {
+			a.PatchJcc(patches[i])
+			c.emitBr(int(depth))
+		}
+		c.unreach = true
+
+	case 0x23: // global.get (cells are *uint64, so double indirection)
+		a.LdCtx(rDX, 48) // Ctx.Globals
+		a.modDisp32(true, 0x8B, rDX, rDX, int32(imm*8))
+		a.modDisp32(true, 0x8B, rAX, rDX, 0)
+		a.StSlot(rAX, c.push())
+	case 0x24: // global.set
+		a.LdSlot(rAX, c.pop())
+		a.LdCtx(rDX, 48)
+		a.modDisp32(true, 0x8B, rDX, rDX, int32(imm*8))
+		a.modDisp32(true, 0x89, rAX, rDX, 0)
 
 	case 0x20: // local.get
 		a.LdLocal(rAX, int(imm))

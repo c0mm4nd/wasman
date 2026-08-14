@@ -584,6 +584,7 @@ func (ins *Instance) parseBlocks(f *wasmFunc, body []byte) (map[uint64]*funcBloc
 			}
 			f.brPlans[op0] = plan
 			pc += l + num - 1
+			f.pcEnd[op0] = uint32(pc)
 			continue
 		}
 

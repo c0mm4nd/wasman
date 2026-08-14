@@ -13,6 +13,7 @@ type Ctx struct {
 	Mem      uintptr // linear memory base
 	MemLen   uint64  // linear memory length in bytes
 	TrapInfo uint64  // extra trap detail (e.g. faulting offset)
+	Globals  uintptr // base of the []*uint64 global cells
 }
 
 // Supported reports whether native codegen exists for this platform.

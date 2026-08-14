@@ -15,6 +15,14 @@ type FuncDesc struct {
 	NumLocals int      // params + declared locals
 	NumParams int
 	NumRets   int
+	// BrTables holds pre-decoded br_table plans keyed by opcode PC.
+	BrTables map[int]BrTable
+}
+
+// BrTable is a pre-decoded br_table: label depths per index plus a default.
+type BrTable struct {
+	Targets []uint32
+	Def     uint32
 }
 
 // Compiled is a translated function.

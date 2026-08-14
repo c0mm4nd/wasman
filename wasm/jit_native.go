@@ -21,6 +21,12 @@ func (ins *Instance) compileNative(f *wasmFunc) {
 		NumParams: len(f.signature.InputTypes),
 		NumRets:   len(f.signature.ReturnTypes),
 	}
+	if len(f.brPlans) > 0 {
+		fd.BrTables = make(map[int]jit.BrTable, len(f.brPlans))
+		for pc, plan := range f.brPlans {
+			fd.BrTables[int(pc)] = jit.BrTable{Targets: plan.targets, Def: plan.def}
+		}
+	}
 	// pack each block's param/result counts where the compiler expects them
 	for pc, blk := range f.Blocks {
 		fd.Imms[pc] = uint64(len(blk.BlockType.InputTypes))<<32 |
@@ -49,6 +55,9 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, baseSp int) e
 	if ins.Memory != nil && len(ins.Memory.Value) > 0 {
 		ctx.Mem = uintptr(unsafe.Pointer(&ins.Memory.Value[0]))
 		ctx.MemLen = uint64(len(ins.Memory.Value))
+	}
+	if len(ins.Globals) > 0 {
+		ctx.Globals = uintptr(unsafe.Pointer(&ins.Globals[0]))
 	}
 	switch jit.Call(cd.Code, &ctx) {
 	case jit.StatusOK:
