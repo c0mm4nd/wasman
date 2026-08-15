@@ -178,7 +178,7 @@ func checkModuleFields(fields []node) error {
 			}
 		case "import":
 			// (import "m" "n" (func $id ...)) — the id lives on the desc
-			if len(f.list) == 4 && f.list[3].isList() {
+			if len(f.list) == 4 && f.list[3].isList() && len(f.list[3].list) > 0 {
 				desc := &f.list[3]
 				dItems := desc.list[1:]
 				if len(dItems) > 0 && !dItems[0].isList() && dItems[0].atom.kind == tokID {
