@@ -310,6 +310,9 @@ type funcValidator struct {
 func (v *funcValidator) pushVal(t types.ValueType) { v.vals = append(v.vals, t) }
 
 func (v *funcValidator) popVal() (types.ValueType, error) {
+	if len(v.ctrls) == 0 {
+		return 0, errors.New("type mismatch: control stack underflow")
+	}
 	frame := &v.ctrls[len(v.ctrls)-1]
 	if len(v.vals) == frame.height {
 		if frame.unreachable {
@@ -374,6 +377,9 @@ func (v *funcValidator) popCtrl() (ctrlFrame, error) {
 }
 
 func (v *funcValidator) setUnreachable() {
+	if len(v.ctrls) == 0 {
+		return
+	}
 	frame := &v.ctrls[len(v.ctrls)-1]
 	v.vals = v.vals[:frame.height]
 	frame.unreachable = true
@@ -643,6 +649,15 @@ func (v *funcValidator) run(body []byte) error {
 				return errors.New("type mismatch: if without else must not change types")
 			}
 			v.pushVals(frame.endTypes)
+			// the end that closes the function body's implicit frame must be
+			// the last byte; anything after it would operate on an empty
+			// control stack
+			if len(v.ctrls) == 0 {
+				if r.Len() != 0 {
+					return errors.New("unexpected bytes after function end")
+				}
+				return nil
+			}
 
 		case expr.OpCodeBr:
 			l, err := readU32()

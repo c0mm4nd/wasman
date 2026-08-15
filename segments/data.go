@@ -69,6 +69,9 @@ func ReadDataSegment(r *bytes.Reader) (*DataSegment, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get the size of vector: %w", err)
 	}
+	if uint64(vs) > uint64(r.Len()) {
+		return nil, fmt.Errorf("data segment size %d exceeds remaining input", vs)
+	}
 
 	b := make([]byte, vs)
 	if _, err := io.ReadFull(r, b); err != nil {

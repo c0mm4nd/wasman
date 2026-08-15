@@ -636,6 +636,9 @@ func (c *checker) checkImport(items []node) error {
 		return err
 	}
 	desc := items[2]
+	if len(desc.list) == 0 {
+		return errors.New("empty import descriptor")
+	}
 	d := stripID(desc.list[1:])
 	switch desc.head() {
 	case "func":

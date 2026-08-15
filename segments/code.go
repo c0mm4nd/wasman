@@ -71,7 +71,10 @@ func ReadCodeSegment(r *bytes.Reader) (*CodeSegment, error) {
 		}
 	}
 
-	// extract body
+	// extract body: at minimum the terminating end opcode must be present
+	if remaining < 1 {
+		return nil, fmt.Errorf("code segment body is empty")
+	}
 	body := make([]byte, remaining)
 	_, err = io.ReadFull(r, body)
 	if err != nil {

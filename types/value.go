@@ -45,24 +45,39 @@ func (v ValueType) String() string {
 	}
 }
 
-// ReadValueTypes will read a types.ValueType from the io.Reader
+// ReadValueTypes will read num types.ValueType from the io.Reader. The
+// buffer is read in bounded chunks so an adversarial num cannot force a
+// huge up-front allocation before the (possibly short) reader is consulted.
 func ReadValueTypes(r io.Reader, num uint32) ([]ValueType, error) {
-	ret := make([]ValueType, num)
-	buf := make([]byte, num)
-	_, err := io.ReadFull(r, buf)
-	if err != nil {
-		return nil, err
-	}
-
-	for i, v := range buf {
-		switch vt := ValueType(v); vt {
-		case ValueTypeI32, ValueTypeF32, ValueTypeI64, ValueTypeF64:
-			ret[i] = vt
-		default:
-			return nil, fmt.Errorf("invalid value type: %d", vt)
+	ret := make([]ValueType, 0, min32(num, 1024))
+	const chunk = 1024
+	buf := make([]byte, chunk)
+	for remaining := num; remaining > 0; {
+		n := chunk
+		if uint32(n) > remaining {
+			n = int(remaining)
 		}
+		if _, err := io.ReadFull(r, buf[:n]); err != nil {
+			return nil, err
+		}
+		for _, v := range buf[:n] {
+			switch vt := ValueType(v); vt {
+			case ValueTypeI32, ValueTypeF32, ValueTypeI64, ValueTypeF64:
+				ret = append(ret, vt)
+			default:
+				return nil, fmt.Errorf("invalid value type: %d", vt)
+			}
+		}
+		remaining -= uint32(n)
 	}
 	return ret, nil
+}
+
+func min32(a, b uint32) uint32 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // ReadNameValue will read a name string from the io.Reader.
@@ -73,6 +88,9 @@ func ReadNameValue(r *bytes.Reader) (string, error) {
 		return "", fmt.Errorf("read size of name: %w", err)
 	}
 
+	if uint64(vs) > uint64(r.Len()) {
+		return "", fmt.Errorf("name length %d exceeds remaining input", vs)
+	}
 	buf := make([]byte, vs)
 	if _, err := io.ReadFull(r, buf); err != nil {
 		return "", fmt.Errorf("read bytes of name: %w", err)
