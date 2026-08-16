@@ -916,6 +916,34 @@ func (v *funcValidator) run(body []byte) error {
 			if err != nil {
 				return err
 			}
+			switch sub {
+			case expr.OpCodeMiscMemoryCopy:
+				// two memory-index immediates (dst, src); the operands
+				// are (dst, src, n): three i32 in, nothing out
+				if _, err := readU32(); err != nil {
+					return err
+				}
+				if _, err := readU32(); err != nil {
+					return err
+				}
+				for i := 0; i < 3; i++ {
+					if err := v.popExpect(types.ValueTypeI32); err != nil {
+						return err
+					}
+				}
+				continue
+			case expr.OpCodeMiscMemoryFill:
+				// one memory-index immediate; operands (dst, val, n)
+				if _, err := readU32(); err != nil {
+					return err
+				}
+				for i := 0; i < 3; i++ {
+					if err := v.popExpect(types.ValueTypeI32); err != nil {
+						return err
+					}
+				}
+				continue
+			}
 			if sub > expr.OpCodeMiscI64TruncSatF64U {
 				return fmt.Errorf("unknown misc instruction 0xfc %d", sub)
 			}

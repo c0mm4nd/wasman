@@ -555,11 +555,35 @@ func (ins *Instance) parseBlocks(f *wasmFunc, body []byte) (map[uint64]*funcBloc
 			if err != nil {
 				return nil, fmt.Errorf("read misc subopcode: %w", err)
 			}
-			if sub > expr.OpCodeMiscI64TruncSatF64U {
-				// bulk-memory ops (memory.init, data.drop, ...) are not implemented
-				return nil, fmt.Errorf("unknown misc instruction: 0xfc %d", sub)
+			pc += l // advance past the sub-opcode to its immediates (if any)
+			switch sub {
+			case expr.OpCodeMiscMemoryFill:
+				// one memory-index immediate
+				_, il, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
+				if err != nil {
+					return nil, fmt.Errorf("read memory.fill immediate: %w", err)
+				}
+				pc += il
+			case expr.OpCodeMiscMemoryCopy:
+				// two memory-index immediates (dst, src)
+				_, il, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
+				if err != nil {
+					return nil, fmt.Errorf("read memory.copy dst immediate: %w", err)
+				}
+				pc += il
+				_, il2, err := leb128decode.DecodeUint32(bytes.NewReader(body[pc:]))
+				if err != nil {
+					return nil, fmt.Errorf("read memory.copy src immediate: %w", err)
+				}
+				pc += il2
+			default:
+				if sub > expr.OpCodeMiscI64TruncSatF64U {
+					// remaining bulk-memory ops (memory.init, data.drop,
+					// table.*) are not implemented
+					return nil, fmt.Errorf("unknown misc instruction: 0xfc %d", sub)
+				}
 			}
-			pc += l - 1
+			pc-- // step back to the last consumed byte; the loop's pc++ lands on the next opcode
 			f.imms[op0] = uint64(sub)
 			f.pcEnd[op0] = uint32(pc)
 			continue

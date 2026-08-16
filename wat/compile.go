@@ -1143,7 +1143,7 @@ func (em *emitter) scanImmediates(items []node, i int, info instrInfo) (int, err
 		return nil
 	}
 	switch info.imm {
-	case immNone:
+	case immNone, immMemFill, immMemCopy:
 		return i, nil
 	case immLabel, immFunc, immLocal, immGlobal, immConstI32, immConstI64, immConstF32, immConstF64:
 		return i + 1, nil
@@ -1205,6 +1205,14 @@ func (em *emitter) emitOp(name string, info instrInfo, items []node, i int) (int
 		if name == "memory.size" || name == "memory.grow" {
 			em.out = append(em.out, 0x00)
 		}
+		return i, nil
+
+	case immMemFill:
+		em.out = append(em.out, 0x00) // memory index
+		return i, nil
+
+	case immMemCopy:
+		em.out = append(em.out, 0x00, 0x00) // dst, src memory indices
 		return i, nil
 
 	case immLabel:

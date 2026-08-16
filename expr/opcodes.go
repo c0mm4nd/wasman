@@ -225,4 +225,9 @@ const (
 	OpCodeMiscI64TruncSatF32U uint32 = 5
 	OpCodeMiscI64TruncSatF64S uint32 = 6
 	OpCodeMiscI64TruncSatF64U uint32 = 7
+
+	// bulk-memory (every modern wasm backend emits these for memset/
+	// memcpy of stack arrays)
+	OpCodeMiscMemoryCopy uint32 = 10
+	OpCodeMiscMemoryFill uint32 = 11
 )

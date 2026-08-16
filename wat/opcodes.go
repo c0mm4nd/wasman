@@ -226,5 +226,9 @@ func buildOpcodes() map[string]opcode {
 	fc("i64.trunc_sat_f64_s", 0x06)
 	fc("i64.trunc_sat_f64_u", 0x07)
 
+	// bulk memory (0xFC space)
+	fc("memory.copy", 0x0a)
+	fc("memory.fill", 0x0b)
+
 	return t
 }

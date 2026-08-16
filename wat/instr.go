@@ -22,6 +22,8 @@ const (
 	immConstI64
 	immConstF32
 	immConstF64
+	immMemFill // bulk memory.fill: one implicit memory-index byte, no text immediates
+	immMemCopy // bulk memory.copy: two implicit memory-index bytes, no text immediates
 )
 
 type instrInfo struct {
@@ -83,6 +85,8 @@ func buildInstrTable() map[string]instrInfo {
 	mem("i64.store32", 4)
 	// note: the optional memory-index immediate (multi-memory) is unsupported
 	none("memory.size", "memory.grow")
+	t["memory.fill"] = instrInfo{imm: immMemFill}
+	t["memory.copy"] = instrInfo{imm: immMemCopy}
 
 	// constants
 	t["i32.const"] = instrInfo{imm: immConstI32}
@@ -196,7 +200,9 @@ func (c *checker) checkImmediates(items []node, i int, info instrInfo, ctx *inst
 	}
 
 	switch info.imm {
-	case immNone:
+	case immNone, immMemFill, immMemCopy:
+		// bulk-memory ops take no text immediates; the implicit
+		// memory-index bytes are emitted at compile time
 		return i, nil
 
 	case immLabel:

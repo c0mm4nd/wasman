@@ -18,6 +18,46 @@ var miscInstructions = map[uint32]func(ins *Instance) error{
 	expr.OpCodeMiscI64TruncSatF32U: i64truncSatF32U,
 	expr.OpCodeMiscI64TruncSatF64S: i64truncSatF64S,
 	expr.OpCodeMiscI64TruncSatF64U: i64truncSatF64U,
+	expr.OpCodeMiscMemoryCopy:      memoryCopy,
+	expr.OpCodeMiscMemoryFill:      memoryFill,
+}
+
+// memoryFill sets memory[dst:dst+n] to the low byte of val. Stack
+// order: dst, val, n (n on top)
+func memoryFill(ins *Instance) error {
+	n := uint32(ins.OperandStack.Pop())
+	val := byte(ins.OperandStack.Pop())
+	dst := uint32(ins.OperandStack.Pop())
+
+	if ins.Memory == nil {
+		return ErrPtrOutOfBounds
+	}
+	end := uint64(dst) + uint64(n)
+	if end > uint64(len(ins.Memory.Value)) {
+		return ErrPtrOutOfBounds
+	}
+	for i := uint32(0); i < n; i++ {
+		ins.Memory.Value[dst+i] = val
+	}
+	return nil
+}
+
+// memoryCopy copies memory[src:src+n] to memory[dst:dst+n], overlap-
+// safe. Stack order: dst, src, n (n on top)
+func memoryCopy(ins *Instance) error {
+	n := uint32(ins.OperandStack.Pop())
+	src := uint32(ins.OperandStack.Pop())
+	dst := uint32(ins.OperandStack.Pop())
+
+	if ins.Memory == nil {
+		return ErrPtrOutOfBounds
+	}
+	mem := ins.Memory.Value
+	if uint64(src)+uint64(n) > uint64(len(mem)) || uint64(dst)+uint64(n) > uint64(len(mem)) {
+		return ErrPtrOutOfBounds
+	}
+	copy(mem[dst:dst+n], mem[src:src+n])
+	return nil
 }
 
 // miscPrefix handles the 0xfc prefix: it reads the following LEB128 sub-opcode
