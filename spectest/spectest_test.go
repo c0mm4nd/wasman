@@ -31,6 +31,7 @@ import (
 	"github.com/c0mm4nd/wasman"
 	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/segments"
+	"github.com/c0mm4nd/wasman/tollstation"
 	"github.com/c0mm4nd/wasman/wat"
 )
 
@@ -377,14 +378,22 @@ func loadModule(path string) (*wasman.Module, error) {
 		return nil, err
 	}
 	defer f.Close()
-	return wasman.NewModule(config.ModuleConfig{
+	cfg := config.ModuleConfig{
 		Recover:        true,
 		CallDepthLimit: &callDepthLimit,
 		// WASMAN_JIT=1 runs the whole suite with native compilation enabled,
 		// exercising every JIT-eligible function body against the same 19k+
 		// assertions (ineligible bodies fall back to the interpreter).
 		EnableJIT: os.Getenv("WASMAN_JIT") == "1",
-	}, f)
+	}
+	// WASMAN_TOLL=1 runs the whole suite through the metered interpreter
+	// path (a TollStation disables the JIT and the fast dispatch), so the
+	// toll-charged loop is validated against the same 19k+ assertions. The
+	// cap is large enough that no conforming test exhausts it.
+	if os.Getenv("WASMAN_TOLL") == "1" {
+		cfg.TollStation = tollstation.NewSimpleTollStation(1 << 60)
+	}
+	return wasman.NewModule(cfg, f)
 }
 
 func actionName(a *action) string {

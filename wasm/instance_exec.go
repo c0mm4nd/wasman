@@ -333,15 +333,19 @@ func (ins *Instance) execFunc() error {
 			}
 		}
 
-		// Toll
+		// Toll. Use a separate error so charging does not clobber the
+		// errReturn sentinel: a `return` opcode reports errReturn here, and
+		// overwriting it (ChargeOp succeeds -> nil) would drop the return and
+		// let execution fall through to whatever follows the enclosing block.
 		if ts != nil {
+			var tollErr error
 			if fastToll {
-				err = charger.ChargeOp(op)
+				tollErr = charger.ChargeOp(op)
 			} else {
-				err = ts.AddToll(ts.GetOpPrice(op))
+				tollErr = ts.AddToll(ts.GetOpPrice(op))
 			}
-			if err != nil {
-				return err
+			if tollErr != nil {
+				return tollErr
 			}
 		}
 
