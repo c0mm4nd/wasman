@@ -926,6 +926,9 @@ func (v *funcValidator) run(body []byte) error {
 				if _, err := readU32(); err != nil {
 					return err
 				}
+				if v.numMemories == 0 {
+					return errors.New("unknown memory 0")
+				}
 				for i := 0; i < 3; i++ {
 					if err := v.popExpect(types.ValueTypeI32); err != nil {
 						return err
@@ -936,6 +939,9 @@ func (v *funcValidator) run(body []byte) error {
 				// one memory-index immediate; operands (dst, val, n)
 				if _, err := readU32(); err != nil {
 					return err
+				}
+				if v.numMemories == 0 {
+					return errors.New("unknown memory 0")
 				}
 				for i := 0; i < 3; i++ {
 					if err := v.popExpect(types.ValueTypeI32); err != nil {

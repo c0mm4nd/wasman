@@ -106,6 +106,8 @@ const (
 	SiteCall = iota
 	SiteCallIndirect
 	SiteMemGrow
+	SiteMemFill
+	SiteMemCopy
 )
 
 // BrTable is a pre-decoded br_table: label depths per index plus a default.

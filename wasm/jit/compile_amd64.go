@@ -634,7 +634,25 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		c.prologue()
 		c.sites = append(c.sites, site)
 
-	case 0xfc: // misc: trunc_sat family
+	case 0xfc: // misc: trunc_sat family, plus bulk-memory fill/copy (host exit)
+		if imm == 11 || imm == 10 { // memory.fill, memory.copy
+			k := byte(SiteMemFill)
+			if imm == 10 {
+				k = SiteMemCopy
+			}
+			site := CallSite{Kind: k, SpBefore: c.h, SpAfter: c.h - 3}
+			a.MovImm64(rCX, uint64(site.SpBefore))
+			a.StCtx(rCX, 8)
+			a.MovImm64(rCX, uint64(len(c.sites)))
+			a.StCtx(rCX, 40)
+			a.MovImm32AX(StatusCall)
+			a.Ret()
+			site.Cont = a.Len()
+			c.prologue()
+			c.sites = append(c.sites, site)
+			c.h -= 3
+			break
+		}
 		if imm > 7 {
 			return fmt.Errorf("%w: misc sub-opcode %d", ErrUnsupported, imm)
 		}

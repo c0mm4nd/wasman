@@ -244,6 +244,10 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, localsOff, ba
 				err = callIndirectCore(ins, site.TypeIdx, site.TableIdx)
 			case jit.SiteMemGrow:
 				err = memoryGrowBody(ins)
+			case jit.SiteMemFill:
+				err = memoryFill(ins)
+			case jit.SiteMemCopy:
+				err = memoryCopy(ins)
 			default:
 				fn := ins.IndexSpace.Functions[site.FuncIdx]
 				// same-instance native callees skip the generic call
@@ -355,6 +359,8 @@ func (ins *Instance) execNativeABI(f *wasmFunc) error {
 				nin, nout = len(sig.InputTypes)+1, len(sig.ReturnTypes)
 			case jit.SiteMemGrow:
 				nin, nout = 1, 1
+			case jit.SiteMemFill, jit.SiteMemCopy:
+				nin, nout = 3, 0
 			default:
 				sig := ins.IndexSpace.Functions[site.FuncIdx].getType()
 				nin, nout = len(sig.InputTypes), len(sig.ReturnTypes)
@@ -379,6 +385,10 @@ func (ins *Instance) execNativeABI(f *wasmFunc) error {
 				err = callIndirectCore(ins, site.TypeIdx, site.TableIdx)
 			case jit.SiteMemGrow:
 				err = memoryGrowBody(ins)
+			case jit.SiteMemFill:
+				err = memoryFill(ins)
+			case jit.SiteMemCopy:
+				err = memoryCopy(ins)
 			default:
 				err = ins.IndexSpace.Functions[site.FuncIdx].call(ins)
 			}

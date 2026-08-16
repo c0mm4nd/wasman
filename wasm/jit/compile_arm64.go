@@ -602,7 +602,25 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		a.Prologue()
 		c.sites = append(c.sites, site)
 
-	case 0xfc: // misc: trunc_sat family (FCVTZ* saturates exactly like wasm)
+	case 0xfc: // misc: trunc_sat family, plus bulk-memory fill/copy (host exit)
+		if imm == 11 || imm == 10 { // memory.fill, memory.copy
+			k := byte(SiteMemFill)
+			if imm == 10 {
+				k = SiteMemCopy
+			}
+			site := CallSite{Kind: k, SpBefore: c.h, SpAfter: c.h - 3}
+			a.MovImm64(RegSp, uint64(site.SpBefore))
+			a.StrImm(RegSp, RegCtx, 8)
+			a.MovImm64(RegT0, uint64(len(c.sites)))
+			a.StrImm(RegT0, RegCtx, 40)
+			a.Movz(RegStatus, StatusCall, 0)
+			a.Ret()
+			site.Cont = a.Len()
+			a.Prologue()
+			c.sites = append(c.sites, site)
+			c.h -= 3
+			break
+		}
 		if imm > 7 {
 			return fmt.Errorf("%w: misc sub-opcode %d", ErrUnsupported, imm)
 		}

@@ -17,6 +17,8 @@ func seedWasm(f *testing.F) {
 		"bench/testdata/hash.wasm", "bench/testdata/sort.wasm",
 		"bench/testdata/vmloop.wasm", "bench/testdata/indirect.wasm",
 		"testdata/wideint.wasm",
+		"spectest/testdata/memory_fill/memory_fill.0.wasm",
+		"spectest/testdata/memory_copy/memory_copy.0.wasm",
 	} {
 		if b, err := os.ReadFile(p); err == nil {
 			f.Add(b)

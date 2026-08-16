@@ -522,7 +522,19 @@ func (f *irFrontend) lowerOp(op byte, imm uint64) error {
 		val, addr := f.pop(), f.pop()
 		f.emit(irInstr{op: irStore, sub: op, dst: -1, a: addr.v, b: val.v, c: -1, imm: imm})
 
-	case 0xfc: // misc: trunc_sat family (sub-opcode pre-decoded)
+	case 0xfc: // misc: trunc_sat family (sub-opcode pre-decoded), plus the
+		// bulk-memory fill/copy, which exit to the host helper
+		if imm == 11 || imm == 10 { // memory.fill, memory.copy
+			f.canonicalize()
+			h := len(f.stack)
+			k := byte(SiteMemFill)
+			if imm == 10 {
+				k = SiteMemCopy
+			}
+			site := CallSite{Kind: k, SpBefore: h, SpAfter: h - 3}
+			f.emitCallExit(site, 3, 0)
+			return nil
+		}
 		if !optFloatSupported {
 			return fmt.Errorf("%w: float ops", ErrUnsupported)
 		}

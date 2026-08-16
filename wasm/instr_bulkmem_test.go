@@ -6,6 +6,7 @@ import (
 
 	"github.com/c0mm4nd/wasman"
 	"github.com/c0mm4nd/wasman/config"
+	"github.com/c0mm4nd/wasman/tollstation"
 	"github.com/c0mm4nd/wasman/wat"
 )
 
@@ -87,4 +88,80 @@ func runModule(t *testing.T, src, entry string) []uint64 {
 		t.Fatalf("call %s: %v", entry, err)
 	}
 	return rets
+}
+
+// TestMemoryCopySlowPath runs memory.copy under a toll station, which
+// disables the inlined fast path — the same execution mode ngcore uses.
+// A local read after the copy must survive (no operand/PC corruption).
+func TestMemoryCopySlowPath(t *testing.T) {
+	src := `
+(module
+  (memory 1)
+  (data (i32.const 0) "\de\ad\be\ef")
+  (func (export "t") (result i32)
+    (local $x i32)
+    (local.set $x (i32.const 12345))
+    (memory.copy (i32.const 32) (i32.const 0) (i32.const 4))
+    (memory.fill (i32.const 64) (i32.const 7) (i32.const 8))
+    (local.get $x)))
+`
+	bin, err := wat.Compile([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mod, err := wasman.NewModule(config.ModuleConfig{
+		TollStation: tollstation.NewSimpleTollStation(1 << 20),
+	}, bytes.NewReader(bin))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ins, err := wasman.NewLinker(config.LinkerConfig{}).Instantiate(mod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rets, _, err := ins.CallExportedFunc("t")
+	if err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if rets[0] != 12345 {
+		t.Fatalf("local corrupted across bulk-memory ops (slow path): got %d, want 12345", rets[0])
+	}
+}
+
+// TestBulkMemoryJIT runs the fill/copy exercises under the JIT and requires
+// the results to match the interpreter, confirming the host-exit path the
+// optimizing tier lowers these ops to.
+func TestBulkMemoryJIT(t *testing.T) {
+	src := `
+(module
+  (memory 1)
+  (data (i32.const 0) "\de\ad\be\ef")
+  (func (export "run") (result i32)
+    (memory.fill (i32.const 100) (i32.const 0x77) (i32.const 50))
+    (memory.copy (i32.const 200) (i32.const 0) (i32.const 4))
+    (i32.add
+      (i32.load8_u (i32.const 120))
+      (i32.load8_u (i32.const 202)))))
+`
+	bin, err := wat.Compile([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, jit := range []bool{false, true} {
+		mod, err := wasman.NewModule(config.ModuleConfig{EnableJIT: jit}, bytes.NewReader(bin))
+		if err != nil {
+			t.Fatalf("jit=%v: %v", jit, err)
+		}
+		ins, err := wasman.NewInstance(mod, nil)
+		if err != nil {
+			t.Fatalf("jit=%v: %v", jit, err)
+		}
+		rets, _, err := ins.CallExportedFunc("run")
+		if err != nil {
+			t.Fatalf("jit=%v: %v", jit, err)
+		}
+		if rets[0] != 0x77+0xBE {
+			t.Fatalf("jit=%v got %#x want %#x", jit, rets[0], 0x77+0xBE)
+		}
+	}
 }

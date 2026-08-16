@@ -28,7 +28,9 @@ if ! command -v wast2json >/dev/null 2>&1; then
 	exit 1
 fi
 
-# The full WASM 1.0 core suite.
+# The full WASM 1.0 core suite, plus the two bulk-memory suites wasman
+# implements (memory.fill / memory.copy); the other bulk-memory ops
+# (memory.init, data.drop, table.*) remain unimplemented.
 ALL=(
 	address align binary-leb128 binary block br br_if br_table break-drop
 	call call_indirect comments const conversions custom data elem endianness
@@ -40,6 +42,7 @@ ALL=(
 	skip-stack-guard-page stack start store switch token traps type
 	unreachable unreached-invalid unwind utf8-custom-section-id
 	utf8-import-field utf8-import-module utf8-invalid-encoding
+	memory_fill memory_copy
 )
 
 # Compile the host "spectest" module the suite imports.
