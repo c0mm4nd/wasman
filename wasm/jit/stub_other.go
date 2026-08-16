@@ -58,3 +58,6 @@ func CompileBaseline(fd *FuncDesc) (*Compiled, error) { return nil, errUnsupport
 
 // CompileOpt is unavailable on this platform.
 func CompileOpt(fd *FuncDesc) (*Compiled, error) { return nil, errUnsupported }
+
+// OptEligible is unavailable on this platform: nothing is native-eligible.
+func OptEligible(fd *FuncDesc) bool { return false }
