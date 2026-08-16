@@ -113,10 +113,14 @@ func TestSpec(t *testing.T) {
 
 	var grand tally
 	failedFiles := 0
+	canon := os.Getenv("WASMAN_CANON") == "1"
 	for _, name := range names {
 		jsonPath := filepath.Join(root, name, name+".json")
 		if _, err := os.Stat(jsonPath); err != nil {
 			continue // no manifest (wast2json failed for this suite)
+		}
+		if canon && isFloatSuite(name) {
+			continue // canonNaN alters arithmetic-NaN results these assert on
 		}
 		t.Run(name, func(t *testing.T) {
 			// each .wast script runs in a fresh store: instantiate a FRESH host
@@ -372,6 +376,17 @@ func readGlobal(ins *wasman.Instance, field string) (uint64, error) {
 	return *ins.Globals[idx], nil
 }
 
+// isFloatSuite reports whether a suite asserts float-arithmetic NaN bit
+// patterns that NaN canonicalization would legitimately change.
+func isFloatSuite(name string) bool {
+	for _, p := range []string{"f32", "f64", "float", "conversions"} {
+		if strings.Contains(name, p) {
+			return true
+		}
+	}
+	return false
+}
+
 func loadModule(path string) (*wasman.Module, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -392,6 +407,14 @@ func loadModule(path string) (*wasman.Module, error) {
 	// cap is large enough that no conforming test exhausts it.
 	if os.Getenv("WASMAN_TOLL") == "1" {
 		cfg.TollStation = tollstation.NewSimpleTollStation(1 << 60)
+	}
+	// WASMAN_CANON=1 exercises the third interpreter path (NaN
+	// canonicalization also disables the fast dispatch, like a
+	// TollStation): the non-float suites run identically, so the
+	// control-flow / integer / memory / call logic of that path is
+	// validated against the same assertions.
+	if os.Getenv("WASMAN_CANON") == "1" {
+		cfg.CanonicalizeNaNs = true
 	}
 	return wasman.NewModule(cfg, f)
 }

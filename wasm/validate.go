@@ -28,6 +28,25 @@ const maxMemoryPages = 65536 // a wasm32 linear memory is at most 2^16 pages (4 
 // Validate statically type-checks the whole module: section indices, limits,
 // constant expressions, and every function body.
 func (m *Module) Validate() error {
+	if m.ModuleConfig.DisableFloatPoint {
+		for _, t := range m.TypeSection {
+			if hasFloatType(t) {
+				return fmt.Errorf("%w: float type in a signature rejected (DisableFloatPoint)", ErrInvalidModule)
+			}
+		}
+		for _, g := range m.GlobalSection {
+			if g.Type.ValType == types.ValueTypeF32 || g.Type.ValType == types.ValueTypeF64 {
+				return fmt.Errorf("%w: float global rejected (DisableFloatPoint)", ErrInvalidModule)
+			}
+		}
+		for _, c := range m.CodeSection {
+			for _, ld := range c.LocalDecls {
+				if ld.Type == types.ValueTypeF32 || ld.Type == types.ValueTypeF64 {
+					return fmt.Errorf("%w: float local rejected (DisableFloatPoint)", ErrInvalidModule)
+				}
+			}
+		}
+	}
 	// build the static index spaces (imports first, then local definitions)
 	var funcs []*types.FuncType
 	var globals []*types.GlobalType
@@ -449,6 +468,38 @@ type numericSig struct {
 
 var numericSigs = buildNumericSigs()
 
+// isFloatOp reports whether an opcode operates on f32/f64 (loads, stores,
+// constants, comparisons, arithmetic, conversions and reinterprets),
+// excluding the integer wrap/extend ops that sit in the same numeric range.
+func isFloatOp(op expr.OpCode) bool {
+	switch b := byte(op); {
+	case b == 0x2a, b == 0x2b, b == 0x38, b == 0x39, b == 0x43, b == 0x44:
+		return true // f32/f64 load, store, const
+	case b >= 0x5b && b <= 0x66:
+		return true // f32/f64 comparisons
+	case b >= 0x8b && b <= 0xa6:
+		return true // f32/f64 arithmetic
+	case b >= 0xa8 && b <= 0xbf && b != 0xac && b != 0xad:
+		return true // trunc/convert/demote/promote/reinterpret (not the int extends)
+	}
+	return false
+}
+
+// hasFloatType reports whether a function signature mentions f32/f64.
+func hasFloatType(t *types.FuncType) bool {
+	for _, vt := range t.InputTypes {
+		if vt == types.ValueTypeF32 || vt == types.ValueTypeF64 {
+			return true
+		}
+	}
+	for _, vt := range t.ReturnTypes {
+		if vt == types.ValueTypeF32 || vt == types.ValueTypeF64 {
+			return true
+		}
+	}
+	return false
+}
+
 func buildNumericSigs() map[expr.OpCode]numericSig {
 	const (
 		i32 = types.ValueTypeI32
@@ -557,6 +608,13 @@ func (v *funcValidator) run(body []byte) error {
 			return err
 		}
 		op := expr.OpCode(b)
+
+		// DisableFloatPoint: reject any float instruction so a metered
+		// consensus host can guarantee determinism (floats are excluded up
+		// front rather than trusted to behave identically across platforms)
+		if v.m.ModuleConfig.DisableFloatPoint && isFloatOp(op) {
+			return fmt.Errorf("%w: float instruction %#x rejected (DisableFloatPoint)", ErrInvalidModule, byte(op))
+		}
 
 		// numeric fast path
 		if sig, ok := numericSigs[op]; ok {
@@ -915,6 +973,9 @@ func (v *funcValidator) run(body []byte) error {
 			sub, err := readU32()
 			if err != nil {
 				return err
+			}
+			if v.m.ModuleConfig.DisableFloatPoint && sub <= expr.OpCodeMiscI64TruncSatF64U {
+				return fmt.Errorf("%w: float saturating truncation rejected (DisableFloatPoint)", ErrInvalidModule)
 			}
 			switch sub {
 			case expr.OpCodeMiscMemoryCopy:
