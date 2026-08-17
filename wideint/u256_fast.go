@@ -35,9 +35,16 @@ func shrw(x uint64, n uint) uint64 {
 	return x >> n
 }
 
-// divFull returns floor(u / d) as eight limbs (d != 0). The remainder is
-// discarded; MulDiv only needs the floor quotient.
+// divFull returns floor(u / d) as eight limbs (d != 0), discarding the
+// remainder (MulDiv and the Sqrt division only need the floor quotient).
 func divFull(u [8]uint64, d U256) [8]uint64 {
+	q, _ := divremFull(u, d)
+	return q
+}
+
+// divremFull returns floor(u / d) and u mod d (d != 0). The remainder is
+// always < d <= 2^256, so it fits in a U256.
+func divremFull(u [8]uint64, d U256) ([8]uint64, U256) {
 	// significant limbs of the divisor
 	n := 4
 	for n > 1 && d[n-1] == 0 {
@@ -50,15 +57,15 @@ func divFull(u [8]uint64, d U256) [8]uint64 {
 		for i := 7; i >= 0; i-- {
 			q[i], r = bits.Div64(r, u[i], dd)
 		}
-		return q
+		return q, U256{r, 0, 0, 0}
 	}
 	// significant limbs of the dividend
 	m := 8
 	for m > 0 && u[m-1] == 0 {
 		m--
 	}
-	if m < n {
-		return [8]uint64{}
+	if m < n { // u < d: quotient 0, remainder u (which is < 2^256 here)
+		return [8]uint64{}, U256{u[0], u[1], u[2], u[3]}
 	}
 
 	// Knuth Algorithm D. D1: normalize so the divisor's top bit is set.
@@ -125,7 +132,18 @@ func divFull(u [8]uint64, d U256) [8]uint64 {
 		}
 		q[j] = qhat
 	}
-	return q
+	// denormalize the remainder held in un[0..n-1]
+	var rem U256
+	if s == 0 {
+		for i := 0; i < n; i++ {
+			rem[i] = un[i]
+		}
+	} else {
+		for i := 0; i < n; i++ {
+			rem[i] = un[i]>>s | un[i+1]<<(64-s)
+		}
+	}
+	return q, rem
 }
 
 // bitLen returns the position of the highest set bit (0 for zero).

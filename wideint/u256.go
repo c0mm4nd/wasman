@@ -157,15 +157,14 @@ func (a U256) ShrS(n uint) U256 {
 func (a U256) DivU(b U256) U256 { q, _ := a.divRemU(b); return q }
 func (a U256) RemU(b U256) U256 { _, r := a.divRemU(b); return r }
 
+// divRemU is allocation-free (Knuth Algorithm D via divremFull); by-zero
+// yields (0, 0) per the EVM convention.
 func (a U256) divRemU(b U256) (U256, U256) {
 	if b.IsZero() {
 		return U256{}, U256{}
 	}
-	if b[1]|b[2]|b[3] == 0 && a[1]|a[2]|a[3] == 0 {
-		return U256{a[0] / b[0]}, U256{a[0] % b[0]}
-	}
-	q, r := new(big.Int).QuoRem(a.big(), b.big(), new(big.Int))
-	return u256FromBig(q), u256FromBig(r)
+	q, r := divremFull([8]uint64{a[0], a[1], a[2], a[3]}, b)
+	return U256{q[0], q[1], q[2], q[3]}, r
 }
 
 // DivS and RemS are signed (truncated); by-zero yields zero, and the
