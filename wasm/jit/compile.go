@@ -29,6 +29,10 @@ type FuncDesc struct {
 	// ABI: direct calls to them bypass the host exit entirely. nil keeps
 	// every call on the exit protocol.
 	NativeFuncs []bool
+	// TollPrice is the per-opcode toll (uniform pricing); 0 disables inline
+	// metering. When set, generated code charges it before every opcode and
+	// traps on TollMax, matching the interpreter's per-op charge.
+	TollPrice uint64
 	// SelfIdx is this function's index-space position (host exits report
 	// funcIdx<<32|siteID so the host can find the site table of whichever
 	// frame exited); DepthLimit, when nonzero, bakes a call-depth check
@@ -138,4 +142,26 @@ type Compiled struct {
 	// CallSites, indexed by the id the exiting code leaves in Ctx.TrapInfo,
 	// tell the host what to call and where to re-enter.
 	CallSites []CallSite
+}
+
+// chargeAfterOp reports whether an opcode is charged after its native code
+// (trapping ops, whose trap path exits before the charge, and host exits,
+// which charge at the re-entry continuation). All other opcodes charge
+// before, so back-edges and branch targets skip the structural charge.
+func chargeAfterOp(op byte) bool {
+	switch {
+	case op == 0x00: // unreachable
+		return true
+	case op == 0x10 || op == 0x11 || op == 0x40 || op == 0xfc: // call/indirect/grow/bulk
+		return true
+	case op >= 0x28 && op <= 0x3e: // memory loads and stores
+		return true
+	case op == 0x6d || op == 0x6e || op == 0x6f || op == 0x70: // i32 div/rem
+		return true
+	case op == 0x7f || op == 0x80 || op == 0x81 || op == 0x82: // i64 div/rem
+		return true
+	case op >= 0xa8 && op <= 0xb1: // trapping float->int truncations
+		return true
+	}
+	return false
 }

@@ -43,6 +43,10 @@ type Instance struct {
 
 	// nativeStack backs the in-stack frames of natively-called JIT code;
 	// nativeEntries maps function index space slots to native entry points.
+	// metered/tollMax: inline-metered JIT (baseline tier charges toll per
+	// opcode, matching the interpreter, and traps at tollMax).
+	metered       bool
+	tollMax       uint64
 	nativeStack   []uint64
 	nativeEntries []uintptr
 	nativeTop     int // first free slot while a chain is suspended in an exit

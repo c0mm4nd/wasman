@@ -186,7 +186,9 @@ dependencies). It runs these workloads 27–116× faster than the
 interpreter, which puts wasman in the same performance class as wazero's
 optimizing compiler: ahead on memory-bound code, level on arithmetic
 loops, within ~10% on call-heavy recursion (arm64). The whole official
-test suite passes with the JIT enabled. See
+test suite passes with the JIT enabled — including under a metering
+TollStation, which the baseline tier charges inline per opcode
+(bit-identical gas and trap points to the interpreter, ~17x faster). See
 [bench/README.md](./bench/README.md) for numbers and methodology.
 
 ## Conformance

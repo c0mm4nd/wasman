@@ -45,6 +45,11 @@ func (ts *SimpleTollStation) GetOpPrice(_ expr.OpCode) uint64 {
 }
 
 // GetToll returns the total count in the toll station
+// GetMax returns the toll ceiling. It lets the JIT inline the overflow
+// check; a TollStation that does not implement this stays on the metered
+// interpreter. Uniform pricing (GetOpPrice constant) is assumed.
+func (ts *SimpleTollStation) GetMax() uint64 { return ts.max }
+
 func (ts *SimpleTollStation) GetToll() uint64 {
 	return ts.total
 }

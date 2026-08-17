@@ -10,7 +10,7 @@ import "fmt"
 // stack lives at static offsets from SI, heights are tracked at compile time
 // and branches become native jumps with result-slot moves.
 func CompileBaseline(fd *FuncDesc) (*Compiled, error) {
-	c := &compiler{fd: fd}
+	c := &compiler{fd: fd, tollPrice: fd.TollPrice}
 	if err := c.run(); err != nil {
 		return nil, err
 	}
@@ -32,16 +32,18 @@ type ctl struct {
 }
 
 type compiler struct {
-	fd      *FuncDesc
-	a       Asm
-	h       int // static operand-stack height (slots)
-	maxH    int
-	ctl     []ctl
-	unreach bool
-	skip    int   // nesting depth of blocks opened inside unreachable code
-	oob     []int // JA placeholders jumping to the shared OOB trap stub
-	op0     int   // PC of the opcode being compiled
-	sites   []CallSite
+	fd        *FuncDesc
+	a         Asm
+	h         int // static operand-stack height (slots)
+	maxH      int
+	ctl       []ctl
+	unreach   bool
+	skip      int   // nesting depth of blocks opened inside unreachable code
+	oob       []int // JA placeholders jumping to the shared OOB trap stub
+	op0       int   // PC of the opcode being compiled
+	sites     []CallSite
+	tollPrice uint64
+	tollTraps []int // JA placeholders jumping to the shared toll stub
 }
 
 func (c *compiler) push() int {
@@ -92,6 +94,7 @@ func (c *compiler) prologue() {
 }
 
 func (c *compiler) epilogueOK(sp int) {
+	c.tollStore()
 	c.a.MovImm64(rCX, uint64(sp))
 	c.a.StCtx(rCX, 8)
 	c.a.MovImm32AX(StatusOK)
@@ -99,8 +102,39 @@ func (c *compiler) epilogueOK(sp int) {
 }
 
 func (c *compiler) trap(status uint32) {
+	c.tollStore()
 	c.a.MovImm32AX(status)
 	c.a.Ret()
+}
+
+// tollReload loads the running toll into r12 and (max-price) into r13.
+func (c *compiler) tollReload() {
+	if c.tollPrice == 0 {
+		return
+	}
+	c.a.modDisp32(true, 0x8B, 12, rDI, 96)           // mov r12, [ctx.Toll]
+	c.a.modDisp32(true, 0x8B, 13, rDI, 104)          // mov r13, [ctx.TollMax]
+	c.a.ArithImm32(true, 5, 13, uint32(c.tollPrice)) // sub r13, price
+}
+
+// emitCharge charges one opcode inline: trap if toll > max-price, else += price.
+func (c *compiler) emitCharge() {
+	if c.tollPrice == 0 {
+		return
+	}
+	a := &c.a
+	a.BinRR(true, 0x39, 12, 13) // cmp r12, r13
+	c.tollTraps = append(c.tollTraps, a.Len())
+	a.Jcc(ccA, 0)                                  // ja toll_trap (patched)
+	a.ArithImm32(true, 0, 12, uint32(c.tollPrice)) // add r12, price
+}
+
+// tollStore flushes the running toll to ctx.Toll before an exit.
+func (c *compiler) tollStore() {
+	if c.tollPrice == 0 {
+		return
+	}
+	c.a.modDisp32(true, 0x89, 12, rDI, 96) // mov [ctx.Toll], r12
 }
 
 // finish emits the success epilogue and the shared out-of-bounds trap stub.
@@ -112,11 +146,25 @@ func (c *compiler) finish() error {
 		}
 		c.trap(StatusMemOOB)
 	}
+	if len(c.tollTraps) > 0 {
+		for _, at := range c.tollTraps {
+			c.a.PatchJcc(at)
+		}
+		c.a.MovImm32AX(StatusToll)
+		c.tollStore2()
+	}
 	return nil
+}
+
+// tollStore2 flushes toll then returns (the toll trap stub tail).
+func (c *compiler) tollStore2() {
+	c.tollStore()
+	c.a.Ret()
 }
 
 func (c *compiler) run() error {
 	c.prologue()
+	c.tollReload()
 	// the function body is an implicit block returning the results
 	c.ctl = append(c.ctl, ctl{kind: 0x02, resultN: c.fd.NumRets, elsePatch: -1})
 	body := c.fd.Body
@@ -157,8 +205,15 @@ func (c *compiler) run() error {
 			}
 		}
 
+		after := chargeAfterOp(op)
+		if !after {
+			c.emitCharge()
+		}
 		if err := c.emit(op, imm); err != nil {
 			return err
+		}
+		if after {
+			c.emitCharge()
 		}
 		if len(c.ctl) == 0 { // the implicit block closed: function end
 			return c.finish()
@@ -340,9 +395,11 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		} else {
 			a.MovImm32AX(StatusCallIndirect)
 		}
+		c.tollStore()
 		a.Ret()
 		site.Cont = a.Len()
 		c.prologue() // the continuation reloads stack/memory bases
+		c.tollReload()
 		c.sites = append(c.sites, site)
 
 	case 0x0e: // br_table: compare chain over the pre-decoded plan
@@ -629,9 +686,11 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		a.MovImm64(rCX, uint64(len(c.sites)))
 		a.StCtx(rCX, 40)
 		a.MovImm32AX(StatusCall)
+		c.tollStore()
 		a.Ret()
 		site.Cont = a.Len()
 		c.prologue()
+		c.tollReload()
 		c.sites = append(c.sites, site)
 
 	case 0xfc: // misc: trunc_sat family, plus bulk-memory fill/copy (host exit)
@@ -646,9 +705,11 @@ func (c *compiler) emit(op byte, imm uint64) error {
 			a.MovImm64(rCX, uint64(len(c.sites)))
 			a.StCtx(rCX, 40)
 			a.MovImm32AX(StatusCall)
+			c.tollStore()
 			a.Ret()
 			site.Cont = a.Len()
 			c.prologue()
+			c.tollReload()
 			c.sites = append(c.sites, site)
 			c.h -= 3
 			break

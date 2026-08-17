@@ -187,7 +187,8 @@ func (f *wasmFunc) call(ins *Instance) (err error) {
 	// the interpreter path. The frame still joins the FrameStack so the
 	// call-depth accounting (and with it CallDepthLimit) stays exact across
 	// mixed native/interpreted call chains.
-	if cd := f.compiled; cd != nil && ins.Module.ModuleConfig.TollStation == nil {
+	if cd := f.compiled; cd != nil &&
+		(ins.Module.ModuleConfig.TollStation == nil || ins.metered) {
 		frame.Func = f
 		ins.FrameStack.Push(frame)
 		ins.Active = frame

@@ -16,6 +16,8 @@ type Ctx struct {
 	Funcs      uintptr
 	Depth      uint64
 	Indirect   uintptr
+	Toll       uint64
+	TollMax    uint64
 }
 
 // Supported reports whether native codegen exists for this platform.
@@ -47,6 +49,7 @@ const (
 	StatusConvInvalid  = 7
 	StatusConvOverflow = 8
 	StatusExhausted    = 9
+	StatusToll         = 10
 )
 
 // CallAt is unavailable on this platform.

@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/c0mm4nd/wasman/expr"
+	"github.com/c0mm4nd/wasman/tollstation"
 	"github.com/c0mm4nd/wasman/types"
 	"github.com/c0mm4nd/wasman/wasm/jit"
 )
@@ -41,6 +43,22 @@ func (ins *Instance) compileNativeAll() {
 	if l := ins.Module.ModuleConfig.CallDepthLimit; l != nil {
 		depthLimit = *l
 	}
+	// a TollStation that exposes its ceiling and prices every opcode
+	// uniformly can be metered inline by the baseline tier; anything else
+	// keeps the metered interpreter (the JIT stays off for it).
+	var tollPrice uint64
+	if ts := ins.Module.ModuleConfig.TollStation; ts != nil {
+		if mt, ok := ts.(interface{ GetMax() uint64 }); ok {
+			if p, uniform := uniformOpPrice(ts); uniform && p > 0 {
+				tollPrice = p
+				ins.metered = true
+				ins.tollMax = mt.GetMax()
+			}
+		}
+		if !ins.metered {
+			return // non-meterable toll: interpreter only
+		}
+	}
 	// instance-wide structural signature ids: type-section entries first
 	// (compiled code embeds these), table entries may extend the map later
 	ins.sigIDs = make(map[string]uint32)
@@ -69,13 +87,15 @@ func (ins *Instance) compileNativeAll() {
 			fd.DepthLimit = depthLimit
 			fd.TypeSigIDs = typeSigIDs
 			fd.WideOps = wideOps
+			fd.TollPrice = tollPrice
 			jobs = append(jobs, job{wf, fd})
 		}
 	}
 	// pass 1: fix the native-call target set before generating any code, so
 	// call sites to functions that compile later can still go native
+	forceBaseline := jitForceBaseline || tollPrice != 0 // opt tier cannot meter
 	var native []bool
-	if jit.NativeCallsSupported() && !jitForceBaseline {
+	if jit.NativeCallsSupported() && !forceBaseline {
 		native = make([]bool, len(ins.IndexSpace.Functions))
 		for _, j := range jobs {
 			native[j.fd.SelfIdx] = jit.OptEligible(j.fd)
@@ -88,7 +108,7 @@ func (ins *Instance) compileNativeAll() {
 		ok := true
 		for _, j := range jobs {
 			j.wf.compiled = nil
-			if !jitForceBaseline {
+			if !forceBaseline {
 				j.fd.NativeFuncs = native
 				if cd, err := jit.CompileOpt(j.fd); err == nil {
 					j.wf.compiled = cd
@@ -212,6 +232,12 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, localsOff, ba
 	if len(ins.Globals) > 0 {
 		ctx.Globals = uintptr(unsafe.Pointer(&ins.Globals[0]))
 	}
+	var ts tollstation.TollStation
+	if ins.metered {
+		ts = ins.Module.ModuleConfig.TollStation
+		ctx.Toll = ts.GetToll()
+		ctx.TollMax = ins.tollMax
+	}
 	entry := 0
 	for {
 		os := ins.OperandStack
@@ -230,6 +256,9 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, localsOff, ba
 		}
 		switch st := jit.CallAt(cd.Code, entry, &ctx); st {
 		case jit.StatusOK:
+			if ts != nil {
+				_ = ts.AddToll(ctx.Toll - ts.GetToll())
+			}
 			os.Ptr = baseSp + int(ctx.Sp)
 			return nil
 		case jit.StatusCall, jit.StatusCallIndirect:
@@ -238,6 +267,9 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, localsOff, ba
 			}
 			site := &cd.CallSites[ctx.TrapInfo]
 			os.Ptr = baseSp + site.SpBefore
+			if ts != nil { // charge what native code consumed before the callee
+				_ = ts.AddToll(ctx.Toll - ts.GetToll())
+			}
 			var err error
 			switch site.Kind {
 			case jit.SiteCallIndirect:
@@ -265,18 +297,38 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, localsOff, ba
 			if os.Ptr != baseSp+site.SpAfter {
 				return fmt.Errorf("function returned too few values")
 			}
+			if ts != nil { // the callee charged the shared station; resume from it
+				ctx.Toll = ts.GetToll()
+			}
 			// a call boundary is also the interruption point for native code
 			if atomic.LoadUint32(&ins.interruptFlag) != 0 {
 				return ErrInterrupted
 			}
 			entry = site.Cont
+		case jit.StatusToll:
+			if ts != nil {
+				_ = ts.AddToll(ctx.Toll - ts.GetToll())
+			}
+			return tollstation.ErrTollOverflow
 		case jit.StatusUnreachable:
+			if ts != nil {
+				_ = ts.AddToll(ctx.Toll - ts.GetToll())
+			}
 			return ErrUnreachable
 		case jit.StatusMemOOB:
+			if ts != nil {
+				_ = ts.AddToll(ctx.Toll - ts.GetToll())
+			}
 			return ErrPtrOutOfBounds
 		case jit.StatusConvInvalid:
+			if ts != nil {
+				_ = ts.AddToll(ctx.Toll - ts.GetToll())
+			}
 			return ErrInvalidConversionToInt
 		case jit.StatusConvOverflow:
+			if ts != nil {
+				_ = ts.AddToll(ctx.Toll - ts.GetToll())
+			}
 			return ErrIntegerOverflow
 		default: // div-by-zero / overflow trap the same way the interpreter does
 			return ErrUndefined
@@ -480,4 +532,16 @@ func (ins *Instance) buildNativeIndirect() {
 		m[1+2*i+1] = uint64(uintptr(unsafe.Pointer(&wf.compiled.Code[0])))
 	}
 	ins.indirectMirror = m
+}
+
+// uniformOpPrice reports the per-opcode price if a toll station charges the
+// same for every opcode (the inline meter assumes uniform pricing).
+func uniformOpPrice(ts tollstation.TollStation) (uint64, bool) {
+	p := ts.GetOpPrice(0x20) // local.get
+	for _, op := range []byte{0x00, 0x0b, 0x10, 0x41, 0x6a, 0x28, 0x36, 0x04, 0x0d, 0x0f} {
+		if ts.GetOpPrice(expr.OpCode(op)) != p {
+			return 0, false
+		}
+	}
+	return p, true
 }

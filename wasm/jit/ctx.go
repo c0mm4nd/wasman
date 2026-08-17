@@ -20,6 +20,11 @@ type Ctx struct {
 	Funcs      uintptr // base of the native entry table
 	Depth      uint64  // native call depth (limit baked into prologues)
 	Indirect   uintptr // call_indirect mirror: [len, {sigID<<32|needBytes, entry}...]
+	// metering: Toll is the running consumed count (starts at the toll
+	// station's current total), TollMax the ceiling. Generated code checks
+	// them inline, matching the interpreter's per-opcode charge.
+	Toll    uint64
+	TollMax uint64
 }
 
 // Supported reports whether native codegen exists for this platform.
@@ -47,9 +52,10 @@ const (
 	StatusIntOverflow  = 4
 	StatusCall         = 5 // call site: Ctx.TrapInfo holds the site id
 	StatusCallIndirect = 6
-	StatusConvInvalid  = 7 // float->int conversion of NaN
-	StatusConvOverflow = 8 // float->int conversion out of range
-	StatusExhausted    = 9 // native stack or call depth exhausted
+	StatusConvInvalid  = 7  // float->int conversion of NaN
+	StatusConvOverflow = 8  // float->int conversion out of range
+	StatusExhausted    = 9  // native stack or call depth exhausted
+	StatusToll         = 10 // toll (gas) ceiling exceeded
 )
 
 // CallAt runs generated code starting at a continuation offset.

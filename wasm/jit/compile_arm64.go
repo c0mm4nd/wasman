@@ -12,7 +12,7 @@ import "fmt"
 // with result-slot moves, and the runtime stack index is written only in the
 // epilogues.
 func CompileBaseline(fd *FuncDesc) (*Compiled, error) {
-	c := &compiler{fd: fd}
+	c := &compiler{fd: fd, tollPrice: fd.TollPrice}
 	if err := c.run(); err != nil {
 		return nil, err
 	}
@@ -34,16 +34,18 @@ type ctl struct {
 }
 
 type compiler struct {
-	fd      *FuncDesc
-	a       Asm
-	h       int // static operand-stack height (slots)
-	maxH    int
-	ctl     []ctl
-	unreach bool
-	skip    int   // nesting depth of blocks opened inside unreachable code
-	oob     []int // B.HI placeholders jumping to the shared OOB trap stub
-	op0     int   // PC of the opcode being compiled
-	sites   []CallSite
+	fd        *FuncDesc
+	a         Asm
+	h         int // static operand-stack height (slots)
+	maxH      int
+	ctl       []ctl
+	unreach   bool
+	skip      int   // nesting depth of blocks opened inside unreachable code
+	oob       []int // B.HI placeholders jumping to the shared OOB trap stub
+	op0       int   // PC of the opcode being compiled
+	sites     []CallSite
+	tollPrice uint64
+	tollTraps []int // B.HI placeholders jumping to the shared toll stub
 }
 
 func (c *compiler) push() int {
@@ -93,6 +95,7 @@ func (c *compiler) emitBr(d int) {
 
 func (c *compiler) run() error {
 	c.a.Prologue()
+	c.tollReload()
 	// the function body is an implicit block returning the results
 	c.ctl = append(c.ctl, ctl{kind: 0x02, resultN: c.fd.NumRets, elsePatch: -1})
 	body := c.fd.Body
@@ -133,8 +136,21 @@ func (c *compiler) run() error {
 			}
 		}
 
+		// Charge to match the interpreter (which charges an opcode only after
+		// it executes without trapping). Trapping ops and host exits charge
+		// AFTER emit — their trap path Rets first (never charged) and a call
+		// charges at its continuation (only if the callee returned). Every
+		// other op charges BEFORE emit, so a branch or loop back-edge lands
+		// past the charge and does not re-charge the structural opcode.
+		after := chargeAfterOp(op)
+		if !after {
+			c.emitCharge()
+		}
 		if err := c.emit(op, imm); err != nil {
 			return err
+		}
+		if after {
+			c.emitCharge()
 		}
 		if len(c.ctl) == 0 { // the implicit block closed: function end
 			return c.finish()
@@ -153,16 +169,67 @@ func (c *compiler) run() error {
 
 // finish emits the success epilogue and the shared out-of-bounds trap stub.
 func (c *compiler) finish() error {
+	c.tollStore()
 	c.a.MovImm64(RegSp, uint64(c.h))
 	c.a.Epilogue(StatusOK)
 	if len(c.oob) > 0 {
 		for _, at := range c.oob {
 			c.a.PatchBcond(at, condHI)
 		}
+		c.tollStore()
 		c.a.Movz(RegStatus, StatusMemOOB, 0)
 		c.a.Ret()
 	}
+	if len(c.tollTraps) > 0 {
+		for _, at := range c.tollTraps {
+			c.a.PatchBcond(at, condHI)
+		}
+		c.tollStore()
+		c.a.Movz(RegStatus, StatusToll, 0)
+		c.a.Ret()
+	}
 	return nil
+}
+
+// tollReload loads the running toll into R9 and (max-price) into R10; the
+// prologue and every host-exit continuation call it.
+func (c *compiler) tollReload() {
+	if c.tollPrice == 0 {
+		return
+	}
+	c.a.LdrImm(9, RegCtx, 96)               // ctx.Toll
+	c.a.LdrImm(10, RegCtx, 104)             // ctx.TollMax
+	c.a.SubImm(10, 10, uint32(c.tollPrice)) // max - price
+}
+
+// emitCharge charges one opcode inline: trap if toll > max-price, else
+// toll += price. Matches the interpreter's charge (total+price>max => trap).
+func (c *compiler) emitCharge() {
+	if c.tollPrice == 0 {
+		return
+	}
+	a := &c.a
+	a.CmpRegX(9, 10)
+	c.tollTraps = append(c.tollTraps, a.Len())
+	a.Bcond(condHI, 0) // patched to the toll stub
+	a.AddImm(9, 9, uint32(c.tollPrice))
+}
+
+// tollWord is the byte size of the tollStore instruction (0 when metering
+// is off), so fixed inline-trap skip distances stay correct either way.
+func (c *compiler) tollWord() int {
+	if c.tollPrice == 0 {
+		return 0
+	}
+	return 4
+}
+
+// tollStore flushes the running toll back to ctx.Toll before an exit.
+func (c *compiler) tollStore() {
+	if c.tollPrice == 0 {
+		return
+	}
+	c.a.StrImm(9, RegCtx, 96)
 }
 
 // opSingleByte marks opcodes known to carry no immediates, so unreachable
@@ -224,6 +291,7 @@ func (c *compiler) emit(op byte, imm uint64) error {
 	case 0x01: // nop
 
 	case 0x00: // unreachable
+		c.tollStore()
 		a.Movz(RegStatus, StatusUnreachable, 0)
 		a.Ret()
 		c.unreach = true
@@ -277,6 +345,7 @@ func (c *compiler) emit(op byte, imm uint64) error {
 
 	case 0x0f: // return
 		c.moveResults(0, c.fd.NumRets)
+		c.tollStore()
 		a.MovImm64(RegSp, uint64(c.fd.NumRets))
 		a.Epilogue(StatusOK)
 		c.unreach = true
@@ -331,9 +400,11 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		} else {
 			a.Movz(RegStatus, StatusCallIndirect, 0)
 		}
+		c.tollStore()
 		a.Ret()
 		site.Cont = a.Len()
 		a.Prologue() // the continuation reloads stack/memory bases
+		c.tollReload()
 		c.sites = append(c.sites, site)
 
 	case 0x0e: // br_table: compare chain over the pre-decoded plan
@@ -475,13 +546,14 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		} else {
 			a.CmpImmW(RegT1, 0)
 		}
-		a.Bcond(condNE, 12) // skip the trap when the divisor is nonzero
+		a.Bcond(condNE, 12+c.tollWord()) // skip the trap when the divisor is nonzero
+		c.tollStore()
 		a.Movz(RegStatus, StatusDivZero, 0)
 		a.Ret()
 		switch op {
 		case 0x6d, 0x7f: // div_s: MinInt / -1 overflows
 			a.CmnImm(w, RegT1, 1)
-			a.Bcond(condNE, 24) // skip the 5-word overflow check + trap
+			a.Bcond(condNE, 24+c.tollWord()) // skip the overflow check + trap
 			if w {
 				a.Movz(RegT2, 0x8000, 3) // MinInt64
 				a.CmpRegX(RegT0, RegT2)
@@ -489,7 +561,8 @@ func (c *compiler) emit(op byte, imm uint64) error {
 				a.Movz(RegT2, 0x8000, 1) // MinInt32 (W compare)
 				a.CmpRegW(RegT0, RegT2)
 			}
-			a.Bcond(condNE, 12)
+			a.Bcond(condNE, 12+c.tollWord())
+			c.tollStore()
 			a.Movz(RegStatus, StatusIntOverflow, 0)
 			a.Ret()
 			a.Sdiv(w, RegT0, RegT0, RegT1)
@@ -597,9 +670,11 @@ func (c *compiler) emit(op byte, imm uint64) error {
 		a.MovImm64(RegT0, uint64(len(c.sites)))
 		a.StrImm(RegT0, RegCtx, 40)
 		a.Movz(RegStatus, StatusCall, 0)
+		c.tollStore()
 		a.Ret()
 		site.Cont = a.Len()
 		a.Prologue()
+		c.tollReload()
 		c.sites = append(c.sites, site)
 
 	case 0xfc: // misc: trunc_sat family, plus bulk-memory fill/copy (host exit)
@@ -614,9 +689,11 @@ func (c *compiler) emit(op byte, imm uint64) error {
 			a.MovImm64(RegT0, uint64(len(c.sites)))
 			a.StrImm(RegT0, RegCtx, 40)
 			a.Movz(RegStatus, StatusCall, 0)
+			c.tollStore()
 			a.Ret()
 			site.Cont = a.Len()
 			a.Prologue()
+			c.tollReload()
 			c.sites = append(c.sites, site)
 			c.h -= 3
 			break

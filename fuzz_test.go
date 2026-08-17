@@ -9,6 +9,7 @@ import (
 
 	"github.com/c0mm4nd/wasman"
 	"github.com/c0mm4nd/wasman/config"
+	"github.com/c0mm4nd/wasman/tollstation"
 	"github.com/c0mm4nd/wasman/wat"
 )
 
@@ -237,6 +238,66 @@ func FuzzBulkMemory(f *testing.F) {
 		}
 		if !bytesEqual(iMem, jMem) {
 			t.Fatalf("interp/jit memory divergence (dst=%d n=%d copy=%v)", dst, n, isCopy)
+		}
+	})
+}
+
+// FuzzTollConsistency is the consensus guard for inline-metered JIT: for
+// arbitrary modules and gas caps, the interpreter and the baseline JIT must
+// consume the SAME toll and trap (or not) identically.
+func FuzzTollConsistency(f *testing.F) {
+	for _, p := range []string{
+		"bench/testdata/fib.wasm", "bench/testdata/sum.wasm",
+		"bench/testdata/memrw.wasm", "bench/testdata/sort.wasm",
+		"bench/testdata/vmloop.wasm", "bench/testdata/indirect.wasm",
+	} {
+		if b, err := os.ReadFile(p); err == nil {
+			for _, m := range []uint64{5, 100, 100000, 1 << 40} {
+				f.Add(b, m)
+			}
+		}
+	}
+	depth := uint64(200)
+	f.Fuzz(func(t *testing.T, raw []byte, maxToll uint64) {
+		if maxToll == 0 || maxToll > 20_000_000 {
+			maxToll = 1 + maxToll%20_000_000
+		}
+		run := func(jit bool) (uint64, bool, bool) {
+			cfg := config.ModuleConfig{
+				EnableJIT:      jit,
+				TollStation:    tollstation.NewSimpleTollStation(maxToll),
+				MaxMemoryPages: 16,
+				CallDepthLimit: &depth,
+			}
+			mod, err := wasman.NewModule(cfg, bytes.NewReader(raw))
+			if err != nil {
+				return 0, false, false
+			}
+			exps := mod.Exports()
+			ins, err := wasman.NewInstance(mod, nil)
+			if err != nil {
+				return 0, false, false
+			}
+			for _, e := range exps {
+				if e.Type == nil {
+					continue
+				}
+				args := make([]uint64, len(e.Type.InputTypes))
+				_, _, callErr := ins.CallExportedFunc(e.Name, args...)
+				return cfg.TollStation.GetToll(), callErr != nil, true
+			}
+			return 0, false, false
+		}
+		ig, it, iok := run(false)
+		if !iok {
+			return
+		}
+		jg, jt, jok := run(true)
+		if !jok {
+			t.Fatal("interpreter loaded but JIT config failed")
+		}
+		if ig != jg || it != jt {
+			t.Fatalf("gas/trap divergence: interp (gas=%d trap=%v) jit (gas=%d trap=%v)", ig, it, jg, jt)
 		}
 	})
 }
