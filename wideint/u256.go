@@ -240,15 +240,25 @@ func (a U256) MulDiv(b, c U256) (U256, bool) {
 	if c.IsZero() {
 		return U256{}, false
 	}
-	p := new(big.Int).Mul(a.big(), b.big())
-	p.Quo(p, c.big()) // both operands non-negative, so Quo is floor
-	if p.BitLen() > 256 {
-		return u256FromBig(new(big.Int).And(p, mask256)), false
-	}
-	return u256FromBig(p), true
+	q := divFull(a.mulFull(b), c)
+	res := U256{q[0], q[1], q[2], q[3]}
+	ok := q[4]|q[5]|q[6]|q[7] == 0
+	return res, ok
 }
 
-// Sqrt returns floor(sqrt(a)).
+// Sqrt returns floor(sqrt(a)) via integer Newton iteration (the quotient
+// a/x uses the same allocation-free division as MulDiv).
 func (a U256) Sqrt() U256 {
-	return u256FromBig(new(big.Int).Sqrt(a.big()))
+	if a[1]|a[2]|a[3] == 0 && a[0] < 2 {
+		return a // sqrt(0)=0, sqrt(1)=1
+	}
+	// an initial guess >= sqrt(a): 1 << ceil(bitLen/2)
+	x := U256{1, 0, 0, 0}.Shl(uint((a.bitLen() + 1) / 2))
+	for {
+		y := x.Add(a.divU256(x)).ShrU(1)
+		if y.CmpU(x) >= 0 {
+			return x // Newton converges downward to the floor
+		}
+		x = y
+	}
 }

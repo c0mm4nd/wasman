@@ -97,12 +97,14 @@ func FuzzU128(f *testing.F) {
 
 // FuzzU256 is the 256-bit counterpart.
 func FuzzU256(f *testing.F) {
-	f.Add([]byte{3}, []byte{7}, uint(0))
-	// divisor with a nonzero third limb exercises the multi-limb big path
-	f.Add(bytesN(32, 0xff), append(make([]byte, 17), 1), uint(3))
-	f.Fuzz(func(t *testing.T, ab, bb []byte, sh uint) {
+	f.Add([]byte{3}, []byte{7}, []byte{2}, uint(0))
+	f.Add(bytesN(32, 0xff), append(make([]byte, 17), 1), []byte{9}, uint(3))
+	f.Add(bytesN(32, 0xff), bytesN(32, 0xfe), bytesN(32, 0xff), uint(0)) // near-equal multi-limb divisor -> add-back
+	f.Add(bytesN(32, 0xff), bytesN(32, 0xff), []byte{1}, uint(0))        // overflow: quotient > 256 bits
+	f.Fuzz(func(t *testing.T, ab, bb, cb []byte, sh uint) {
 		a := U256FromBytes(pad(ab, 32))
 		b := U256FromBytes(pad(bb, 32))
+		cDiv := U256FromBytes(pad(cb, 32))
 		A, B := a.big(), b.big()
 		chk := func(name string, got U256, want *big.Int) {
 			if got.big().Cmp(ref256(want)) != 0 {
@@ -137,25 +139,26 @@ func FuzzU256(f *testing.F) {
 		if a.CmpS(b) != signedRef(A, two256).Cmp(signedRef(B, two256)) {
 			t.Fatalf("cmps(%v,%v)", A, B)
 		}
-		// MulDiv: floor(a*b/c) over the full 512-bit product (b reused as
-		// the divisor to vary it, including the zero case)
+		// MulDiv: floor(a*b/c) over the full 512-bit product, verified
+		// against big.Int across single-limb, multi-limb and add-back
+		// divisors and the >256-bit overflow case.
 		{
-			got, ok := a.MulDiv(b, b)
-			if b.IsZero() {
+			got, ok := a.MulDiv(b, cDiv)
+			if cDiv.IsZero() {
 				if !got.IsZero() || ok {
 					t.Fatalf("muldiv c=0 must be (0,false)")
 				}
 			} else {
-				full := new(big.Int).Quo(new(big.Int).Mul(A, B), B)
+				full := new(big.Int).Quo(new(big.Int).Mul(A, B), cDiv.big())
 				want := full
 				if full.BitLen() > 256 {
 					want = new(big.Int).And(full, mask256)
 				}
 				if got.big().Cmp(want) != 0 {
-					t.Fatalf("muldiv(%v,%v,%v): got %v want %v", A, B, B, got.big(), want)
+					t.Fatalf("muldiv(%v,%v,%v): got %v want %v", A, B, cDiv.big(), got.big(), want)
 				}
 				if ok != (full.BitLen() <= 256) {
-					t.Fatalf("muldiv ok flag: got %v", ok)
+					t.Fatalf("muldiv ok flag: got %v want %v", ok, full.BitLen() <= 256)
 				}
 			}
 		}
