@@ -66,6 +66,26 @@ func FuzzU128(f *testing.F) {
 		if a.CmpS(b) != signedRef(A, two128).Cmp(signedRef(B, two128)) {
 			t.Fatalf("cmps(%v,%v)", A, B)
 		}
+		{
+			got, ok := a.MulDiv(b, b)
+			if b.IsZero() {
+				if !got.IsZero() || ok {
+					t.Fatalf("u128 muldiv c=0 must be (0,false)")
+				}
+			} else {
+				full := new(big.Int).Quo(new(big.Int).Mul(A, B), B)
+				want := full
+				if full.BitLen() > 128 {
+					want = new(big.Int).And(full, mask128)
+				}
+				if got.big().Cmp(want) != 0 {
+					t.Fatalf("u128 muldiv: got %v want %v", got.big(), want)
+				}
+			}
+		}
+		if got := a.Sqrt(); got.big().Cmp(new(big.Int).Sqrt(A)) != 0 {
+			t.Fatalf("u128 sqrt: got %v want %v", got.big(), new(big.Int).Sqrt(A))
+		}
 		// byte round-trip
 		var buf [16]byte
 		a.PutBytes(buf[:])
@@ -116,6 +136,32 @@ func FuzzU256(f *testing.F) {
 		}
 		if a.CmpS(b) != signedRef(A, two256).Cmp(signedRef(B, two256)) {
 			t.Fatalf("cmps(%v,%v)", A, B)
+		}
+		// MulDiv: floor(a*b/c) over the full 512-bit product (b reused as
+		// the divisor to vary it, including the zero case)
+		{
+			got, ok := a.MulDiv(b, b)
+			if b.IsZero() {
+				if !got.IsZero() || ok {
+					t.Fatalf("muldiv c=0 must be (0,false)")
+				}
+			} else {
+				full := new(big.Int).Quo(new(big.Int).Mul(A, B), B)
+				want := full
+				if full.BitLen() > 256 {
+					want = new(big.Int).And(full, mask256)
+				}
+				if got.big().Cmp(want) != 0 {
+					t.Fatalf("muldiv(%v,%v,%v): got %v want %v", A, B, B, got.big(), want)
+				}
+				if ok != (full.BitLen() <= 256) {
+					t.Fatalf("muldiv ok flag: got %v", ok)
+				}
+			}
+		}
+		// Sqrt: floor(sqrt(a))
+		if got := a.Sqrt(); got.big().Cmp(new(big.Int).Sqrt(A)) != 0 {
+			t.Fatalf("sqrt(%v): got %v want %v", A, got.big(), new(big.Int).Sqrt(A))
 		}
 		var buf [32]byte
 		a.PutBytes(buf[:])

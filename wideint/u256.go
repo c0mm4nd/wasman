@@ -227,3 +227,28 @@ func u256FromBig(x *big.Int) U256 {
 	}
 	return u
 }
+
+var mask256 = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1))
+
+// MulDiv returns floor(a*b/c) computed over the full 512-bit product, so it
+// stays exact even when a*b >= 2^256 (the case that makes a plain
+// mul-then-div lose precision). ok is false when c == 0 — the result is
+// then 0, matching DivU's EVM convention — or when the quotient does not
+// fit in 256 bits, where the returned value is its low 256 bits. A
+// consensus host traps on that overflow and writes 0 for c == 0.
+func (a U256) MulDiv(b, c U256) (U256, bool) {
+	if c.IsZero() {
+		return U256{}, false
+	}
+	p := new(big.Int).Mul(a.big(), b.big())
+	p.Quo(p, c.big()) // both operands non-negative, so Quo is floor
+	if p.BitLen() > 256 {
+		return u256FromBig(new(big.Int).And(p, mask256)), false
+	}
+	return u256FromBig(p), true
+}
+
+// Sqrt returns floor(sqrt(a)).
+func (a U256) Sqrt() U256 {
+	return u256FromBig(new(big.Int).Sqrt(a.big()))
+}

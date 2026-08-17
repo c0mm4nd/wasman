@@ -1,11 +1,18 @@
 package wasman
 
 import (
+	"errors"
+
 	"github.com/c0mm4nd/wasman/config"
 	"github.com/c0mm4nd/wasman/wasm"
 	"github.com/c0mm4nd/wasman/wasm/jit"
 	"github.com/c0mm4nd/wasman/wideint"
 )
+
+// ErrWideMulDivOverflow traps a u256.mul_div whose exact quotient does not
+// fit in 256 bits (a caller-side logic error, like Uniswap's mulDiv
+// overflow revert). c == 0 is not an overflow: it writes 0.
+var ErrWideMulDivOverflow = errors.New("u256.mul_div: quotient overflows 256 bits")
 
 // The optional wide-integer extension: config.ModuleConfig{EnableWideInt:
 // true} makes two host modules importable, "u128" and "u256". Values are
@@ -244,6 +251,51 @@ func wideIntModules() map[string]*Module {
 				return 1, nil
 			}
 			return 0, nil
+		}
+	})
+	// mul_div: floor(a*b/c) over the full 512-bit product; c == 0 writes 0
+	// (EVM convention), and a quotient wider than 256 bits traps as an
+	// overflow (matching Uniswap's revert-on-overflow mulDiv).
+	_ = l.DefineAdvancedFunc("u256", "mul_div", func(ins *Instance) interface{} {
+		return func(dst, a, b, c uint32) error {
+			dd, err := wideSpan(ins, dst, 32)
+			if err != nil {
+				return err
+			}
+			da, err := wideSpan(ins, a, 32)
+			if err != nil {
+				return err
+			}
+			db, err := wideSpan(ins, b, 32)
+			if err != nil {
+				return err
+			}
+			dc, err := wideSpan(ins, c, 32)
+			if err != nil {
+				return err
+			}
+			cv := wideint.U256FromBytes(dc)
+			res, ok := wideint.U256FromBytes(da).MulDiv(wideint.U256FromBytes(db), cv)
+			if !ok && !cv.IsZero() {
+				return ErrWideMulDivOverflow
+			}
+			res.PutBytes(dd)
+			return nil
+		}
+	})
+	// isqrt: floor(sqrt(a))
+	_ = l.DefineAdvancedFunc("u256", "isqrt", func(ins *Instance) interface{} {
+		return func(dst, a uint32) error {
+			dd, err := wideSpan(ins, dst, 32)
+			if err != nil {
+				return err
+			}
+			da, err := wideSpan(ins, a, 32)
+			if err != nil {
+				return err
+			}
+			wideint.U256FromBytes(da).Sqrt().PutBytes(dd)
+			return nil
 		}
 	})
 

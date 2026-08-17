@@ -215,3 +215,25 @@ func u128FromBig(x *big.Int) U128 {
 		Lo: binary.BigEndian.Uint64(b[8:]),
 	}
 }
+
+var mask128 = new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))
+
+// MulDiv returns floor(a*b/c) over the full 256-bit product (the u128
+// mirror of U256.MulDiv). ok is false for c == 0 (result 0) or a quotient
+// wider than 128 bits (low 128 bits returned).
+func (a U128) MulDiv(b, c U128) (U128, bool) {
+	if c.IsZero() {
+		return U128{}, false
+	}
+	p := new(big.Int).Mul(a.big(), b.big())
+	p.Quo(p, c.big())
+	if p.BitLen() > 128 {
+		return u128FromBig(new(big.Int).And(p, mask128)), false
+	}
+	return u128FromBig(p), true
+}
+
+// Sqrt returns floor(sqrt(a)).
+func (a U128) Sqrt() U128 {
+	return u128FromBig(new(big.Int).Sqrt(a.big()))
+}
