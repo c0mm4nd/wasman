@@ -281,7 +281,13 @@ func (ins *Instance) execNative(cd *jit.Compiled, locals []uint64, localsOff, ba
 			case jit.SiteMemCopy:
 				err = memoryCopy(ins)
 			default:
-				fn := ins.IndexSpace.Functions[site.FuncIdx]
+				// resolve through ins.Functions (the per-instance bound host
+				// funcs), NOT ins.IndexSpace.Functions: the latter shares one
+				// HostFunc across every instance built on the same linker and
+				// re-binds its closure to whichever instance instantiated last,
+				// so a host call would run against the wrong instance's memory.
+				// The interpreter resolves through ins.Functions too.
+				fn := ins.Functions[site.FuncIdx]
 				// same-instance native callees skip the generic call
 				// ceremony (reflection-free arg copy, no per-level recover)
 				if wf, ok := fn.(*wasmFunc); ok && wf.compiled != nil &&
@@ -442,7 +448,8 @@ func (ins *Instance) execNativeABI(f *wasmFunc) error {
 			case jit.SiteMemCopy:
 				err = memoryCopy(ins)
 			default:
-				err = ins.IndexSpace.Functions[site.FuncIdx].call(ins)
+				// per-instance bound host funcs (see the note in execNative)
+				err = ins.Functions[site.FuncIdx].call(ins)
 			}
 			ins.nativeTop = prevTop
 			ins.FrameStack.Ptr = prevFrames
