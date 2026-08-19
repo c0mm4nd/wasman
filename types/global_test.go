@@ -38,3 +38,22 @@ func TestReadGlobalType(t *testing.T) {
 		})
 	}
 }
+
+func TestReadGlobalType_errors(t *testing.T) {
+	for i, c := range []struct {
+		bytes []byte
+		exp   string
+	}{
+		// truncated before the value type
+		{bytes: []byte{}, exp: "read value type: EOF"},
+		// truncated before the mutability byte
+		{bytes: []byte{0x7e}, exp: "read mutablity: EOF"},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, err := types.ReadGlobalType(bytes.NewReader(c.bytes))
+			if err == nil || err.Error() != c.exp {
+				t.Errorf("got %v, want %q", err, c.exp)
+			}
+		})
+	}
+}

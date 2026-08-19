@@ -64,3 +64,28 @@ func TestReadFunctionType(t *testing.T) {
 		})
 	}
 }
+
+func TestReadFunctionType_errors(t *testing.T) {
+	for i, c := range []struct {
+		bytes []byte
+		exp   string
+	}{
+		// truncated before the leading 0x60 byte
+		{bytes: []byte{}, exp: "read leading byte: EOF"},
+		// truncated before the input vector size
+		{bytes: []byte{0x60}, exp: "get the size of input value types: EOF"},
+		// input vector size 1 but no value type byte follows
+		{bytes: []byte{0x60, 0x01}, exp: "read value types of inputs: EOF"},
+		// truncated before the output vector size
+		{bytes: []byte{0x60, 0x00}, exp: "get the size of output value types: EOF"},
+		// output vector size 1 but no value type byte follows
+		{bytes: []byte{0x60, 0x00, 0x01}, exp: "read value types of outputs: EOF"},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, err := types.ReadFuncType(bytes.NewReader(c.bytes))
+			if err == nil || err.Error() != c.exp {
+				t.Errorf("got %v, want %q", err, c.exp)
+			}
+		})
+	}
+}

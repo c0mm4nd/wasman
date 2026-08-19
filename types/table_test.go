@@ -53,3 +53,22 @@ func TestReadTableType(t *testing.T) {
 		})
 	}
 }
+
+func TestReadTableType_errors(t *testing.T) {
+	for i, c := range []struct {
+		bytes []byte
+		exp   string
+	}{
+		// truncated before the element type byte
+		{bytes: []byte{}, exp: "read leading byte: EOF"},
+		// element type present but the limits are missing
+		{bytes: []byte{0x70}, exp: "read limits: read leading byte: EOF"},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, err := types.ReadTableType(bytes.NewReader(c.bytes))
+			if err == nil || err.Error() != c.exp {
+				t.Errorf("got %v, want %q", err, c.exp)
+			}
+		})
+	}
+}

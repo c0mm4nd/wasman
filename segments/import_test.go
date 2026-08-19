@@ -92,3 +92,49 @@ func TestReadImportSegment(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestReadImportDesc_errors(t *testing.T) {
+	for i, c := range []struct {
+		bytes []byte
+		exp   string
+	}{
+		// truncated before the kind byte
+		{bytes: []byte{}, exp: "read value kind: EOF"},
+		// func import without its type index
+		{bytes: []byte{0x00}, exp: "read typeindex: EOF"},
+		// table import without its table type
+		{bytes: []byte{0x01}, exp: "read table type: read leading byte: EOF"},
+		// mem import without its memory type
+		{bytes: []byte{0x02}, exp: "read table type: read leading byte: EOF"},
+		// global import without its global type
+		{bytes: []byte{0x03}, exp: "read global type: read value type: EOF"},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, err := segments.ReadImportDesc(bytes.NewReader(c.bytes))
+			if err == nil || err.Error() != c.exp {
+				t.Errorf("got %v, want %q", err, c.exp)
+			}
+		})
+	}
+}
+
+func TestReadImportSegment_errors(t *testing.T) {
+	for i, c := range []struct {
+		bytes []byte
+		exp   string
+	}{
+		// truncated before the module name
+		{bytes: []byte{}, exp: "read name of imported module: read size of name: EOF"},
+		// module name present but the component name is missing
+		{bytes: []byte{0x01, 'a'}, exp: "read name of imported module component: read size of name: EOF"},
+		// both names present but the description is missing
+		{bytes: []byte{0x01, 'a', 0x01, 'A'}, exp: "read import description : read value kind: EOF"},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, err := segments.ReadImportSegment(bytes.NewReader(c.bytes))
+			if err == nil || err.Error() != c.exp {
+				t.Errorf("got %v, want %q", err, c.exp)
+			}
+		})
+	}
+}

@@ -3,6 +3,7 @@ package segments_test
 import (
 	"bytes"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/c0mm4nd/wasman/expr"
@@ -26,5 +27,24 @@ func TestReadGlobalSegment(t *testing.T) {
 	}
 	if !reflect.DeepEqual(exp, actual) {
 		t.Fail()
+	}
+}
+
+func TestReadGlobalSegment_errors(t *testing.T) {
+	for i, c := range []struct {
+		bytes []byte
+		exp   string
+	}{
+		// truncated before the global type
+		{bytes: []byte{}, exp: "read global type: read value type: EOF"},
+		// global type present but the init expression is missing
+		{bytes: []byte{0x7e, 0x00}, exp: "get init expression: read opcode: EOF"},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, err := segments.ReadGlobalSegment(bytes.NewReader(c.bytes))
+			if err == nil || err.Error() != c.exp {
+				t.Errorf("got %v, want %q", err, c.exp)
+			}
+		})
 	}
 }

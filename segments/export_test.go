@@ -74,3 +74,41 @@ func TestReadExportSegment(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestReadExportDesc_errors(t *testing.T) {
+	for i, c := range []struct {
+		bytes []byte
+		exp   string
+	}{
+		// truncated before the kind byte
+		{bytes: []byte{}, exp: "read value kind: EOF"},
+		// kind present but the index is missing
+		{bytes: []byte{0x00}, exp: "read funcidx: EOF"},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, err := segments.ReadExportDesc(bytes.NewReader(c.bytes))
+			if err == nil || err.Error() != c.exp {
+				t.Errorf("got %v, want %q", err, c.exp)
+			}
+		})
+	}
+}
+
+func TestReadExportSegment_errors(t *testing.T) {
+	for i, c := range []struct {
+		bytes []byte
+		exp   string
+	}{
+		// truncated before the export name
+		{bytes: []byte{}, exp: "read name of export module: read size of name: EOF"},
+		// name present but the description is missing
+		{bytes: []byte{0x01, 'A'}, exp: "read export description: read value kind: EOF"},
+	} {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			_, err := segments.ReadExportSegment(bytes.NewReader(c.bytes))
+			if err == nil || err.Error() != c.exp {
+				t.Errorf("got %v, want %q", err, c.exp)
+			}
+		})
+	}
+}
