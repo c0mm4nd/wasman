@@ -238,8 +238,11 @@ func (l *Linker) DefineMemory(modName, memName string, mem []byte) error {
 		},
 	}
 
+	// a host module has no decoded memory section: derive the type from
+	// the buffer itself (whole pages, unbounded max)
+	pages := uint32((len(mem) + config.DefaultMemoryPageSize - 1) / config.DefaultMemoryPageSize)
 	mod.IndexSpace.Memories = append(mod.IndexSpace.Memories, &wasm.Memory{
-		MemoryType: *mod.MemorySection[0],
+		MemoryType: types.MemoryType{Min: pages},
 		Value:      mem,
 	})
 
