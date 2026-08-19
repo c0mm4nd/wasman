@@ -146,11 +146,30 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 				function:  wasmFn.Generator(ins),
 			}
 			// the shared object stays callable for the paths resolving
-			// through the raw index space (e.g. table elements); those
-			// keep the pre-existing last-binder semantics
+			// through the raw index space; those keep the pre-existing
+			// last-binder semantics
 			wasmFn.function = wasmFn.Generator(ins)
 		} else {
 			ins.Functions[i] = f
+		}
+	}
+
+	// re-point table elements at the per-instance bindings: an element
+	// segment references THIS module's function indices, so a host import
+	// placed in a table must run bound to this instance — matching how
+	// `call` dispatches through ins.Functions. Only slots still holding
+	// the raw shared object are touched, so entries a sharing instance
+	// already bound to itself stay untouched.
+	for i, f := range ins.IndexSpace.Functions {
+		if _, ok := f.(*HostFunc); !ok {
+			continue
+		}
+		for _, tbl := range ins.IndexSpace.Tables {
+			for k, e := range tbl.Value {
+				if e == f {
+					tbl.Value[k] = ins.Functions[i]
+				}
+			}
 		}
 	}
 
