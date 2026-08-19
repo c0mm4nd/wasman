@@ -40,7 +40,8 @@ func TestHostFunction_Call(t *testing.T) {
 	if math.Float64frombits(vm.OperandStack.Pop()) != 4.0 {
 		t.Fail()
 	}
-	if float32(math.Float64frombits(vm.OperandStack.Pop())) != 3.0 {
+	// f32 slots hold the 32-bit pattern (matching f32.const / f32 loads)
+	if math.Float32frombits(uint32(vm.OperandStack.Pop())) != 3.0 {
 		t.Fail()
 	}
 	if vm.OperandStack.Pop() != 2 {

@@ -52,8 +52,11 @@ func (f *HostFunc) call(ins *Instance) error {
 		kind := ty.In(i).Kind()
 
 		switch kind {
-		case reflect.Float64, reflect.Float32:
+		case reflect.Float64:
 			val.SetFloat(math.Float64frombits(raw))
+		case reflect.Float32:
+			// f32 operand-stack slots hold the 32-bit pattern
+			val.SetFloat(float64(math.Float32frombits(uint32(raw))))
 		case reflect.Uint32, reflect.Uint64:
 			val.SetUint(raw)
 		case reflect.Int32, reflect.Int64:
@@ -76,8 +79,10 @@ func (f *HostFunc) call(ins *Instance) error {
 
 	for _, val := range results {
 		switch val.Kind() {
-		case reflect.Float64, reflect.Float32:
+		case reflect.Float64:
 			ins.OperandStack.Push(math.Float64bits(val.Float()))
+		case reflect.Float32:
+			ins.OperandStack.Push(uint64(math.Float32bits(float32(val.Float()))))
 		case reflect.Uint32, reflect.Uint64:
 			ins.OperandStack.Push(val.Uint())
 		case reflect.Int32, reflect.Int64:
