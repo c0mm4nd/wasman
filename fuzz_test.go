@@ -301,3 +301,92 @@ func FuzzTollConsistency(f *testing.F) {
 		}
 	})
 }
+
+// FuzzInstanceBinding is the guard for the multi-instance host-dispatch bug
+// class: several instances share ONE linker (a contract plus its service
+// dependencies, as downstream chains link them), each with distinct memory
+// content, and host calls must always run against the CALLING instance.
+// For fuzzed instance counts, call orders and memory seeds, the interpreter
+// and the JIT must agree on every result, every instance's final memory and
+// the toll; and the host-visible effects must land in the caller's memory.
+func FuzzInstanceBinding(f *testing.F) {
+	f.Add(uint8(2), uint8(0), uint8(0xA1), uint8(0xB2), uint8(1))
+	f.Add(uint8(3), uint8(2), uint8(1), uint8(2), uint8(3))
+	f.Add(uint8(4), uint8(1), uint8(0xFF), uint8(0), uint8(0x7F))
+	src := `(module
+		(import "env" "stamp" (func $h (param i32)))
+		(memory (export "mem") 1)
+		(func (export "run") (param i32) (result i32)
+			(call $h (local.get 0))
+			(i32.load8_u (i32.const 64))))`
+	bin, err := watCompile(src)
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Fuzz(func(t *testing.T, nRaw, callIdx, s0, s1, s2 uint8) {
+		n := int(nRaw%3) + 2 // 2..4 instances
+		seeds := []byte{s0, s1, s2, s0 ^ s1}[:n]
+		run := func(jit bool) ([]byte, []uint64, uint64, bool) {
+			ts := tollstation.NewSimpleTollStation(1 << 30)
+			l := wasman.NewLinker(config.LinkerConfig{})
+			// host: write caller's memory[0] xor arg into caller's memory[64]
+			l.DefineAdvancedFunc("env", "stamp", func(ins *wasman.Instance) interface{} {
+				return func(x uint32) {
+					if len(ins.Memory.Value) > 64 {
+						ins.Memory.Value[64] = ins.Memory.Value[0] ^ byte(x)
+					}
+				}
+			})
+			cfg := config.ModuleConfig{Recover: true, EnableJIT: jit, TollStation: ts}
+			instances := make([]*wasman.Instance, n)
+			for i := 0; i < n; i++ {
+				mod, err := wasman.NewModule(cfg, bytes.NewReader(bin))
+				if err != nil {
+					t.Fatal(err)
+				}
+				ins, err := l.Instantiate(mod)
+				if err != nil {
+					t.Fatal(err)
+				}
+				ins.Memory.Value[0] = seeds[i]
+				instances[i] = ins
+			}
+			// call each instance once, starting from a fuzzed position
+			rets := make([]uint64, n)
+			for k := 0; k < n; k++ {
+				i := (int(callIdx) + k) % n
+				r, _, err := instances[i].CallExportedFunc("run", uint64(i))
+				if err != nil {
+					return nil, nil, 0, false
+				}
+				rets[i] = r[0]
+			}
+			mems := make([]byte, n)
+			for i, ins := range instances {
+				mems[i] = ins.Memory.Value[64]
+			}
+			return mems, rets, ts.GetToll(), true
+		}
+		iMems, iRets, iGas, iOk := run(false)
+		jMems, jRets, jGas, jOk := run(true)
+		if !iOk || !jOk {
+			if iOk != jOk {
+				t.Fatalf("trap parity broken: interp ok=%v jit ok=%v", iOk, jOk)
+			}
+			return
+		}
+		for i := 0; i < n; i++ {
+			want := seeds[i] ^ byte(i) // stamp must land in the CALLER's memory
+			if iMems[i] != want || jMems[i] != want {
+				t.Fatalf("instance %d: host wrote wrong memory: interp=%#x jit=%#x want %#x",
+					i, iMems[i], jMems[i], want)
+			}
+			if iRets[i] != jRets[i] {
+				t.Fatalf("instance %d: result diverge interp=%d jit=%d", i, iRets[i], jRets[i])
+			}
+		}
+		if iGas != jGas {
+			t.Fatalf("gas diverge: interp=%d jit=%d", iGas, jGas)
+		}
+	})
+}
