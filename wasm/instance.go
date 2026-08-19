@@ -144,6 +144,7 @@ func NewInstance(module *Module, externModules map[string]*Module) (*Instance, e
 				Signature: wasmFn.Signature,
 				Generator: wasmFn.Generator,
 				function:  wasmFn.Generator(ins),
+				wideOp:    wasmFn.wideOp, // keep the reflection-free wideint dispatch
 			}
 			// the shared object stays callable for the paths resolving
 			// through the raw index space; those keep the pre-existing
