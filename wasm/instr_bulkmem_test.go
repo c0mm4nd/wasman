@@ -91,7 +91,7 @@ func runModule(t *testing.T, src, entry string) []uint64 {
 }
 
 // TestMemoryCopySlowPath runs memory.copy under a toll station, which
-// disables the inlined fast path — the same execution mode ngcore uses.
+// disables the inlined fast path — the same execution mode metered embedders use.
 // A local read after the copy must survive (no operand/PC corruption).
 func TestMemoryCopySlowPath(t *testing.T) {
 	src := `

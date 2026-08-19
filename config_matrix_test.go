@@ -177,7 +177,7 @@ func equalU64(a, b []uint64) bool {
 
 // TestDisableFloatPointOfficial verifies the flag against binaries produced
 // by the reference wat2wasm: a float-heavy contract (mandel) is rejected,
-// an integer one (sum) is accepted. This is the guarantee ngcore relies on
+// an integer one (sum) is accepted. This is the guarantee metered embedders rely on
 // to keep consensus execution deterministic.
 func TestDisableFloatPointOfficial(t *testing.T) {
 	cases := []struct {

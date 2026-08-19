@@ -61,7 +61,7 @@ func BenchmarkE2EDivU(b *testing.B)   { benchWideOp(b, "divu", false) }
 func BenchmarkE2EMulDiv(b *testing.B) { benchWideOp(b, "muldiv", false) }
 func BenchmarkE2EIsqrt(b *testing.B)  { benchWideOp(b, "isqrt", false) }
 
-// ngcore's actual path: a TollStation disables the JIT and the fast
+// a metered embedder's actual path: a TollStation disables the JIT and the fast
 // dispatch, so this is the metered interpreter cost.
 func BenchmarkE2EMulDivToll(b *testing.B) { benchWideOp(b, "muldiv", true) }
 func BenchmarkE2EIsqrtToll(b *testing.B)  { benchWideOp(b, "isqrt", true) }
